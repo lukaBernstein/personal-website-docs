@@ -24,7 +24,13 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&family=Pathway+Gothic+One&display=swap');
 
         body { margin: 0; background: #000; overflow: hidden; cursor: crosshair; }
-        canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: block; }
+        
+        /* SAFARI FIX: Added touch-action and tap-highlight removal */
+        canvas { 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: block; 
+            touch-action: none; 
+            -webkit-tap-highlight-color: transparent;
+        }
 
         /* Transition Overlay */
         #transition-overlay {
@@ -792,7 +798,8 @@ configs.forEach((cfg, i) => {
             });
             
             window.addEventListener('mousemove', (e) => { mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1; });
-            window.addEventListener('click', onClick);
+            // SAFARI FIX: Change click to pointerdown
+            window.addEventListener('pointerdown', onClick);
             window.addEventListener('resize', onResize);
             
             if (isMobile()) {
@@ -821,8 +828,14 @@ configs.forEach((cfg, i) => {
         }
 
 function onClick(event) {
+    // FIX FOR SAFARI MOBILE: Update coordinates immediately on tap/click
+    if (event && event.clientX !== undefined) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
+
     // Standardize the event to prevent issues on different browsers
-    if (event) event.preventDefault();
+    if (event && event.preventDefault) event.preventDefault();
 
     raycaster.setFromCamera(mouse, camera);
 
