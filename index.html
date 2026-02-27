@@ -446,35 +446,54 @@ function rollCreditsSequence() {
         
 
 function startTerrainTransition() {
-            const overlay = document.getElementById('transition-overlay'); 
-            panelReady = false; 
+    const overlay = document.getElementById('transition-overlay'); 
+    panelReady = false; 
+    
+    gsap.to([outerWire.material, panelTextMesh.material], { opacity: 0, duration: 1.0 });
+    gsap.to(panelGroup.position, { z: -50, duration: 1.5, ease: "power2.in" });
+    
+    gsap.to(overlay, { 
+        opacity: 1, 
+        duration: 1.5, 
+        onComplete: () => {
+            scene.remove(mainGroup, starGroup, tileGroup, namePlane, glowPlane, nameLight, sweepLight);
+            camera.remove(panelGroup); 
+            document.getElementById('crawl-container').style.display = 'none';
             
-            gsap.to([outerWire.material, panelTextMesh.material], { opacity: 0, duration: 1.0 });
-            gsap.to(panelGroup.position, { z: -50, duration: 1.5, ease: "power2.in" });
+            setupScene2(); 
             
-            gsap.to(overlay, { 
-                opacity: 1, 
-                duration: 1.5, 
-                onComplete: () => {
-                    scene.remove(mainGroup, starGroup, tileGroup, namePlane, glowPlane, nameLight, sweepLight);
-                    camera.remove(panelGroup); 
-                    document.getElementById('crawl-container').style.display = 'none';
-                    
-                    setupScene2(); 
-                    
-                    // The Overlay Fades out first
-                    gsap.to(overlay, { opacity: 0, duration: 2, delay: 0.5 });
-                    
-                    // --- GRADUAL FOG REVEAL ---
-                    // Increase duration (8.0) for a much slower "lifting" effect
-                    gsap.to(scene.fog, { 
-                        density: 0.007, 
-                        duration: 3.5, 
-                        ease: "sine.inOut" 
-                    });
-                }
+            gsap.to(overlay, { opacity: 0, duration: 2, delay: 0.5 });
+            
+            // 1. Fog Reveal (3.5s)
+            gsap.to(scene.fog, { 
+                density: 0.007, 
+                duration: 3.5, 
+                ease: "sine.inOut" 
             });
+
+            // 2. LONGER ORB REVEAL (5.5s)
+            // This animates the PointLight intensity
+            const hLight = camera.getObjectByName("horizonLight");
+            if (hLight) {
+                gsap.to(hLight, { 
+                    intensity: 2500, 
+                    duration: 5.5, 
+                    ease: "power1.inOut" 
+                });
+            }
+
+            // 3. LONGER ORB MESH FADE (5.5s)
+            // This animates the shader's uOpacity uniform
+            if (orbShaderMat) {
+                gsap.to(orbShaderMat.uniforms.uOpacity, { 
+                    value: 1, 
+                    duration: 5.5, 
+                    ease: "power1.inOut" 
+                });
+            }
         }
+    });
+}
 
 function setupScene2() {
             isTerrainMode = true; 
@@ -499,10 +518,10 @@ function setupScene2() {
             
             terrainStars = new THREE.Points(starGeo, new THREE.PointsMaterial({ 
                 color: 0xffffff,
-                size: 2,              // Reduced from previous default to make them sharper
+                size: 1.8,              // Reduced from previous default to make them sharper
                 sizeAttenuation: false, // Prevents stars from getting huge when close to the camera
                 transparent: true,
-                opacity: 0.9,           // Slightly dimming them helps them feel "further away"
+                opacity: 9.,           // Slightly dimming them helps them feel "further away"
                 depthWrite: false, 
                 depthTest: true    
             }));
