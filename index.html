@@ -113,20 +113,21 @@
             }
 
             .crawl-content {
-    position: absolute;
-    top: 200vh;
-    width: 100%;
-    text-align: justify;
-    text-justify: inter-word;
-    font-size: 3.2rem;
-    line-height: 1.15;
-    
-    /* ADD THESE THREE LINES */
-    hyphens: auto;
-    word-break: break-word;
-    overflow-wrap: break-word;
-}
-
+                position: absolute;
+                top: 200vh;
+                left: 50%; /* This centers the element horizontally */
+                width: 90%; /* Keeps the text from touching the screen edges */
+                text-align: center; /* RECOMMENDED: Centered text looks better on mobile */
+                
+                /* Keep your hyphenation fixes */
+                hyphens: auto;
+                word-break: break-word;
+                overflow-wrap: break-word;
+                
+                /* Adjusted sizing for mobile readability */
+                font-size: 1.8rem; 
+                line-height: 1.4;
+            }
             .start-button { 
                 font-size: 0.9rem; 
                 padding: 10px 20px; 
