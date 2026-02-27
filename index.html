@@ -1030,9 +1030,9 @@ orbs.forEach(o => {
                     const tarAttr = isCredits ? nebula.geometry.attributes.creditsTarget : nebula.geometry.attributes.target;
                     for (let i = 0; i < posAttr.count; i++) {
                         const i3 = i * 3;
-                        posAttr.array[i3] = THREE.MathUtils.lerp(posAttr.array[i3], tarAttr.array[i3], 0.06);
-                        posAttr.array[i3+1] = THREE.MathUtils.lerp(posAttr.array[i3+1], tarAttr.array[i3+1], 0.015);
-                        posAttr.array[i3+2] = THREE.MathUtils.lerp(posAttr.array[i3+2], tarAttr.array[i3+2], 0.015);
+                        posAttr.array[i3] = THREE.MathUtils.lerp(posAttr.array[i3], tarAttr.array[i3], 0.09);
+                        posAttr.array[i3+1] = THREE.MathUtils.lerp(posAttr.array[i3+1], tarAttr.array[i3+1], 0.05);
+                        posAttr.array[i3+2] = THREE.MathUtils.lerp(posAttr.array[i3+2], tarAttr.array[i3+2], 0.05);
                         const wave = Math.sin(i * 0.8 + timeNow * 8.0); const flash = Math.pow(Math.max(0, wave), 8) * 1.5; 
                         colAttr.array[i3] = 1.0 * (0.02 + flash); colAttr.array[i3+1] = 0.85 * (0.02 + flash); colAttr.array[i3+2] = 0.2 * (0.02 + flash);
                     }
