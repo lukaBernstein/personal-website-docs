@@ -675,6 +675,23 @@ function createTerrainTile(tx, tz) {
         }
 
         function init() {
+            // --- HARDWARE ACCELERATION DETECTION ---
+let isSoftwareRendering = false;
+const canvasCheck = document.createElement('canvas');
+const gl = canvasCheck.getContext('webgl') || canvasCheck.getContext('experimental-webgl');
+if (gl) {
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    if (debugInfo) {
+        const rendererString = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase();
+        // If "swiftshader" or "software" is found, hardware acceleration is OFF
+        if (rendererString.includes('swiftshader') || rendererString.includes('software')) {
+            isSoftwareRendering = true;
+            console.warn("Hardware acceleration is disabled. Switching to low-performance mode.");
+        }
+    }
+}
+
+
             clock = new THREE.Clock();
             scene = new THREE.Scene();
             mainGroup = new THREE.Group(); scene.add(mainGroup);
