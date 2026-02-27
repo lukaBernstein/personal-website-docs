@@ -5,110 +5,262 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LUKA BERNSTEIN | RESUME</title>
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://yourwebsite.com/">
-    <meta property="og:title" content="LUKA BERNSTEIN | RESUME">
-    <meta property="og:description" content="Personal statement and portfolio of Luka Bernstein.">
-    <meta property="og:image" content="https://github.com/lukaBernstein/Luka-s-Site/blob/main/LukaSuit.png?raw=true">
+<meta property="og:url" content="https://yourwebsite.com/">
+<meta property="og:title" content="LUKA BERNSTEIN | RESUME">
+<meta property="og:description" content="Personal statement and portfolio of Luka Bernstein.">
+<meta property="og:image" content="https://github.com/lukaBernstein/Luka-s-Site/blob/main/LukaSuit.png?raw=true">
+
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:url" content="https://yourwebsite.com/">
+<meta property="twitter:title" content="LUKA BERNSTEIN | RESUME">
+<meta property="twitter:description" content="Personal statement and portfolio of Luka Bernstein.">
+<meta property="twitter:image" content="https://github.com/lukaBernstein/Luka-s-Site/blob/main/LukaSuit.png?raw=true">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⭐</text></svg>">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/simplex-noise@2.4.0/simplex-noise.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&family=Pathway+Gothic+One&display=swap');
+
         body { margin: 0; background: #000; overflow: hidden; cursor: crosshair; }
         canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: block; }
-        #transition-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: black; z-index: 200; pointer-events: none; opacity: 0; }
-        #crawl-container { display: none; opacity: 0; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; pointer-events: none; color: #FEDA4A; font-family: "Pathway Gothic One", sans-serif; text-transform: uppercase; }
-        .fade { position: absolute; top: 0; width: 100%; height: 55vh; background-image: linear-gradient(to top, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%); z-index: 110; }
-        .star-wars-stage { display: flex; justify-content: center; position: relative; height: 100vh; width: 100vw; perspective: 3100px; perspective-origin: 50% 50%; }
-        .crawl-plane { position: absolute; width: 80%; max-width: 650px; height: 18000px; top: 0; transform: rotateX(65deg); transform-origin: 50% 0%; }
-        .crawl-content { position: absolute; top: 200vh; width: 100%; text-align: justify; text-justify: inter-word; font-size: 2.8rem; line-height: 1.3; hyphens: auto; word-break: break-word; overflow-wrap: break-word; }
-        .crawl-active .crawl-content { animation: scroll-up 240s linear forwards; }
-        .title { text-align: center; margin-bottom: 250px; }
+
+        /* Transition Overlay */
+        #transition-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: black; z-index: 200; pointer-events: none; opacity: 0;
+        }
+
+        #crawl-container {
+            display: none; 
+            opacity: 0; 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 100;
+            pointer-events: none;
+            color: #FEDA4A;
+            font-family: "Pathway Gothic One", sans-serif;
+            text-transform: uppercase;
+        }
+
+        .fade {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            height: 55vh;
+            background-image: linear-gradient(to top, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%);
+            z-index: 110;
+        }
+
+        .star-wars-stage {
+            display: flex;
+            justify-content: center;
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            perspective: 3100px; 
+            perspective-origin: 50% 50%;
+        }
+
+        .crawl-plane {
+            position: absolute;
+            width: 80%; 
+            max-width: 650px; 
+            height: 18000px;
+            top: 0;
+            transform: rotateX(65deg); 
+            transform-origin: 50% 0%;
+        }
+
+        .crawl-content {
+            position: absolute;
+            top: 200vh; 
+            width: 100%;
+            text-align: justify;
+            text-justify: inter-word;
+            /* Reducing font size slightly allows more words per line, which fixes the gaps */
+            font-size: 2.8rem; 
+            line-height: 1.3; 
+            /* These lines are critical for fixing the spacing gaps */
+            hyphens: auto;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .crawl-active .crawl-content {
+            animation: scroll-up 240s linear forwards;
+        }
+
+        .title {
+            text-align: center;
+            margin-bottom: 250px;
+        }
+
         .title p { font-size: 1.8rem; margin: 0 0 10px; letter-spacing: 0.15em; }
         .title h1 { font-size: 6.5rem; margin: 0; letter-spacing: 0.02em; transform: scaleY(1.35); }
-        @keyframes scroll-up { 0% { top: 185vh; } 100% { top: -15000px; } }
+
+        @keyframes scroll-up {
+            0% { top: 185vh; }
+            100% { top: -15000px; }
+        }
+
+        /* MOBILE FIXES */
         @media screen and (max-width: 768px) {
-            .star-wars-stage { perspective: 3000px; perspective-origin: 50% 100%; }
-            .crawl-plane { width: 100%; transform: rotateX(70deg) translateZ(-500px); }
-            .crawl-content { font-size: 2.2rem; width: 90%; left: 50%; transform: translateX(-50%); }
-            .title h1 { font-size: 2.8rem; }
-            @keyframes scroll-up-mobile { 0% { top: 115vh; transform: translateX(-50%) scale(1); } 100% { top: -15000px; transform: translateX(-50%) scale(0.4); } }
-            .crawl-active .crawl-content { animation: scroll-up-mobile 140s linear forwards; }
+            .star-wars-stage { 
+                perspective: 3000px; 
+                perspective-origin: 50% 100%;
+                overflow: visible; 
+            }
+
+            .crawl-plane { 
+                width: 100%; 
+                transform: rotateX(70deg) translateZ(-500px); 
+                transform-origin: 50% 0%;
+                z-index: 150;
+            }
+
+           .crawl-content {
+                position: absolute;
+                top: 200vh;
+                left: 50%; /* This is required to keep it centered */
+                width: 90%; 
+                
+                /* Text Alignment */
+                text-align: justify;
+                text-justify: inter-word;
+                
+                /* Increased Font Size */
+                font-size: 2.2rem; /* Adjusted from 1.6rem to be bigger */
+                line-height: 1.25;
+                
+                /* Spacing Fixes */
+                hyphens: auto;
+                word-break: break-word;
+                overflow-wrap: break-word;
+            }
+            .start-button { 
+                font-size: 0.9rem; 
+                padding: 10px 20px; 
+                width: auto;
+                max-width: 80%;
+                margin: 0 auto;
+                display: block;
+                box-shadow: 0 0 10px rgba(254, 218, 74, 0.5);
+            }
+            #experience-button-mobile-fix {
+    /* If you find the button too big on mobile, 
+       this scale adjustment is already in your createPanelButton function,
+       but you can tweak it here if needed. */
+}
+
+            .title h1 { 
+                font-size: 2.8rem; 
+                text-align: center;
+                width: 100%;
+                margin-bottom: 60px;
+                transform: scaleY(1.4);
+            }
+
+            .crawl-active .crawl-content {
+                animation: scroll-up-mobile 140s linear forwards;
+            }
+
+            @keyframes scroll-up-mobile {
+                0% { 
+                    top: 115vh; 
+                    transform: translateX(-50%) scale(1); 
+                }
+                100% { 
+                    top: -15000px; 
+                    transform: translateX(-50%) scale(0.4); 
+                }
+            }
+
+            button#start-button, .start-button, button { 
+                font-size: 0.85rem !important; 
+                padding: 8px 16px !important; 
+                min-width: 150px !important;
+                bottom: 10% !important; 
+            }
         }
     </style>
 </head>
 <body>
+
     <div id="transition-overlay"></div>
+
     <div id="crawl-container">
         <div class="fade"></div>
         <div class="star-wars-stage">
             <div class="crawl-plane">
                 <div class="crawl-content">
-                    <div class="title"><p>A personal statement from</p><h1>LUKA BERNSTEIN</h1></div>
-                    <p>Thank you for visiting my website! I hope you’ve enjoyed it thus far... [Content Truncated for Space]</p>
+                    <div class="title">
+                        <p>A personal statement from</p>
+                        <h1>LUKA BERNSTEIN</h1>
+                    </div>
+                    <p>Thank you for visiting my website! I hope you’ve enjoyed it thus far, it took me a very long time to code. It may surprise you how much the computational linear algebra and calculus needed to render 3D objects overlaps with analyzing data in other fields. It’s exactly this intersection between complex analysis and effective communication that defines my approach to problem-solving. I’m also very passionate about sustainability. In fact even the server on which this website is hosted has been specifically configured to run solely on renewably generated electricity.</p>
+                    <p>On a more personal note, I believe in maintaining a broad perspective, so I apply that same curiosity to a wide range of interests. I love backcountry packing, reading literature, and I have a 2000 blitz chess ELO.</p>
+                    <p>So dear viewer, now that you’ve gotten to know me, I’d love to get to know you! Stick around you’ll come upon my “contact me” button…</p>
+                    <br><br>
+                    <p style="text-align: center;"><br><br></p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        let scene, camera, renderer, clock, mainGroup, starGroup;
-        let starMesh, tileMesh, namePlane, glowPlane, nameLight, sweepLight, artifact, nebula, buttonBox;
-        let isWarping = false, arrived = false, isUnfolded = false, isSpelling = false, isCredits = false, isPanning = false, isTerrainMode = false;
-        let panelGroup, panelReady = false, orbShaderMat;
-        const mouse = new THREE.Vector2(-10, -10), raycaster = new THREE.Raycaster();
-        const starCount = 8000; // Optimized count
-        const starData = [];
-        let warpAmount = { value: 0 };
+     let orbShaderMat;
+        let isDownloading = false;
+        let scene, camera, renderer, clock, tiles = [], starObjects = [], orbs = [], namePlane, glowPlane, nameLight, sweepLight;
+        let artifact, nebula, buttonBox, isWarping = false, arrived = false, isUnfolded = false, isSpelling = false, isCredits = false, isPanning = false;
+        let warpProgress = 0, mainGroup, starGroup; 
+
+        let panelGroup, outerWire, innerWire, panelTextMesh, panelReady = false;
+        
+        const _v3 = new THREE.Vector3();
+        const mouse = new THREE.Vector2(-10, -10); 
+        const raycaster = new THREE.Raycaster();
+        const tileGroup = new THREE.Group();
+        const sharedTileGeo = new THREE.SphereGeometry(0.35, 12, 12); 
+
+        let isTerrainMode = false;
+        const simplex = new SimplexNoise();
+        const terrainTiles = new Map();
+        const TILE_SIZE = 150, TILE_RES = 64, GRID_RADIUS = 2, VOID_PURPLE = 0x05020a;
+        let terrainStars;
 
         const isMobile = () => window.innerWidth < 768;
 
-        function init() {
-            clock = new THREE.Clock();
-            scene = new THREE.Scene();
-            mainGroup = new THREE.Group(); scene.add(mainGroup);
-            starGroup = new THREE.Group(); scene.add(starGroup);
-            
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
-            camera.position.z = 10;
-            
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            document.body.appendChild(renderer.domElement);
-
-            // --- INSTANCED STARS (REPLACES 12,000 SEPARATE MESHES) ---
-            const starGeo = new THREE.SphereGeometry(0.1, 4, 4);
-            const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            starMesh = new THREE.InstancedMesh(starGeo, starMat, starCount);
-            const dummy = new THREE.Object3D();
-            for (let i = 0; i < starCount; i++) {
-                const x = (Math.random() - 0.5) * 600;
-                const y = (Math.random() - 0.5) * 600;
-                const z = Math.random() * -4000;
-                dummy.position.set(x, y, z);
-                dummy.updateMatrix();
-                starMesh.setMatrixAt(i, dummy.matrix);
-                starData.push({ x, y, z, speed: Math.random() * 2 + 1 });
+        function getCoords(text, size, spacing) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1024; canvas.height = 1024; 
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size}px Arial`; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, 512, 512); 
+            const data = ctx.getImageData(0, 0, 1024, 1024).data;
+            const points = [];
+            for (let y = 0; y < 1024; y += 4) { 
+                for (let x = 0; x < 1024; x += 4) {
+                    const idx = (y * 1024 + x) * 4;
+                    if (data[idx] > 128) { 
+                        points.push({ x: (x - 512) * spacing, y: (512 - y) * spacing - 0.35 });
+                    }
+                }
             }
-            starGroup.add(starMesh);
-
-            // --- NAME & UI ---
-            setupNameUI();
-            setupGrid();
-            setupOrbs();
-            setupArtifact();
-            createPanelButton();
-
-            window.addEventListener('mousemove', (e) => { mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1; });
-            window.addEventListener('click', onClick);
-            window.addEventListener('resize', onResize);
-            animate();
+            for (let i = points.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [points[i], points[j]] = [points[j], points[i]];
+            }
+            return points;
         }
 
-        function setupNameUI() {
+        function createNameTexture(text) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 2048; canvas.height = 512;
@@ -116,130 +268,622 @@
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 38;
             ctx.fillStyle = '#ffffff';
-            ctx.fillText('LUKA BERNSTEIN', 1024, 256);
-            
-            namePlane = new THREE.Mesh(new THREE.PlaneGeometry(35, 10), new THREE.MeshStandardMaterial({ 
-                map: new THREE.CanvasTexture(canvas), transparent: true, color: 0xffd966, emissive: 0xffaa00, emissiveIntensity: 0.45, opacity: 0 
-            }));
-            namePlane.position.z = 200; scene.add(namePlane);
-            
-            nameLight = new THREE.PointLight(0xffcc00, 0, 60); nameLight.position.set(0, 0, -4.5); scene.add(nameLight);
-            sweepLight = new THREE.PointLight(0xffffff, 0, 45); sweepLight.position.set(-20, 10, -5); scene.add(sweepLight);
-            
-            gsap.to(namePlane.position, { z: -8, duration: 1.8, ease: "power4.out" });
-            gsap.to(namePlane.material, { opacity: 1, duration: 1.2, delay: 0.2 });
-            gsap.to(nameLight, { intensity: 280, duration: 2, delay: 0.5 });
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            return new THREE.CanvasTexture(canvas);
         }
 
-        function setupGrid() {
-            const spacing = 0.65;
-            const cols = 60, rows = 40;
-            const total = cols * rows;
-            const tileGeo = new THREE.BoxGeometry(0.35, 0.35, 0.07);
-            const tileMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, metalness: 0.8 });
-            tileMesh = new THREE.InstancedMesh(tileGeo, tileMat, total);
-            const dummy = new THREE.Object3D();
-            let idx = 0;
-            for(let x = -cols/2; x < cols/2; x++) {
-                for(let y = -rows/2; y < rows/2; y++) {
-                    dummy.position.set(x * spacing, y * spacing, 0);
-                    dummy.updateMatrix();
-                    tileMesh.setMatrixAt(idx++, dummy.matrix);
-                }
+        function createAuraMesh() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+            grad.addColorStop(0, 'rgba(255, 200, 50, 0.55)'); 
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 512, 512);
+            const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, blending: THREE.AdditiveBlending, opacity: 0.42 });
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), mat);
+            mesh.position.z = -8.2; return mesh;
+        }
+
+        function createNebula() {
+            const resumeTargets = getCoords('RESUME', 160, 0.035);
+            const creditsTargets = getCoords('MORE!', 160, 0.035); 
+            const count = 9000; 
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(count * 3);
+            const targetAttr = new Float32Array(count * 3);
+            const creditsAttr = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3); 
+            for(let i = 0; i < count; i++) {
+                const r = Math.random() * 12;
+                const theta = Math.random() * Math.PI * 2, phi = Math.acos(2 * Math.random() - 1);
+                pos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+                pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+                pos[i*3+2] = r * Math.cos(phi);
+                const rt = resumeTargets[i % resumeTargets.length];
+                targetAttr[i*3] = rt.x; targetAttr[i*3+1] = rt.y; targetAttr[i*3+2] = 0;
+                const ct = creditsTargets[i % creditsTargets.length];
+                creditsAttr[i*3] = ct.x; creditsAttr[i*3+1] = ct.y; creditsAttr[i*3+2] = 0;
+                colors[i*3] = 1.0; colors[i*3+1] = 0.85; colors[i*3+2] = 0.2;
             }
-            scene.add(tileMesh);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('target', new THREE.BufferAttribute(targetAttr, 3));
+            geo.setAttribute('creditsTarget', new THREE.BufferAttribute(creditsAttr, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            return new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.09, vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
         }
 
-        function setupOrbs() {
-            const orbGroup = new THREE.Group();
-            const colors = [0xff007b, 0x7000ff, 0xffd700, 0x00ffff];
-            colors.forEach((c, i) => {
-                const light = new THREE.PointLight(c, 200, 40);
-                const geom = new THREE.SphereGeometry(0.5, 16, 16);
-                const mat = new THREE.MeshBasicMaterial({ color: c });
-                const mesh = new THREE.Mesh(geom, mat);
-                const group = new THREE.Group();
-                group.add(light, mesh);
-                group.userData = { angle: i * (Math.PI/2), speed: 0.01 + (i*0.005) };
-                mainGroup.add(group);
+        function createObsidianPolyhedron() {
+            const group = new THREE.Group();
+            const baseGeo = new THREE.DodecahedronGeometry(4, 0);
+            const posAttr = baseGeo.attributes.position;
+            const faceMat = new THREE.MeshPhysicalMaterial({ 
+                color: 0x222222, metalness: 1.0, roughness: 0.15,
+                iridescence: 1.0, iridescenceIOR: 1.8, iridescenceThicknessRange: [100, 400],
+                transparent: true, opacity: 0.9, side: THREE.DoubleSide 
             });
+            const edgeMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 });
+            for (let i = 0; i < posAttr.count; i += 3) {
+                const geometry = new THREE.BufferGeometry();
+                const v = [posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i), posAttr.getX(i+1), posAttr.getY(i+1), posAttr.getZ(i+1), posAttr.getX(i+2), posAttr.getY(i+2), posAttr.getZ(i+2)];
+                geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
+                geometry.computeVertexNormals();
+                const mesh = new THREE.Mesh(geometry, faceMat);
+                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMat));
+                mesh.userData = { offsetDir: new THREE.Vector3((v[0]+v[3]+v[6])/3, (v[1]+v[4]+v[7])/3, (v[2]+v[5]+v[8])/3).normalize() };
+                group.add(mesh);
+            }
+            return group;
         }
 
-        function setupArtifact() {
-            artifact = new THREE.Group();
-            const geo = new THREE.DodecahedronGeometry(4, 0);
-            const mat = new THREE.MeshPhysicalMaterial({ color: 0x222222, metalness: 1, roughness: 0.1, transparent: true, opacity: 0.8 });
-            const mesh = new THREE.Mesh(geo, mat);
-            artifact.add(mesh);
-            artifact.position.z = -1500;
-            artifact.visible = false;
-            mainGroup.add(artifact);
+        function resetStar(star, initial = false) {
+            const radiusX = (Math.random() - 0.5) * 600;
+            const radiusY = (Math.random() - 0.5) * 600;
+            const zPos = initial ? (Math.random() * -4000) : -3000;
+            star.position.set(radiusX, radiusY, zPos);
+        }
+
+       function downloadResume() {
+            if (isDownloading || isCredits) return; 
+            
+            isDownloading = true; 
+            isCredits = true; 
+
+            const link = document.createElement('a');
+            link.href = 'resume.pdf'; 
+            link.download = 'Luka_Bernstein_Resume.pdf';
+            link.onclick = (e) => e.stopPropagation();
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            gsap.to(buttonBox.scale, { x: 1.1, y: 1.1, duration: 0.1, yoyo: true, repeat: 1 });
+            gsap.to(buttonBox.material, { opacity: 0, duration: 1.5, onComplete: () => {
+                isDownloading = false; 
+            }});
         }
 
         function createPanelButton() {
             panelGroup = new THREE.Group();
             panelGroup.visible = false;
-            const geo = new THREE.BoxGeometry(20, 3, 0.5);
-            const mat = new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true });
-            const mesh = new THREE.Mesh(geo, mat);
-            panelGroup.add(mesh);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 2048; canvas.height = 512;
+            const panelWidth = 42; const panelHeight = 5.2;
+            
+            const outerGeo = new THREE.BoxGeometry(panelWidth, panelHeight, 0.5);
+            outerWire = new THREE.LineSegments(new THREE.EdgesGeometry(outerGeo), new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0 }));
+            const innerGeo = new THREE.BoxGeometry(panelWidth - 0.8, panelHeight - 0.8, 0.2);
+            innerWire = new THREE.LineSegments(new THREE.EdgesGeometry(innerGeo), new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0 }));
+            const glassPanel = new THREE.Mesh(new THREE.PlaneGeometry(panelWidth, panelHeight), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 }));
+            const faceMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+            
+            panelTextMesh = new THREE.Mesh(new THREE.PlaneGeometry(41.5, panelHeight - 0.5), faceMat);
+            panelTextMesh.position.z = 0.3;
+            panelTextMesh.scale.y = 1.45; 
+            
+            document.fonts.load('900 90px Inter').then(() => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#00ff41';
+                ctx.font = '900 90px Inter, sans-serif'; 
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 10;
+                ctx.fillText('SHOW ME WHAT ELSE THIS GUY CAN DO!', 1024, 256);
+                faceMat.map = new THREE.CanvasTexture(canvas);
+                faceMat.needsUpdate = true;
+            });
+
+            panelGroup.add(outerWire, innerWire, glassPanel, panelTextMesh);
             camera.add(panelGroup);
-            panelGroup.position.set(0, -5, -20);
+            panelGroup.position.set(0, 0, -25);
+           if (isMobile()) {
+                panelGroup.scale.set(0.45, 0.45, 0.45); 
+            }
+            return panelGroup;
         }
 
-        function onClick() {
+        function revealPanel() {
+            panelGroup.visible = true;
+            panelReady = true;
+            gsap.to(panelGroup.position, { z: -20, duration: 2, ease: "expo.out" });
+            gsap.to(outerWire.material, { opacity: 1, duration: 1.5, delay: 0.5 });
+            gsap.to(panelTextMesh.material, { opacity: 1, duration: 1.5, delay: 0.5 });
+            gsap.to(innerWire.material, { opacity: 0.5, duration: 1.5, delay: 0.8 });
+        }
+
+        function rollCreditsSequence() {
+            if (isPanning) return;
+            isPanning = true;
+            const container = document.getElementById('crawl-container');
+            container.style.display = 'block';
+            
+            const revealDelay = isMobile() ? 31000 : 41000;
+
+            gsap.to(container, { opacity: 1, duration: 4, ease: "power2.inOut" });
+            gsap.to(camera.position, { x: 300, y: 150, z: 200, duration: 2.5, ease: "power3.inOut" });
+            gsap.to(camera.rotation, { x: -1.2, y: 1.5, z: 0.5, duration: 2.5, ease: "power3.inOut" });
+            gsap.to(starGroup.position, { x: 300, y: 150, z: 200, duration: 2.5, ease: "power3.inOut" });
+            gsap.to(starGroup.rotation, { x: -1.2, y: 1.5, z: 0.5, duration: 2.5, ease: "power3.inOut" });
+            gsap.to(mainGroup.position, { y: -500, z: -500, duration: 3, ease: "power3.in" });
+            gsap.to(tileGroup.position, { y: -500, duration: 3, ease: "power3.in" });
+            
+            setTimeout(() => {
+                container.classList.add('crawl-active');
+                setTimeout(() => { revealPanel(); }, revealDelay);
+            }, 3500); 
+        }
+        
+        function startTerrainTransition() {
+            const overlay = document.getElementById('transition-overlay'); 
+            panelReady = false; 
+            
+            gsap.to([outerWire.material, panelTextMesh.material], { opacity: 0, duration: 1.0 });
+            gsap.to(panelGroup.position, { z: -50, duration: 1.5, ease: "power2.in" });
+            
+            gsap.to(overlay, { 
+                opacity: 1, 
+                duration: 1.5, 
+                onComplete: () => {
+                    scene.remove(mainGroup, starGroup, tileGroup, namePlane, glowPlane, nameLight, sweepLight);
+                    camera.remove(panelGroup); 
+                    document.getElementById('crawl-container').style.display = 'none';
+                    
+                    setupScene2(); 
+                    
+                    gsap.to(overlay, { opacity: 0, duration: 2, delay: 0.5 });
+                    gsap.to(scene.fog, { density: 0.007, duration: 3.5, ease: "sine.inOut" });
+                    const hLight = camera.getObjectByName("horizonLight");
+                    if (hLight) {
+                        gsap.to(hLight, { intensity: 2500, duration: 5.5, ease: "power1.inOut" });
+                    }
+                    if (orbShaderMat) {
+                        gsap.to(orbShaderMat.uniforms.uOpacity, { value: 1, duration: 5.5, ease: "power1.inOut" });
+                    }
+                }
+            });
+        }
+
+        function setupScene2() {
+            isTerrainMode = true; 
+            scene.background = new THREE.Color(VOID_PURPLE); 
+            scene.fog = new THREE.FogExp2(VOID_PURPLE, 0.1);
+            
+            const height = isMobile() ? 35 : 21.8;
+            camera.position.set(0, height, 0);
+            camera.rotation.set(-0.10, 0, 0);
+            camera.fov = isMobile() ? 95 : 85;
+            camera.updateProjectionMatrix();
+
+            const starGeo = new THREE.BufferGeometry();
+            const starCount = 150000;
+            const posArray = new Float32Array(starCount * 3);
+            for (let i = 0; i < starCount * 3; i++) posArray[i] = (Math.random() - 0.5) * 3500;
+            starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            
+            terrainStars = new THREE.Points(starGeo, new THREE.PointsMaterial({ 
+                color: 0xffffff, size: 1.8, sizeAttenuation: false, transparent: true, opacity: 0.9, depthWrite: false, depthTest: true    
+            }));
+            terrainStars.renderOrder = -1; 
+            scene.add(terrainStars);
+
+            const orbLight = new THREE.PointLight(0xffaa44, 2500, 1200, 1.2); 
+            orbLight.position.set(0, 45, -200); 
+            orbLight.name = "horizonLight";
+            camera.add(orbLight);
+
+            const orbShaderVars = {
+                time: { value: 0 },
+                color1: { value: new THREE.Color(0xffffff) }, 
+                color2: { value: new THREE.Color(0xffaa00) },
+                uOpacity: { value: 0 } 
+            };
+
+            orbShaderMat = new THREE.ShaderMaterial({
+                uniforms: orbShaderVars, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+                vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+                fragmentShader: `
+                    varying vec2 vUv; uniform float time; uniform vec3 color1; uniform vec3 color2; uniform float uOpacity;
+                    float noise(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+                    void main() {
+                        vec2 uv = vUv - 0.5; float dist = length(uv); float mask = smoothstep(0.5, 0.35, dist);
+                        float angle = atan(uv.y, uv.x); float pulse = sin(dist * 15.0 - time * 3.0 + sin(angle * 5.0 + time)) * 0.1;
+                        float core = smoothstep(0.2, 0.0, dist); float glow = smoothstep(0.45, 0.1, dist + pulse);
+                        vec3 finalColor = mix(color2, color1, core + 0.2); float shimmer = 0.8 + 0.2 * noise(uv + time * 0.1);
+                        gl_FragColor = vec4(finalColor * shimmer, (glow + core) * mask * uOpacity);
+                    }
+                `
+            });
+            const horizonOrb = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), orbShaderMat);
+            horizonOrb.scale.set(180, 180, 1);
+            horizonOrb.renderOrder = 999;
+            horizonOrb.name = "interactiveOrb";
+            
+            const orbGroup = new THREE.Group();
+            orbGroup.position.set(0, 75, -200); 
+            orbGroup.add(horizonOrb);
+            camera.add(orbGroup);
+        }
+
+        function getTerrainHeight(worldX, worldZ) {
+            const s = 0.018;
+            let h = simplex.noise2D(worldX * s, worldZ * s) * 12; 
+            h += Math.abs(simplex.noise2D(worldX * s * 2.5, worldZ * s * 2.5)) * 8; 
+            return h;
+        }
+
+        function createTerrainTile(tx, tz) {
+            const geo = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE, TILE_RES, TILE_RES);
+            const mat = new THREE.MeshStandardMaterial({ 
+                vertexColors: true, flatShading: true, metalness: 0.4, roughness: 0.5, transparent: false, depthWrite: true, depthTest: true, side: THREE.FrontSide 
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.renderOrder = 1; 
+            mesh.rotation.x = -Math.PI / 2;
+            const ox = tx * TILE_SIZE, oz = tz * TILE_SIZE;
+            mesh.position.set(ox, 0, oz);
+            const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3);
+            const c1 = new THREE.Color(0x2a0505), c2 = new THREE.Color(0x990000), c3 = new THREE.Color(0xff2200), c4 = new THREE.Color(0xffcccc);
+            const tempCol = new THREE.Color(); 
+            for (let i = 0; i <= TILE_RES; i++) { 
+                for (let j = 0; j <= TILE_RES; j++) {
+                    const idx = i * (TILE_RES + 1) + j;
+                    const h = getTerrainHeight(ox + (j/TILE_RES-0.5)*TILE_SIZE, oz + (i/TILE_RES-0.5)*TILE_SIZE);
+                    pos.setZ(idx, h);
+                    let t = Math.max(0, Math.min(1, (h + 5) / 25));
+                    if (t < 0.33) tempCol.copy(c1).lerp(c2, t * 3); 
+                    else if (t < 0.66) tempCol.copy(c2).lerp(c3, (t-0.33)*3); 
+                    else tempCol.copy(c3).lerp(c4, (t-0.66)*3);
+                    colors[idx*3] = tempCol.r; colors[idx*3+1] = tempCol.g; colors[idx*3+2] = tempCol.b;
+                }
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3)); 
+            geo.computeVertexNormals();
+            scene.add(mesh); 
+            return mesh;
+        }
+
+        function updateTerrainGrid() {
+            const camTx = Math.round(camera.position.x / TILE_SIZE), camTz = Math.round(camera.position.z / TILE_SIZE);
+            for (let x = camTx - GRID_RADIUS; x <= camTx + GRID_RADIUS; x++) {
+                for (let z = camTz - GRID_RADIUS; z <= camTz + GRID_RADIUS; z++) {
+                    const key = `${x},${z}`; if (!terrainTiles.has(key)) terrainTiles.set(key, createTerrainTile(x, z));
+                }
+            }
+            for (const [key, tile] of terrainTiles) {
+                const [tx, tz] = key.split(',').map(Number);
+                if (Math.abs(tx - camTx) > GRID_RADIUS + 1 || Math.abs(tz - camTz) > GRID_RADIUS + 1) {
+                    scene.remove(tile); tile.geometry.dispose(); tile.material.dispose(); terrainTiles.delete(key);
+                }
+            }
+        }
+
+        function init() {
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            mainGroup = new THREE.Group(); scene.add(mainGroup);
+            starGroup = new THREE.Group(); scene.add(starGroup);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+            camera.position.z = 10;
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ReinhardToneMapping; 
+            document.body.appendChild(renderer.domElement);
+
+            const starCount = 12000;
+            const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const sharedStarGeo = new THREE.SphereGeometry(1, 4, 4);
+            for(let i=0; i<starCount; i++) {
+                const starSize = 0.08 + Math.random() * 0.08;
+                const star = new THREE.Mesh(sharedStarGeo, starMat);
+                star.scale.set(starSize, starSize, starSize); 
+                resetStar(star, true);
+                star.userData = { speed: Math.random() * 0.2 + 0.1 };
+                star.frustumCulled = false; 
+                starObjects.push(star); starGroup.add(star);
+            }
+            
+            namePlane = new THREE.Mesh(new THREE.PlaneGeometry(35, 10), new THREE.MeshStandardMaterial({ map: createNameTexture('LUKA BERNSTEIN'), transparent: true, color: 0xffd966, emissive: 0xffaa00, emissiveIntensity: 0.45, roughness: 0.1, metalness: 0.8, opacity: 0 }));
+            namePlane.position.z = 200; scene.add(namePlane);
+            glowPlane = createAuraMesh(); glowPlane.position.z = 200; glowPlane.material.opacity = 0; scene.add(glowPlane);
+            nameLight = new THREE.PointLight(0xffcc00, 0, 60); nameLight.position.set(0, 0, -4.5); scene.add(nameLight);
+            sweepLight = new THREE.PointLight(0xffffff, 0, 45); sweepLight.position.set(-20, 10, -5); scene.add(sweepLight);
+            
+            artifact = createObsidianPolyhedron();
+            nebula = createNebula(); artifact.add(nebula);
+            if (isMobile()) nebula.scale.set(1.2, 1.2, 1.2);
+            artifact.position.z = -1500; artifact.visible = false;
+            mainGroup.add(artifact);
+            buttonBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(24, 8)), new THREE.LineBasicMaterial({ color: 0xffd966, transparent: true, opacity: 0 }));
+            buttonBox.position.set(0, 0.2, 0.5); nebula.add(buttonBox); buttonBox.visible = false;
+            
+            const createGlowTexture = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
+                gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = gradient; ctx.fillRect(0, 0, 64, 64);
+                return new THREE.CanvasTexture(canvas);
+            };
+
+            const glowTexture = createGlowTexture();
+            const configs = [{c:0xff007b, r:14, t:'h', s:0.008}, {c:0x7000ff, r:18, t:'h', s:0.006}, {c:0xffd700, r:16, t:'h', s:0.007}, {c:0x00ffff, r:15, t:'v', s:0.009}];
+            configs.forEach((cfg, i) => {
+                const orb = new THREE.Group();
+                const light = new THREE.PointLight(cfg.c, 300, 60);
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: cfg.c, transparent: true, blending: THREE.AdditiveBlending }));
+                sprite.scale.set(1.5, 1.5, 1); 
+                orb.add(light); orb.add(sprite);
+                orb.data = { a: i * 2, r: cfg.r, type: cfg.t, speed: cfg.s, light: light, sprite: sprite, hue: Math.random() }; 
+                orbs.push(orb); mainGroup.add(orb);
+            });
+            
+            generateGrid(); 
+            scene.add(tileGroup); scene.add(new THREE.AmbientLight(0xffffff, 0.45)); 
+            createPanelButton();
+            scene.add(camera); renderer.compile(scene, camera);
+            
+            gsap.to(namePlane.position, { z: -8, duration: 1.8, ease: "power4.out" });
+            gsap.to(namePlane.material, { opacity: 1, duration: 1.2, delay: 0.2 });
+            gsap.to(glowPlane.position, { z: -8.2, duration: 1.8, ease: "power4.out" });
+            gsap.to(glowPlane.material, { opacity: 0.42, duration: 1.2, delay: 0.4 });
+            gsap.to(nameLight, { intensity: 280, duration: 2, delay: 0.5 });
+            gsap.to(sweepLight, { intensity: 880, duration: 2, delay: 0.6 });
+            
+            tiles.forEach(t => {
+                const finalZ = t.position.z; t.position.z = 300 + (Math.random() * 200); t.material.opacity = 0;
+                gsap.to(t.position, { z: finalZ, duration: 2.2 + Math.random(), ease: "power3.out", delay: Math.random() * 0.5 });
+                gsap.to(t.material, { opacity: 0.4, duration: 1.5, delay: 0.8 + Math.random() * 0.5 });
+            });
+            
+            window.addEventListener('mousemove', (e) => { mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1; });
+            window.addEventListener('click', onClick);
+            window.addEventListener('resize', onResize);
+            
+            if (isMobile()) {
+                const mobileScale = window.innerWidth / 768; 
+                namePlane.scale.set(mobileScale, mobileScale, 1); glowPlane.scale.set(mobileScale, mobileScale, 1);
+            }
+            animate();
+        }
+
+        function generateGrid() {
+            const tileMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, metalness: 1.0, roughness: 0.05 });
+            while(tileGroup.children.length > 0) tileGroup.remove(tileGroup.children[0]);
+            tiles = [];
+            const spacing = 0.65;
+            const h = 2 * Math.tan((camera.fov * Math.PI) / 360) * 10;
+            const w = h * (window.innerWidth / window.innerHeight);
+            const cg = Math.ceil(w / spacing) + 12; const rg = Math.ceil(h / spacing) + 8;
+            for (let x = -cg/2; x < cg/2; x++) {
+                for (let y = -rg/2; y < rg/2; y++) {
+                    const tile = new THREE.Mesh(sharedTileGeo, tileMat);
+                    tile.position.set(x * spacing, y * spacing, 0); tile.scale.set(1, 1, 0.2); 
+                    tileGroup.add(tile); tiles.push(tile);
+                }
+            }
+        }
+
+        function onClick(event) {
+            if (event) event.preventDefault();
+            raycaster.setFromCamera(mouse, camera);
+
+            if (isTerrainMode) {
+                const intersects = raycaster.intersectObjects(camera.children, true);
+                const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
+                if (orbHit) { window.location.href = "mailto:bernsteinluka@gmail.com?subject=Hello from your website!"; return; }
+            }
+
+            if (panelReady) {
+                if (raycaster.intersectObjects(panelGroup.children).length > 0) { startTerrainTransition(); return; }
+            }
+
+            if (isSpelling) {
+                if (raycaster.intersectObjects([nebula, buttonBox], true).length > 0) {
+                    if (!isCredits) { downloadResume(); } 
+                    else if (!isDownloading) { rollCreditsSequence(); }
+                    return;
+                }
+            }
+
+            if (arrived && !isUnfolded) {
+                if (raycaster.intersectObjects(artifact.children, true).length > 0) {
+                    isUnfolded = true; 
+                    gsap.to(nebula.material, { opacity: 0.35, duration: 2.5 });
+                    artifact.children.forEach(c => {
+                        if(c.userData.offsetDir) {
+                            _v3.copy(c.userData.offsetDir).multiplyScalar(14.5);
+                            gsap.to(c.position, { x: _v3.x, y: _v3.y * 1.2, z: _v3.z, duration: 3, ease: "power4.out" });
+                        }
+                    });
+                    return;
+                }
+            }
+
+            if (isUnfolded && !isSpelling) {
+                if (raycaster.intersectObjects(artifact.children, true).length > 0) {
+                    isSpelling = true; 
+                    artifact.children.forEach(c => { if(c.isMesh && c.material) gsap.to(c.material, { opacity: 0.05, duration: 2 }); });
+                    gsap.to(nebula.material, { opacity: 1, duration: 1 }); 
+                    return;
+                }
+            }
+
             if (!isWarping && raycaster.intersectObject(namePlane).length > 0) {
                 isWarping = true;
-                gsap.to(namePlane.material, { opacity: 0, duration: 1 });
-                gsap.to(warpAmount, { value: 1, duration: 3, ease: "power2.in" });
-                gsap.to(tileMesh.position, { z: 500, duration: 2 });
-                setTimeout(() => {
-                    arrived = true;
-                    artifact.visible = true;
-                    gsap.to(artifact.position, { z: -20, duration: 2 });
-                }, 3000);
-            }
-            if (arrived && !isUnfolded) {
-                isUnfolded = true;
-                // Add unfolding logic...
+                gsap.to([namePlane.position, glowPlane.position], { z: 100, duration: 2.5, ease: "power2.in" });
+                gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
+                gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
+                gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
+                tiles.forEach(t => {
+                    const delay = Math.random() * 0.4;
+                    gsap.to(t.position, { x: t.position.x * 20, y: t.position.y * 20, z: 100, duration: 2.4, delay: delay, ease: "power2.in" });
+                    gsap.to(t.scale, { x: 3, y: 3, duration: 2.4, delay: delay });
+                    gsap.to(t.rotation, { x: Math.random() * 12, y: Math.random() * 12, duration: 2.4, delay: delay });
+                    gsap.to(t.material, { opacity: 0, duration: 1.2, delay: delay + 1.2 });
+                });
+                
+                // ADJUSTED: Surge the FOV less aggressively (Max 125 instead of 160)
+                gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => arrived = true });
+                
+                // ADJUSTED: Reduce star stretch (Max 55 instead of 150) and return to the correct individual scale (s.scale.x)
+                starObjects.forEach(s => { 
+                    gsap.to(s.scale, { z: 55, duration: 1.0 }); 
+                    gsap.to(s.scale, { z: s.scale.x, duration: 0.5, delay: 3.2 }); 
+                });
+
+                setTimeout(() => { 
+                    artifact.visible = true; 
+                    const targetZ = isMobile() ? -25 : -15; 
+                    gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" }); 
+                }, 2800);
             }
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            const time = clock.getElapsedTime();
+            const timeNow = clock.getElapsedTime();
 
-            // --- ANIMATE INSTANCED STARS ---
-            const dummy = new THREE.Object3D();
-            for (let i = 0; i < starCount; i++) {
-                const s = starData[i];
-                s.z += s.speed + (warpAmount.value * 100);
-                if (s.z > 50) s.z = -4000;
-                
-                dummy.position.set(s.x, s.y, s.z);
-                // Stretch effect during warp
-                dummy.scale.set(1, 1, 1 + (warpAmount.value * 20));
-                dummy.updateMatrix();
-                starMesh.setMatrixAt(i, dummy.matrix);
+            if (isTerrainMode) {
+                if (orbShaderMat) orbShaderMat.uniforms.time.value = timeNow; 
+                raycaster.setFromCamera(mouse, camera);
+                const orbIntersects = raycaster.intersectObjects(camera.children, true);
+                const isHoveringOrb = orbIntersects.some(hit => hit.object.name === "interactiveOrb");
+                document.body.style.cursor = isHoveringOrb ? 'pointer' : 'crosshair';
+                camera.position.z -= 1.35;
+                camera.position.x = Math.sin(timeNow * 0.3) * 25; 
+                camera.rotation.z = Math.sin(timeNow * 0.3) * 0.08; 
+                terrainStars.position.z = camera.position.z - 1500;
+                terrainStars.position.x = camera.position.x * 0.95; 
+                updateTerrainGrid();
+            } else {
+                let isHovering = false;
+                raycaster.setFromCamera(mouse, camera);
+                if (panelReady) {
+                    if (raycaster.intersectObjects(panelGroup.children).length > 0) isHovering = true;
+                } else if (isSpelling) {
+                    if (raycaster.intersectObjects([nebula, buttonBox], true).length > 0) isHovering = true;
+                } else if (isUnfolded) {
+                    if (raycaster.intersectObjects(artifact.children, true).length > 0) isHovering = true;
+                } else if (arrived) {
+                    if (raycaster.intersectObjects(artifact.children, true).length > 0) isHovering = true;
+                } else if (!isWarping) {
+                    if (raycaster.intersectObject(namePlane).length > 0) isHovering = true;
+                }
+                document.body.style.cursor = isHovering ? 'pointer' : 'crosshair';
+
+                if (namePlane && !isWarping) {
+                    const breath = 0.45 + ((Math.sin(timeNow * 2.2) + 1) / 2) * 0.40; 
+                    sweepLight.position.set(Math.sin(timeNow * 1.2) * 28, -Math.sin(timeNow * 1.2) * 10, -5);
+                    glowPlane.material.opacity = 0.3 + (0.28 * breath); 
+                    glowPlane.scale.set(1.08 + (breath * 0.07), 1.08 + (breath * 0.07), 1);
+                    nameLight.intensity = 230 + (breath * 165); 
+                    namePlane.material.emissiveIntensity = 0.45 + (breath * 0.38);
+                    const tx = mouse.x * 10, ty = mouse.y * 6;
+                    tiles.forEach(tile => {
+                        if(Math.abs(tile.position.z) < 5) {
+                            const dx = tile.position.x - tx, dy = tile.position.y - ty;
+                            const dSq = dx * dx + dy * dy;
+                            if (dSq < 16) {
+                                const d = Math.sqrt(dSq);
+                                tile.position.z = THREE.MathUtils.lerp(tile.position.z, (4 - d)/4 * 3, 0.1);
+                                tile.material.opacity = 0.4 + ((4-d)/4 * 0.3);
+                            } else {
+                                tile.position.z = THREE.MathUtils.lerp(tile.position.z, 0, 0.08);
+                                tile.material.opacity = 0.4;
+                            }
+                        }
+                    });
+                }
+
+                if(isWarping && !arrived) {
+                    // ADJUSTED: Max FOV surge reduced from 85 to 50 (Total 125)
+                    camera.fov = 75 + (Math.pow(Math.sin(warpProgress * Math.PI), 1.5) * 50);
+                    camera.updateProjectionMatrix();
+                } else if (arrived) {
+                    camera.fov = THREE.MathUtils.lerp(camera.fov, isMobile() ? 90 : 75, 0.1);
+                    camera.updateProjectionMatrix();
+                }
+
+                orbs.forEach(o => {
+                    o.data.a += o.data.speed;
+                    o.data.hue = (o.data.hue + 0.0008) % 1; 
+                    const vColor = new THREE.Color().setHSL(o.data.hue, 1.0, 0.5); 
+                    o.data.light.color.copy(vColor); o.data.sprite.material.color.copy(vColor);
+                    let currentR = THREE.MathUtils.lerp(o.data.r, o.data.r + 5, isWarping ? warpProgress : 0);
+                    const sinA = Math.sin(o.data.a); 
+                    const zPos = THREE.MathUtils.lerp(-8, -15, isWarping ? warpProgress : 0);
+                    if(o.data.type === 'v') { o.position.set(Math.sin(o.data.a * 0.3) * 3, Math.cos(o.data.a) * currentR, zPos + (sinA * currentR * 1.2)); } 
+                    else { o.position.set(Math.cos(o.data.a) * currentR, Math.sin(o.data.a * 0.5) * 4, zPos + (sinA * currentR * 1.1)); }
+                });
+
+                if (isSpelling) {
+                    const posAttr = nebula.geometry.attributes.position, colAttr = nebula.geometry.attributes.color;
+                    const tarAttr = isCredits ? nebula.geometry.attributes.creditsTarget : nebula.geometry.attributes.target;
+                    const timeNow8 = timeNow * 8.0; 
+                    for (let i = 0; i < posAttr.count; i++) {
+                        const i3 = i * 3;
+                        posAttr.array[i3] += (tarAttr.array[i3] - posAttr.array[i3]) * 0.06;
+                        posAttr.array[i3+1] += (tarAttr.array[i3+1] - posAttr.array[i3+1]) * 0.015;
+                        posAttr.array[i3+2] += (tarAttr.array[i3+2] - posAttr.array[i3+2]) * 0.015;
+                        const wave = Math.sin(i * 0.8 + timeNow8); 
+                        const factor = 0.02 + (wave > 0 ? Math.pow(wave, 8) * 1.5 : 0); 
+                        colAttr.array[i3] = 1.0 * factor; colAttr.array[i3+1] = 0.85 * factor; colAttr.array[i3+2] = 0.2 * factor;
+                    }
+                    posAttr.needsUpdate = true; colAttr.needsUpdate = true;
+                    nebula.rotation.set(-artifact.rotation.x, -artifact.rotation.y, -artifact.rotation.z);
+                    if (!isCredits) buttonBox.material.opacity = 0.4 + Math.sin(timeNow * 2) * 0.2;
+                }
+
+                if (panelGroup && panelGroup.visible) {
+                    panelGroup.rotation.set(THREE.MathUtils.lerp(panelGroup.rotation.x, mouse.y * 0.1, 0.1), THREE.MathUtils.lerp(panelGroup.rotation.y, mouse.x * 0.2, 0.1), 0);
+                    panelGroup.position.y = Math.sin(timeNow * 1.5) * 0.15;
+                    outerWire.material.color.setHex(raycaster.intersectObjects(panelGroup.children).length > 0 ? 0xffffff : 0x00ff41);
+                }
+
+                starObjects.forEach(s => {
+                    s.position.z += s.userData.speed + (isWarping && !arrived ? Math.pow(Math.sin(warpProgress * Math.PI), 2) * 85 : 0);
+                    if (s.position.z > 50) { resetStar(s); if (isWarping) s.position.z = -4000; }
+                });
+
+                if (artifact.visible) {
+                    artifact.rotation.y += 0.002 + mouse.x * 0.01;
+                    artifact.rotation.x = THREE.MathUtils.lerp(artifact.rotation.x, -mouse.y * 0.4, 0.05);
+                }
             }
-            starMesh.instanceMatrix.needsUpdate = true;
-
-            // --- INTERACTIVE GRID ---
-            if (!isWarping) {
-                tileMesh.rotation.x = mouse.y * 0.05;
-                tileMesh.rotation.y = mouse.x * 0.05;
-            }
-
-            raycaster.setFromCamera(mouse, camera);
             renderer.render(scene, camera);
         }
 
         function onResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
+            camera.fov = window.innerWidth < window.innerHeight ? 85 : 75;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            generateGrid();
         }
 
         init();
