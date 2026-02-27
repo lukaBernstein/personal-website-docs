@@ -595,6 +595,8 @@ function setupScene2() {
     const horizonOrb = new THREE.Mesh(orbGeo, orbShaderMat);
     horizonOrb.scale.set(180, 180, 1);
     horizonOrb.renderOrder = 999;
+
+horizonOrb.name = "interactiveOrb";
     
     const orbGroup = new THREE.Group();
     orbGroup.position.set(0, 75, -200); 
@@ -807,6 +809,16 @@ function onClick(event) {
 
     raycaster.setFromCamera(mouse, camera);
 
+    if (isTerrainMode) {
+        const intersects = raycaster.intersectObjects(camera.children, true);
+        const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
+        if (orbHit) {
+            // Replace with your actual email
+            window.location.href = "mailto:luka.bernstein@example.com?subject=Hello from your website!"; 
+            return;
+        }
+    }
+
     if (panelReady) {
         if (raycaster.intersectObjects(panelGroup.children).length > 0) { startTerrainTransition(); return; }
     }
@@ -878,7 +890,13 @@ function onClick(event) {
 
             if (isTerrainMode) {
                 if (orbShaderMat) orbShaderMat.uniforms.time.value = timeNow; // Update shader time
-    camera.position.z -= 1.35;
+
+                raycaster.setFromCamera(mouse, camera);
+        const orbIntersects = raycaster.intersectObjects(camera.children, true);
+        const isHoveringOrb = orbIntersects.some(hit => hit.object.name === "interactiveOrb");
+        document.body.style.cursor = isHoveringOrb ? 'pointer' : 'crosshair';
+        
+    
                 camera.position.z -= 1.35;
                 camera.position.x = Math.sin(timeNow * 0.3) * 25; 
                 camera.rotation.z = Math.sin(timeNow * 0.3) * 0.08; 
