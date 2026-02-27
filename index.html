@@ -1,21 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <head>
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://your-website-url.com/"> 
-    <meta property="og:title" content="LUKA BERNSTEIN | RESUME">
-    <meta property="og:description" content="Explore my 3D interactive resume and portfolio experience.">
-    <meta property="og:image" content="https://github.com/lukaBernstein/personal-website-docs/blob/main/LukaSuit.png?raw=true">
-
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="LUKA BERNSTEIN | RESUME">
-    <meta name="twitter:description" content="Explore my 3D interactive resume and portfolio experience.">
-    <meta name="twitter:image" content="https://github.com/lukaBernstein/personal-website-docs/blob/main/LukaSuit.png?raw=true">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LUKA BERNSTEIN | RESUME</title>
+    <meta property="og:type" content="website">
+<meta property="og:url" content="https://yourwebsite.com/">
+<meta property="og:title" content="LUKA BERNSTEIN | RESUME">
+<meta property="og:description" content="Personal statement and portfolio of Luka Bernstein.">
+<meta property="og:image" content="https://github.com/lukaBernstein/Luka-s-Site/blob/main/LukaSuit.png?raw=true">
+
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:url" content="https://yourwebsite.com/">
+<meta property="twitter:title" content="LUKA BERNSTEIN | RESUME">
+<meta property="twitter:description" content="Personal statement and portfolio of Luka Bernstein.">
+<meta property="twitter:image" content="https://github.com/lukaBernstein/Luka-s-Site/blob/main/LukaSuit.png?raw=true">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⭐</text></svg>">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js"></script>
@@ -152,6 +151,11 @@
                 display: block;
                 box-shadow: 0 0 10px rgba(254, 218, 74, 0.5);
             }
+            #experience-button-mobile-fix {
+    /* If you find the button too big on mobile, 
+       this scale adjustment is already in your createPanelButton function,
+       but you can tweak it here if needed. */
+}
 
             .title h1 { 
                 font-size: 2.8rem; 
@@ -198,7 +202,7 @@
                         <p>A personal statement from</p>
                         <h1>LUKA BERNSTEIN</h1>
                     </div>
-                    <p>Thank you for visiting my website! I hope you’ve enjoyed it thus far, it took me a very long time to code. It may surprise you how much the calculus and linear algebra needed to render 3D objects overlap with analyzing data in other fields. It’s exactly this intersection between complex analysis and effective communication that defines my approach to problem-solving. I’m also very passionate about sustainability. In fact even the server on which this website is hosted has been specifically configured to run solely on renewably generated electricity.</p>
+                    <p>Thank you for visiting my website! I hope you’ve enjoyed it thus far, it took me a very long time to code. It may surprise you how much the computational linear algebra and calculus needed to render 3D objects overlaps with analyzing data in other fields. It’s exactly this intersection between complex analysis and effective communication that defines my approach to problem-solving. I’m also very passionate about sustainability. In fact even the server on which this website is hosted has been specifically configured to run solely on renewably generated electricity.</p>
                     <p>On a more personal note, I believe in maintaining a broad perspective, so I apply that same curiosity to a wide range of interests. I love backcountry packing, reading literature, and I have a 2000 blitz chess ELO.</p>
                     <p>So dear viewer, now that you’ve gotten to know me, I’d love to get to know you! Stick around you’ll come upon my “contact me” button…</p>
                     <br><br>
@@ -399,8 +403,12 @@
             panelGroup.add(outerWire, innerWire, glassPanel, panelTextMesh);
             camera.add(panelGroup);
             panelGroup.position.set(0, 0, -25);
-            if (isMobile()) panelGroup.scale.set(0.6, 0.6, 0.6);
+           if (isMobile()) {
+    panelGroup.scale.set(0.45, 0.45, 0.45); // Changed from 0.6 to 0.45
+}
             return panelGroup;
+
+            
         }
 
         function revealPanel() {
@@ -411,12 +419,15 @@
             gsap.to(panelTextMesh.material, { opacity: 1, duration: 1.5, delay: 0.5 });
             gsap.to(innerWire.material, { opacity: 0.5, duration: 1.5, delay: 0.8 });
         }
-
-        function rollCreditsSequence() {
+function rollCreditsSequence() {
             if (isPanning) return;
             isPanning = true;
             const container = document.getElementById('crawl-container');
             container.style.display = 'block';
+            
+            // NEW: Set a faster delay (15 seconds) for mobile, keep 41 for desktop
+            const revealDelay = isMobile() ? 31000 : 41000;
+
             gsap.to(container, { opacity: 1, duration: 4, ease: "power2.inOut" });
             gsap.to(camera.position, { x: 300, y: 150, z: 200, duration: 2.5, ease: "power3.inOut" });
             gsap.to(camera.rotation, { x: -1.2, y: 1.5, z: 0.5, duration: 2.5, ease: "power3.inOut" });
@@ -424,11 +435,14 @@
             gsap.to(starGroup.rotation, { x: -1.2, y: 1.5, z: 0.5, duration: 2.5, ease: "power3.inOut" });
             gsap.to(mainGroup.position, { y: -500, z: -500, duration: 3, ease: "power3.in" });
             gsap.to(tileGroup.position, { y: -500, duration: 3, ease: "power3.in" });
+            
             setTimeout(() => {
                 container.classList.add('crawl-active');
-                setTimeout(() => { revealPanel(); }, 41000);
+                // Use the new revealDelay variable here
+                setTimeout(() => { revealPanel(); }, revealDelay);
             }, 3500); 
         }
+        
 
         function startTerrainTransition() {
             const overlay = document.getElementById('transition-overlay');
