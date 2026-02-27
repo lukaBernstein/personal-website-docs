@@ -350,32 +350,53 @@
             star.position.set(radiusX, radiusY, zPos);
         }
 
-       function downloadResume() {
-    // If we're already downloading or have already moved to credits, stop here.
-    if (isDownloading || isCredits) return; 
-    
-    isDownloading = true; 
-    isCredits = true; // Mark as credits immediately to flip the onClick logic
+        function downloadResume() {
+            // If we're already downloading or have already moved to credits, stop here.
+            if (isDownloading || isCredits) return; 
+            
+            isDownloading = true; 
+            isCredits = true; // Mark as credits immediately to flip the onClick logic
 
-    const link = document.createElement('a');
-    link.href = 'resume.pdf'; 
-    link.download = 'Luka_Bernstein_Resume.pdf';
-    
-    // Prevent this programmatic click from telling the window it was clicked
-    link.onclick = (e) => e.stopPropagation();
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+            // Visual feedback on the "RESUME" text/box
+            gsap.to(buttonBox.scale, { x: 1.1, y: 1.1, duration: 0.1, yoyo: true, repeat: 1 });
+            
+            // Fade out the resume text and prepare for the "MORE!" text
+            gsap.to(buttonBox.material, { opacity: 0, duration: 1.5, onComplete: () => {
+                isDownloading = false; // Release the lock once the animation is done
+            }});
 
-    // Visual feedback on the "RESUME" text/box
-    gsap.to(buttonBox.scale, { x: 1.1, y: 1.1, duration: 0.1, yoyo: true, repeat: 1 });
-    
-    // Fade out the resume text and prepare for the "MORE!" text
-    gsap.to(buttonBox.material, { opacity: 0, duration: 1.5, onComplete: () => {
-        isDownloading = false; // Release the lock once the animation is done
-    }});
-}
+            // SAFARI FIX: Fetch the file as a Blob to force download instead of opening in a new tab
+            fetch('resume.pdf')
+                .then(response => response.blob())
+                .then(blob => {
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = 'Luka_Bernstein_Resume.pdf';
+                    link.style.display = 'none';
+                    
+                    // Prevent this programmatic click from telling the window it was clicked
+                    link.onclick = (e) => e.stopPropagation();
+
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Clean up the object URL
+                    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+                })
+                .catch(error => {
+                    // Fallback just in case fetch fails
+                    console.error("Error fetching PDF:", error);
+                    const link = document.createElement('a');
+                    link.href = 'resume.pdf'; 
+                    link.download = 'Luka_Bernstein_Resume.pdf';
+                    link.onclick = (e) => e.stopPropagation();
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+        }
 
         function createPanelButton() {
             panelGroup = new THREE.Group();
