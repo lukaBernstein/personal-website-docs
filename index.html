@@ -76,7 +76,7 @@
         }
 
         .crawl-active .crawl-content {
-            animation: scroll-up 160s linear forwards;
+            animation: scroll-up 240s linear forwards;
         }
 
         .title {
@@ -88,7 +88,7 @@
         .title h1 { font-size: 6.5rem; margin: 0; letter-spacing: 0.02em; transform: scaleY(1.35); }
 
         @keyframes scroll-up {
-            0% { top: 190vh; }
+            0% { top: 185vh; }
             100% { top: -15000px; }
         }
 
@@ -107,22 +107,20 @@
                 z-index: 150;
             }
 
-            .crawl-content { 
-                font-size: 1.4rem; 
-                width: 85%; 
-                position: absolute;
-                left: 50%;
-                transform: translateX(-50%); 
-                top: 100vh; 
-                line-height: 1.5; 
-                font-weight: 900;
-                text-align: justify;
-                text-justify: inter-word;
-                letter-spacing: 0.05em; 
-                -webkit-font-smoothing: antialiased;
-                text-shadow: 0 0 3px rgba(254, 218, 74, 0.8); 
-                backface-visibility: hidden;
-            }
+            .crawl-content {
+    position: absolute;
+    top: 200vh;
+    width: 100%;
+    text-align: justify;
+    text-justify: inter-word;
+    font-size: 3.2rem;
+    line-height: 1.15;
+    
+    /* ADD THESE THREE LINES */
+    hyphens: auto;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
 
             .start-button { 
                 font-size: 0.9rem; 
@@ -179,8 +177,7 @@
                         <p>A personal statement from</p>
                         <h1>LUKA BERNSTEIN</h1>
                     </div>
-                    <p>Thank you for visiting my website! I hope you’ve enjoyed it thus far, it took me a very long time to code. It may surprise you how much the computational linear algebra and calculus needed to render 3D objects overlaps with analyzing data in other fields. It’s exactly this intersection between complex analysis and effective communication that defines my approach to problem-solving.</p>
-                    <p>I’m also very passionate about sustainability. In fact even the server on which this website is hosted has been specifically configured to run solely on renewably generated electricity.</p>
+                    <p>Thank you for visiting my website! I hope you’ve enjoyed it thus far, it took me a very long time to code. It may surprise you how much the computational linear algebra and calculus needed to render 3D objects overlaps with analyzing data in other fields. It’s exactly this intersection between complex analysis and effective communication that defines my approach to problem-solving. I’m also very passionate about sustainability. In fact even the server on which this website is hosted has been specifically configured to run solely on renewably generated electricity.</p>
                     <p>On a more personal note, I believe in maintaining a broad perspective, so I apply that same curiosity to a wide range of interests. I love backcountry packing, reading literature, and I have a 2000 blitz chess ELO.</p>
                     <p>So dear viewer, now that you’ve gotten to know me, I’d love to get to know you! Stick around you’ll come upon my “contact me” button…</p>
                     <br><br>
@@ -408,8 +405,8 @@
             gsap.to(tileGroup.position, { y: -500, duration: 3, ease: "power3.in" });
             setTimeout(() => {
                 container.classList.add('crawl-active');
-                setTimeout(() => { revealPanel(); }, 25000);
-            }, 3200); 
+                setTimeout(() => { revealPanel(); }, 41000);
+            }, 3500); 
         }
 
         function startTerrainTransition() {
@@ -541,12 +538,47 @@
             buttonBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(24, 8)), new THREE.LineBasicMaterial({ color: 0xffd966, transparent: true, opacity: 0 }));
             buttonBox.position.set(0, 0.2, 0.5); nebula.add(buttonBox); buttonBox.visible = false;
             
-            const configs = [{c:0xff007b, r:14, t:'h', s:0.008}, {c:0x7000ff, r:18, t:'h', s:0.006}, {c:0xffd700, r:16, t:'h', s:0.007}, {c:0x00ffff, r:15, t:'v', s:0.009}];
-            configs.forEach((cfg, i) => {
-                const orb = new THREE.Group();
-                orb.add(new THREE.PointLight(cfg.c, 300, 60)); orb.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshBasicMaterial({ color: cfg.c })));
-                orb.data = { a: i * 2, r: cfg.r, type: cfg.t, speed: cfg.s }; orbs.push(orb); mainGroup.add(orb);
-            });
+          // 1. Create a fuzzy texture for the orbs
+// 1. Create a fuzzy texture for the orbs
+const createGlowTexture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
+    gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(canvas);
+};
+
+const glowTexture = createGlowTexture();
+
+const configs = [{c:0xff007b, r:14, t:'h', s:0.008}, {c:0x7000ff, r:18, t:'h', s:0.006}, {c:0xffd700, r:16, t:'h', s:0.007}, {c:0x00ffff, r:15, t:'v', s:0.009}];
+configs.forEach((cfg, i) => {
+    const orb = new THREE.Group();
+    const light = new THREE.PointLight(cfg.c, 300, 60);
+    
+    // Replace the Sphere with a fuzzy Sprite
+    const spriteMat = new THREE.SpriteMaterial({ 
+        map: glowTexture, 
+        color: cfg.c, 
+        transparent: true, 
+        blending: THREE.AdditiveBlending 
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(1.5, 1.5, 1); // Adjust size for fuzziness
+    
+    orb.add(light); 
+    orb.add(sprite);
+    
+    // Store references for the color shift
+    orb.data = { a: i * 2, r: cfg.r, type: cfg.t, speed: cfg.s, light: light, sprite: sprite, hue: Math.random() }; 
+    orbs.push(orb); 
+    mainGroup.add(orb);
+});
             
             generateGrid(); 
             scene.add(tileGroup); scene.add(new THREE.AmbientLight(0xffffff, 0.45)); 
@@ -726,13 +758,27 @@ function onClick(event) {
                     camera.updateProjectionMatrix();
                 }
 
-                orbs.forEach(o => {
-                    o.data.a += o.data.speed;
-                    let currentR = THREE.MathUtils.lerp(o.data.r, o.data.r + 5, isWarping ? warpProgress : 0);
-                    const sinA = Math.sin(o.data.a); const zPos = THREE.MathUtils.lerp(-8, -15, isWarping ? warpProgress : 0);
-                    if(o.data.type === 'v') { o.position.set(Math.sin(o.data.a * 0.3) * 3, Math.cos(o.data.a) * currentR, zPos + (sinA * currentR * 1.2)); }
-                    else { o.position.set(Math.cos(o.data.a) * currentR, Math.sin(o.data.a * 0.5) * 4, zPos + (sinA * currentR * 1.1)); }
-                });
+orbs.forEach(o => {
+    o.data.a += o.data.speed;
+
+    // VIBRANT COLOR CYCLE
+    // 0.001 controls speed; 1.0 is max saturation; 0.5 is the most vibrant lightness
+    o.data.hue = (o.data.hue + 0.0008) % 1; 
+    const vColor = new THREE.Color().setHSL(o.data.hue, 1.0, 0.5); 
+    
+    o.data.light.color.copy(vColor);
+    o.data.sprite.material.color.copy(vColor);
+
+    // Keep your existing movement logic below
+    let currentR = THREE.MathUtils.lerp(o.data.r, o.data.r + 5, isWarping ? warpProgress : 0);
+    const sinA = Math.sin(o.data.a); 
+    const zPos = THREE.MathUtils.lerp(-8, -15, isWarping ? warpProgress : 0);
+    if(o.data.type === 'v') { 
+        o.position.set(Math.sin(o.data.a * 0.3) * 3, Math.cos(o.data.a) * currentR, zPos + (sinA * currentR * 1.2)); 
+    } else { 
+        o.position.set(Math.cos(o.data.a) * currentR, Math.sin(o.data.a * 0.5) * 4, zPos + (sinA * currentR * 1.1)); 
+    }
+});
 
                 if (isSpelling) {
                     const posAttr = nebula.geometry.attributes.position, colAttr = nebula.geometry.attributes.color;
