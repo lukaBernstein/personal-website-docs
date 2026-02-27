@@ -71,8 +71,13 @@
             width: 100%;
             text-align: justify;
             text-justify: inter-word;
-            font-size: 3.2rem; 
-            line-height: 1.15; 
+            /* Reducing font size slightly allows more words per line, which fixes the gaps */
+            font-size: 2.8rem; 
+            line-height: 1.3; 
+            /* These lines are critical for fixing the spacing gaps */
+            hyphens: auto;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         .crawl-active .crawl-content {
