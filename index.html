@@ -172,7 +172,7 @@
             }
 
             .crawl-active .crawl-content {
-                animation: scroll-up-mobile 140s linear forwards;
+                animation: scroll-up-mobile 200s linear forwards;
             }
 
             @keyframes scroll-up-mobile {
@@ -454,7 +454,7 @@ function rollCreditsSequence() {
             container.style.display = 'block';
             
             // NEW: Set a faster delay (15 seconds) for mobile, keep 41 for desktop
-            const revealDelay = isMobile() ? 31000 : 43000;
+            const revealDelay = isMobile() ? 40000 : 43000;
 
             gsap.to(container, { opacity: 1, duration: 4, ease: "power2.inOut" });
             gsap.to(camera.position, { x: 300, y: 150, z: 200, duration: 2.5, ease: "power3.inOut" });
