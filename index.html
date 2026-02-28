@@ -177,7 +177,7 @@
 
             @keyframes scroll-up-mobile {
                 0% { 
-                    top: 115vh; 
+                    top: 79vh; 
                     transform: translateX(-50%) scale(1); 
                 }
                 100% { 
@@ -454,7 +454,7 @@ function rollCreditsSequence() {
             container.style.display = 'block';
             
             // NEW: Set a faster delay (15 seconds) for mobile, keep 41 for desktop
-            const revealDelay = isMobile() ? 31000 : 41000;
+            const revealDelay = isMobile() ? 31000 : 43000;
 
             gsap.to(container, { opacity: 1, duration: 4, ease: "power2.inOut" });
             gsap.to(camera.position, { x: 300, y: 150, z: 200, duration: 2.5, ease: "power3.inOut" });
@@ -863,11 +863,24 @@ function onClick(event) {
     if (isTerrainMode) {
         const intersects = raycaster.intersectObjects(camera.children, true);
         const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
-        if (orbHit) {
-            // Replace with your actual email
-            window.location.href = "mailto:bernsteinluka@gmail.com?subject=Hello from your website!"; 
-            return;
+       if (orbHit) {
+    const email = "bernsteinluka@gmail.com";
+    const subject = encodeURIComponent("Hello from your website!");
+    
+    // This URL opens Gmail directly in a new tab with the email drafted
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
+    
+    // Try to open the mail app first
+    window.location.href = `mailto:${email}?subject=Hello from your website!`;
+    
+    // After a tiny delay, if they are on PC, open the Gmail tab as a fallback
+    setTimeout(() => {
+        if (!document.hidden) {
+            window.open(gmailUrl, '_blank');
         }
+    }, 500);
+    return;
+}
     }
 
     if (panelReady) {
