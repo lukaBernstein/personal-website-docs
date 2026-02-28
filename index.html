@@ -177,7 +177,7 @@
 
             @keyframes scroll-up-mobile {
                 0% { 
-                    top: 90vh; 
+                    top: 95vh; 
                     transform: translateX(-50%) scale(1); 
                 }
                 100% { 
@@ -519,9 +519,12 @@ function startTerrainTransition() {
 }
 
 function setupScene2() {
-    isTerrainMode = true; 
-    scene.background = new THREE.Color(VOID_PURPLE); 
-    scene.fog = new THREE.FogExp2(VOID_PURPLE, 0.1);
+            isTerrainMode = true; 
+            scene.background = new THREE.Color(VOID_PURPLE); 
+            
+            // Start with a thicker fog (0.15 or 0.2) so the terrain is hidden 
+            // behind a wall of purple initially
+            scene.fog = new THREE.FogExp2(VOID_PURPLE, 0.1);
     
     const height = isMobile() ? 35 : 21.8;
     camera.position.set(0, height, 0);
@@ -529,35 +532,36 @@ function setupScene2() {
     camera.fov = isMobile() ? 95 : 85;
     camera.updateProjectionMatrix();
 
-    const starGeo = new THREE.BufferGeometry();
-    const starCount = 150000;
-    const posArray = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount * 3; i++) posArray[i] = (Math.random() - 0.5) * 3500;
-    starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-    
-    terrainStars = new THREE.Points(starGeo, new THREE.PointsMaterial({ 
-        color: 0xffffff,
-        size: 1.8,
-        sizeAttenuation: false,
-        transparent: true,
-        opacity: 0.9,
-        depthWrite: false, 
-        depthTest: true    
-    }));
-    
-    terrainStars.renderOrder = -1; 
-    scene.add(terrainStars);
-
-    const orbLight = new THREE.PointLight(0xffaa44, 0, 1200, 1.2); 
-    orbLight.name = "horizonLight"; // Important for the GSAP fade in startTerrainTransition
+    // --- UPDATED STARS ---
+            const starGeo = new THREE.BufferGeometry();
+            const starCount = 150000;
+            const posArray = new Float32Array(starCount * 3);
+            for (let i = 0; i < starCount * 3; i++) posArray[i] = (Math.random() - 0.5) * 3500;
+            starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            
+            terrainStars = new THREE.Points(starGeo, new THREE.PointsMaterial({ 
+                color: 0xffffff,
+                size: 1.8,              // Reduced from previous default to make them sharper
+                sizeAttenuation: false, // Prevents stars from getting huge when close to the camera
+                transparent: true,
+                opacity: 9.,           // Slightly dimming them helps them feel "further away"
+                depthWrite: false, 
+                depthTest: true    
+            }));
+            
+            terrainStars.renderOrder = -1; 
+            scene.add(terrainStars);
+    // --- ORB POINT LIGHT ---
+    const orbLight = new THREE.PointLight(0xffaa44, 2500, 1200, 1.2); 
     orbLight.position.set(0, 45, -200); 
     camera.add(orbLight);
 
+    // --- DYNAMIC PLASMA SHADER ORB ---
+    // --- DYNAMIC PLASMA SHADER ORB (FIXED EDGES) ---
     const orbShaderVars = {
         time: { value: 0 },
-        uOpacity: { value: 0 }, // Initialized at 0 for fade-in
-        color1: { value: new THREE.Color(0xffffff) }, 
-        color2: { value: new THREE.Color(0xffaa00) }  
+        color1: { value: new THREE.Color(0xffffff) }, // Core
+        color2: { value: new THREE.Color(0xffaa00) }  // Outer glow
     };
 
     orbShaderMat = new THREE.ShaderMaterial({
@@ -575,10 +579,10 @@ function setupScene2() {
         fragmentShader: `
             varying vec2 vUv;
             uniform float time;
-            uniform float uOpacity;
             uniform vec3 color1;
             uniform vec3 color2;
 
+            // Better noise for plasma texture
             float noise(vec2 p) {
                 return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
             }
@@ -586,23 +590,36 @@ function setupScene2() {
             void main() {
                 vec2 uv = vUv - 0.5;
                 float dist = length(uv);
+                
+                // 1. RADIAL MASK: This is the fix. 
+                // It ensures alpha hits 0 before reaching the square edges.
                 float mask = smoothstep(0.5, 0.35, dist);
+                
+                // 2. CORONA EFFECT: Swirling plasma waves
                 float angle = atan(uv.y, uv.x);
                 float pulse = sin(dist * 15.0 - time * 3.0 + sin(angle * 5.0 + time)) * 0.1;
+                
+                // 3. CORE & GLOW
                 float core = smoothstep(0.2, 0.0, dist);
                 float glow = smoothstep(0.45, 0.1, dist + pulse);
+                
+                // Mixing colors based on intensity
                 vec3 finalColor = mix(color2, color1, core + 0.2);
+                
+                // Add high-frequency shimmer
                 float shimmer = 0.8 + 0.2 * noise(uv + time * 0.1);
-                gl_FragColor = vec4(finalColor * shimmer, (glow + core) * mask * uOpacity);
+                
+                // Combine everything with the radial mask to kill the square edges
+                gl_FragColor = vec4(finalColor * shimmer, (glow + core) * mask);
             }
         `
     });
-
     const orbGeo = new THREE.PlaneGeometry(1, 1);
     const horizonOrb = new THREE.Mesh(orbGeo, orbShaderMat);
     horizonOrb.scale.set(180, 180, 1);
     horizonOrb.renderOrder = 999;
-    horizonOrb.name = "interactiveOrb";
+
+horizonOrb.name = "interactiveOrb";
     
     const orbGroup = new THREE.Group();
     orbGroup.position.set(0, 75, -200); 
@@ -828,20 +845,18 @@ configs.forEach((cfg, i) => {
         }
 
 function onClick(event) {
-    // 1. SAFARI MOBILE COORDINATE FIX: Get coordinates for both touch and pointer
-    const clientX = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : 0);
-    const clientY = event.clientY || (event.touches && event.touches[0] ? event.touches[0].clientY : 0);
-    
-    mouse.x = (clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    // FIX FOR SAFARI MOBILE: Update coordinates immediately on tap/click
+    if (event && event.clientX !== undefined) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
 
+    // Standardize the event to prevent issues on different browsers
     if (event && event.preventDefault) event.preventDefault();
 
-    // 2. MATRIX UPDATE: Ensures the raycaster knows exactly where the orb is while moving
-    camera.updateMatrixWorld();
     raycaster.setFromCamera(mouse, camera);
 
-    if (isTerrainMode) {
+if (isTerrainMode) {
         const intersects = raycaster.intersectObjects(camera.children, true);
         const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
         
@@ -849,13 +864,10 @@ function onClick(event) {
             const email = "bernsteinluka@gmail.com";
             const subject = encodeURIComponent("Hello from your website!");
             
-            // 3. SAFARI POP-UP FIX: Use mailto for mobile, Gmail tab for desktop
-            if (isMobile()) {
-                window.location.href = `mailto:${email}?subject=${subject}`;
-            } else {
-                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
-                window.open(gmailUrl, '_blank'); 
-            }
+            // This specific URL forces Gmail to open a "Compose" window in a new tab
+            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
+            
+            window.open(gmailUrl, '_blank'); 
             return;
         }
     }
@@ -866,9 +878,11 @@ function onClick(event) {
 
     if (isSpelling) {
         if (raycaster.intersectObjects([nebula, buttonBox], true).length > 0) {
+            // Check the flag here: if it's the first time, download. If already clicked, roll credits.
             if (!isCredits) {
                 downloadResume();
             } else if (!isDownloading) {
+                // We only roll credits if we aren't currently in the middle of a download lock
                 rollCreditsSequence();
             }
             return;
@@ -1040,10 +1054,14 @@ orbs.forEach(o => {
                     if (s.position.z > 50) { resetStar(s); if (isWarping) s.position.z = -4000; }
                 });
 
-                if (artifact.visible) {
-                    artifact.rotation.y += 0.002 + mouse.x * 0.01;
-                    artifact.rotation.x = THREE.MathUtils.lerp(artifact.rotation.x, -mouse.y * 0.4, 0.05);
-                }
+              if (artifact.visible) {
+    // 1. Increase the constant spin and mouse sensitivity on the Y axis
+    artifact.rotation.y += 0.005 + mouse.x * 0.08; 
+    
+    // 2. Increase the vertical tilt (X axis) multiplier from 0.4 to 1.2
+    // This makes the 'peek' at the top/bottom of the shape much deeper
+    artifact.rotation.x = THREE.MathUtils.lerp(artifact.rotation.x, -mouse.y * 1.2, 0.08);
+}
             }
             renderer.render(scene, camera);
         }
