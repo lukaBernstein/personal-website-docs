@@ -860,27 +860,20 @@ function onClick(event) {
 
     raycaster.setFromCamera(mouse, camera);
 
-    if (isTerrainMode) {
+if (isTerrainMode) {
         const intersects = raycaster.intersectObjects(camera.children, true);
         const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
-       if (orbHit) {
-    const email = "bernsteinluka@gmail.com";
-    const subject = encodeURIComponent("Hello from your website!");
-    
-    // This URL opens Gmail directly in a new tab with the email drafted
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
-    
-    // Try to open the mail app first
-    window.location.href = `mailto:${email}?subject=Hello from your website!`;
-    
-    // After a tiny delay, if they are on PC, open the Gmail tab as a fallback
-    setTimeout(() => {
-        if (!document.hidden) {
-            window.open(gmailUrl, '_blank');
+        
+        if (orbHit) {
+            const email = "bernsteinluka@gmail.com";
+            const subject = encodeURIComponent("Hello from your website!");
+            
+            // This specific URL forces Gmail to open a "Compose" window in a new tab
+            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
+            
+            window.open(gmailUrl, '_blank'); 
+            return;
         }
-    }, 500);
-    return;
-}
     }
 
     if (panelReady) {
