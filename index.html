@@ -547,10 +547,10 @@ function setupScene2() {
                 color: 0xffffff,
                 size: 1.8,              // Reduced from previous default to make them sharper
                 sizeAttenuation: false, // Prevents stars from getting huge when close to the camera
-                transparent: true,
+                transparent: false,
                 opacity: 9.,           // Slightly dimming them helps them feel "further away"
                 depthWrite: false, 
-                depthTest: true    
+                depthTest: false    
             }));
             
             terrainStars.renderOrder = -1; 
