@@ -196,7 +196,6 @@
     </style>
 </head>
 <body>
-    <audio id="bg-hum" loop src="ominous_hum.mp3"></audio>
 
     <div id="transition-overlay"></div>
 
@@ -228,6 +227,22 @@
 
         let panelGroup, outerWire, innerWire, panelTextMesh, panelReady = false;
         
+        // --- AUDIO SETUP ---
+        const bgAudio = new Audio('ominous_hum.mp3');
+        bgAudio.loop = true;
+        let audioStarted = false;
+
+        function startAudio() {
+            if (!audioStarted) {
+                bgAudio.play().catch(e => console.log("Audio play blocked until interaction."));
+                audioStarted = true;
+            }
+        }
+
+        // --- AUTO ADVANCE IDLE TIMER ---
+        let idleTimer = null;
+        const IDLE_TIMEOUT = 15000; // 15 seconds
+
         const _v3 = new THREE.Vector3();
         const mouse = new THREE.Vector2(-10, -10); 
         const raycaster = new THREE.Raycaster();
@@ -351,49 +366,42 @@
             star.position.set(radiusX, radiusY, zPos);
         }
 
-function downloadResume() {
-    if (isDownloading || isCredits) return; 
-    
-    isDownloading = true; 
-    isCredits = true; 
-
-    // Visual feedback
-    gsap.to(buttonBox.scale, { x: 1.1, y: 1.1, duration: 0.1, yoyo: true, repeat: 1 });
-    gsap.to(buttonBox.material, { opacity: 0, duration: 1.5, onComplete: () => {
-        isDownloading = false; 
-    }});
-
-    fetch('resume.pdf')
-        .then(response => response.blob())
-        .then(blob => {
-            // 1. FORCE DOWNLOAD TYPE: Change the MIME type to 'application/octet-stream'.
-            // This prevents Safari from recognizing it as a PDF and opening the viewer.
-            const downloadBlob = new Blob([blob], { type: 'application/octet-stream' });
-            const blobUrl = window.URL.createObjectURL(downloadBlob);
+        function downloadResume() {
+            if (isDownloading || isCredits) return; 
             
-            // 2. USE DIRECT REDIRECT FOR MOBILE: 
-            // On mobile Safari, window.location.href is more reliable for blobs 
-            // than a programmatic link click inside a promise.
-            if (isMobile()) {
-                window.location.href = blobUrl;
-            } else {
-                const link = document.createElement('a');
-                link.href = blobUrl;
-                link.download = 'Luka_Bernstein_Resume.pdf';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
-            
-            // Clean up
-            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-        })
-        .catch(error => {
-            console.error("Error fetching PDF:", error);
-            // Extreme fallback: just try to open the file directly
-            window.location.href = 'resume.pdf';
-        });
-}
+            isDownloading = true; 
+            isCredits = true; 
+
+            // Visual feedback
+            gsap.to(buttonBox.scale, { x: 1.1, y: 1.1, duration: 0.1, yoyo: true, repeat: 1 });
+            gsap.to(buttonBox.material, { opacity: 0, duration: 1.5, onComplete: () => {
+                isDownloading = false; 
+            }});
+
+            fetch('resume.pdf')
+                .then(response => response.blob())
+                .then(blob => {
+                    const downloadBlob = new Blob([blob], { type: 'application/octet-stream' });
+                    const blobUrl = window.URL.createObjectURL(downloadBlob);
+                    
+                    if (isMobile()) {
+                        window.location.href = blobUrl;
+                    } else {
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = 'Luka_Bernstein_Resume.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }
+                    
+                    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+                })
+                .catch(error => {
+                    console.error("Error fetching PDF:", error);
+                    window.location.href = 'resume.pdf';
+                });
+        }
 
         function createPanelButton() {
             panelGroup = new THREE.Group();
@@ -429,35 +437,10 @@ function downloadResume() {
             camera.add(panelGroup);
             panelGroup.position.set(0, 0, -25);
            if (isMobile()) {
-    panelGroup.scale.set(0.45, 0.45, 0.45); // Changed from 0.6 to 0.45
-}
+                panelGroup.scale.set(0.45, 0.45, 0.45); 
+            }
             return panelGroup;
-
-            
         }
-        // 1. Create a function to handle the audio start
-function startOminousHum() {
-    const hum = document.getElementById('bg-hum');
-    if (hum && hum.paused) {
-        hum.volume = 0; // Start silent for a smooth fade
-        hum.play()
-            .then(() => {
-                // Fade volume to 30% over 5 seconds using GSAP
-                gsap.to(hum, { volume: 0.3, duration: 5 });
-                
-                // Remove the listeners once audio has successfully started
-                window.removeEventListener('click', startOminousHum);
-                window.removeEventListener('touchstart', startOminousHum);
-            })
-            .catch(error => {
-                console.log("Autoplay prevented. Waiting for interaction.");
-            });
-    }
-}
-
-// 2. Attach the listeners to the window
-window.addEventListener('click', startOminousHum);
-window.addEventListener('touchstart', startOminousHum);
 
         function revealPanel() {
             panelGroup.visible = true;
@@ -467,13 +450,13 @@ window.addEventListener('touchstart', startOminousHum);
             gsap.to(panelTextMesh.material, { opacity: 1, duration: 1.5, delay: 0.5 });
             gsap.to(innerWire.material, { opacity: 0.5, duration: 1.5, delay: 0.8 });
         }
-function rollCreditsSequence() {
+
+        function rollCreditsSequence() {
             if (isPanning) return;
             isPanning = true;
             const container = document.getElementById('crawl-container');
             container.style.display = 'block';
             
-            // NEW: Set a faster delay (15 seconds) for mobile, keep 41 for desktop
             const revealDelay = isMobile() ? 40000 : 43000;
 
             gsap.to(container, { opacity: 1, duration: 4, ease: "power2.inOut" });
@@ -486,77 +469,54 @@ function rollCreditsSequence() {
             
             setTimeout(() => {
                 container.classList.add('crawl-active');
-                // Use the new revealDelay variable here
                 setTimeout(() => { revealPanel(); }, revealDelay);
             }, 3500); 
         }
         
+        function startTerrainTransition() {
+            const overlay = document.getElementById('transition-overlay'); 
+            panelReady = false; 
+            
+            gsap.to([outerWire.material, panelTextMesh.material], { opacity: 0, duration: 1.0 });
+            gsap.to(panelGroup.position, { z: -50, duration: 1.5, ease: "power2.in" });
+            
+            gsap.to(overlay, { 
+                opacity: 1, 
+                duration: 1.5, 
+                onComplete: () => {
+                    scene.remove(mainGroup, starGroup, tileGroup, namePlane, glowPlane, nameLight, sweepLight);
+                    camera.remove(panelGroup); 
+                    document.getElementById('crawl-container').style.display = 'none';
+                    
+                    setupScene2(); 
+                    
+                    gsap.to(overlay, { opacity: 0, duration: 2, delay: 0.5 });
+                    
+                    gsap.to(scene.fog, { density: 0.007, duration: 3.5, ease: "sine.inOut" });
 
-function startTerrainTransition() {
-    const overlay = document.getElementById('transition-overlay'); 
-    panelReady = false; 
-    
-    gsap.to([outerWire.material, panelTextMesh.material], { opacity: 0, duration: 1.0 });
-    gsap.to(panelGroup.position, { z: -50, duration: 1.5, ease: "power2.in" });
-    
-    gsap.to(overlay, { 
-        opacity: 1, 
-        duration: 1.5, 
-        onComplete: () => {
-            scene.remove(mainGroup, starGroup, tileGroup, namePlane, glowPlane, nameLight, sweepLight);
-            camera.remove(panelGroup); 
-            document.getElementById('crawl-container').style.display = 'none';
-            
-            setupScene2(); 
-            
-            gsap.to(overlay, { opacity: 0, duration: 2, delay: 0.5 });
-            
-            // 1. Fog Reveal (3.5s)
-            gsap.to(scene.fog, { 
-                density: 0.007, 
-                duration: 3.5, 
-                ease: "sine.inOut" 
+                    const hLight = camera.getObjectByName("horizonLight");
+                    if (hLight) {
+                        gsap.to(hLight, { intensity: 2500, duration: 5.5, ease: "power1.inOut" });
+                    }
+
+                    if (orbShaderMat) {
+                        gsap.to(orbShaderMat.uniforms.uOpacity, { value: 1, duration: 5.5, ease: "power1.inOut" });
+                    }
+                }
             });
-
-            // 2. LONGER ORB REVEAL (5.5s)
-            // This animates the PointLight intensity
-            const hLight = camera.getObjectByName("horizonLight");
-            if (hLight) {
-                gsap.to(hLight, { 
-                    intensity: 2500, 
-                    duration: 5.5, 
-                    ease: "power1.inOut" 
-                });
-            }
-
-            // 3. LONGER ORB MESH FADE (5.5s)
-            // This animates the shader's uOpacity uniform
-            if (orbShaderMat) {
-                gsap.to(orbShaderMat.uniforms.uOpacity, { 
-                    value: 1, 
-                    duration: 5.5, 
-                    ease: "power1.inOut" 
-                });
-            }
         }
-    });
-}
 
-function setupScene2() {
+        function setupScene2() {
             isTerrainMode = true; 
             scene.background = new THREE.Color(VOID_PURPLE); 
-            
-            // Start with a thicker fog (0.15 or 0.2) so the terrain is hidden 
-            // behind a wall of purple initially
             scene.fog = new THREE.FogExp2(VOID_PURPLE, 0.1);
-    
-    const height = isMobile() ? 35 : 21.8;
-    camera.position.set(0, height, 0);
-    camera.rotation.set(-0.10, 0, 0);
-    camera.fov = isMobile() ? 95 : 85;
-    camera.updateProjectionMatrix();
+            
+            const height = isMobile() ? 35 : 21.8;
+            camera.position.set(0, height, 0);
+            camera.rotation.set(-0.10, 0, 0);
+            camera.fov = isMobile() ? 95 : 85;
+            camera.updateProjectionMatrix();
 
-    // --- UPDATED STARS ---
             const starGeo = new THREE.BufferGeometry();
             const starCount = 150000;
             const posArray = new Float32Array(starCount * 3);
@@ -565,91 +525,78 @@ function setupScene2() {
             
             terrainStars = new THREE.Points(starGeo, new THREE.PointsMaterial({ 
                 color: 0xffffff,
-                size: 1.8,              // Reduced from previous default to make them sharper
-                sizeAttenuation: false, // Prevents stars from getting huge when close to the camera
+                size: 1.8,             
+                sizeAttenuation: false, 
                 transparent: true,
-                opacity: 9.,           // Slightly dimming them helps them feel "further away"
+                opacity: 9.,           
                 depthWrite: false, 
                 depthTest: true    
             }));
             
             terrainStars.renderOrder = -1; 
             scene.add(terrainStars);
-    // --- ORB POINT LIGHT ---
-    const orbLight = new THREE.PointLight(0xffaa44, 2500, 1200, 1.2); 
-    orbLight.position.set(0, 45, -200); 
-    camera.add(orbLight);
 
-    // --- DYNAMIC PLASMA SHADER ORB ---
-    // --- DYNAMIC PLASMA SHADER ORB (FIXED EDGES) ---
-    const orbShaderVars = {
-        time: { value: 0 },
-        color1: { value: new THREE.Color(0xffffff) }, // Core
-        color2: { value: new THREE.Color(0xffaa00) }  // Outer glow
-    };
+            const orbLight = new THREE.PointLight(0xffaa44, 2500, 1200, 1.2); 
+            orbLight.position.set(0, 45, -200); 
+            camera.add(orbLight);
 
-    orbShaderMat = new THREE.ShaderMaterial({
-        uniforms: orbShaderVars,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        vertexShader: `
-            varying vec2 vUv;
-            void main() {
-                vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `,
-        fragmentShader: `
-            varying vec2 vUv;
-            uniform float time;
-            uniform vec3 color1;
-            uniform vec3 color2;
+            const orbShaderVars = {
+                time: { value: 0 },
+                color1: { value: new THREE.Color(0xffffff) }, 
+                color2: { value: new THREE.Color(0xffaa00) }  
+            };
 
-            // Better noise for plasma texture
-            float noise(vec2 p) {
-                return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-            }
+            orbShaderMat = new THREE.ShaderMaterial({
+                uniforms: orbShaderVars,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec2 vUv;
+                    uniform float time;
+                    uniform vec3 color1;
+                    uniform vec3 color2;
 
-            void main() {
-                vec2 uv = vUv - 0.5;
-                float dist = length(uv);
-                
-                // 1. RADIAL MASK: This is the fix. 
-                // It ensures alpha hits 0 before reaching the square edges.
-                float mask = smoothstep(0.5, 0.35, dist);
-                
-                // 2. CORONA EFFECT: Swirling plasma waves
-                float angle = atan(uv.y, uv.x);
-                float pulse = sin(dist * 15.0 - time * 3.0 + sin(angle * 5.0 + time)) * 0.1;
-                
-                // 3. CORE & GLOW
-                float core = smoothstep(0.2, 0.0, dist);
-                float glow = smoothstep(0.45, 0.1, dist + pulse);
-                
-                // Mixing colors based on intensity
-                vec3 finalColor = mix(color2, color1, core + 0.2);
-                
-                // Add high-frequency shimmer
-                float shimmer = 0.8 + 0.2 * noise(uv + time * 0.1);
-                
-                // Combine everything with the radial mask to kill the square edges
-                gl_FragColor = vec4(finalColor * shimmer, (glow + core) * mask);
-            }
-        `
-    });
-    const orbGeo = new THREE.PlaneGeometry(1, 1);
-    const horizonOrb = new THREE.Mesh(orbGeo, orbShaderMat);
-    horizonOrb.scale.set(180, 180, 1);
-    horizonOrb.renderOrder = 999;
+                    float noise(vec2 p) {
+                        return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+                    }
 
-horizonOrb.name = "interactiveOrb";
-    
-    const orbGroup = new THREE.Group();
-    orbGroup.position.set(0, 75, -200); 
-    orbGroup.add(horizonOrb);
-    camera.add(orbGroup);
-}
+                    void main() {
+                        vec2 uv = vUv - 0.5;
+                        float dist = length(uv);
+                        
+                        float mask = smoothstep(0.5, 0.35, dist);
+                        float angle = atan(uv.y, uv.x);
+                        float pulse = sin(dist * 15.0 - time * 3.0 + sin(angle * 5.0 + time)) * 0.1;
+                        
+                        float core = smoothstep(0.2, 0.0, dist);
+                        float glow = smoothstep(0.45, 0.1, dist + pulse);
+                        
+                        vec3 finalColor = mix(color2, color1, core + 0.2);
+                        float shimmer = 0.8 + 0.2 * noise(uv + time * 0.1);
+                        
+                        gl_FragColor = vec4(finalColor * shimmer, (glow + core) * mask);
+                    }
+                `
+            });
+            const orbGeo = new THREE.PlaneGeometry(1, 1);
+            const horizonOrb = new THREE.Mesh(orbGeo, orbShaderMat);
+            horizonOrb.scale.set(180, 180, 1);
+            horizonOrb.renderOrder = 999;
+            horizonOrb.name = "interactiveOrb";
+            
+            const orbGroup = new THREE.Group();
+            orbGroup.position.set(0, 75, -200); 
+            orbGroup.add(horizonOrb);
+            camera.add(orbGroup);
+        }
 
         function getTerrainHeight(worldX, worldZ) {
             const s = 0.018;
@@ -658,53 +605,48 @@ horizonOrb.name = "interactiveOrb";
             return h;
         }
 
-function createTerrainTile(tx, tz) {
-    const geo = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE, TILE_RES, TILE_RES);
-    
-    // UPDATED MATERIAL: Forced Opaque and Depth-Solid
-    const mat = new THREE.MeshStandardMaterial({ 
-        vertexColors: true, 
-        flatShading: true, 
-        metalness: 0.4, 
-        roughness: 0.5,
-        transparent: false, // Ensures the mountain is a solid occluder
-        depthWrite: true,   // Records the mountain's position in the depth buffer
-        depthTest: true,    // Checks depth against other objects like stars
-        side: THREE.FrontSide // Only render the visible side to keep depth data clean
-    });
-    
-    const mesh = new THREE.Mesh(geo, mat);
-    
-    // RENDER ORDER: Force the terrain to render AFTER the stars 
-    // This allows the terrain to "overpaint" and block the stars
-    mesh.renderOrder = 1; 
+        function createTerrainTile(tx, tz) {
+            const geo = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE, TILE_RES, TILE_RES);
+            
+            const mat = new THREE.MeshStandardMaterial({ 
+                vertexColors: true, 
+                flatShading: true, 
+                metalness: 0.4, 
+                roughness: 0.5,
+                transparent: false, 
+                depthWrite: true,   
+                depthTest: true,    
+                side: THREE.FrontSide 
+            });
+            
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.renderOrder = 1; 
+            mesh.rotation.x = -Math.PI / 2;
+            const ox = tx * TILE_SIZE, oz = tz * TILE_SIZE;
+            mesh.position.set(ox, 0, oz);
 
-    mesh.rotation.x = -Math.PI / 2;
-    const ox = tx * TILE_SIZE, oz = tz * TILE_SIZE;
-    mesh.position.set(ox, 0, oz);
+            const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3);
+            const c1 = new THREE.Color(0x2a0505), c2 = new THREE.Color(0x990000), c3 = new THREE.Color(0xff2200), c4 = new THREE.Color(0xffcccc);
 
-    const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3);
-    const c1 = new THREE.Color(0x2a0505), c2 = new THREE.Color(0x990000), c3 = new THREE.Color(0xff2200), c4 = new THREE.Color(0xffcccc);
+            for (let i = 0; i <= TILE_RES; i++) { 
+                for (let j = 0; j <= TILE_RES; j++) {
+                    const idx = i * (TILE_RES + 1) + j;
+                    const h = getTerrainHeight(ox + (j/TILE_RES-0.5)*TILE_SIZE, oz + (i/TILE_RES-0.5)*TILE_SIZE);
+                    pos.setZ(idx, h);
+                    let t = Math.max(0, Math.min(1, (h + 5) / 25));
+                    const col = new THREE.Color();
+                    if (t < 0.33) col.copy(c1).lerp(c2, t * 3); 
+                    else if (t < 0.66) col.copy(c2).lerp(c3, (t-0.33)*3); 
+                    else col.copy(c3).lerp(c4, (t-0.66)*3);
+                    colors[idx*3] = col.r; colors[idx*3+1] = col.g; colors[idx*3+2] = col.b;
+                }
+            }
 
-    for (let i = 0; i <= TILE_RES; i++) { 
-        for (let j = 0; j <= TILE_RES; j++) {
-            const idx = i * (TILE_RES + 1) + j;
-            const h = getTerrainHeight(ox + (j/TILE_RES-0.5)*TILE_SIZE, oz + (i/TILE_RES-0.5)*TILE_SIZE);
-            pos.setZ(idx, h);
-            let t = Math.max(0, Math.min(1, (h + 5) / 25));
-            const col = new THREE.Color();
-            if (t < 0.33) col.copy(c1).lerp(c2, t * 3); 
-            else if (t < 0.66) col.copy(c2).lerp(c3, (t-0.33)*3); 
-            else col.copy(c3).lerp(c4, (t-0.66)*3);
-            colors[idx*3] = col.r; colors[idx*3+1] = col.g; colors[idx*3+2] = col.b;
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3)); 
+            geo.computeVertexNormals();
+            scene.add(mesh); 
+            return mesh;
         }
-    }
-
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3)); 
-    geo.computeVertexNormals();
-    scene.add(mesh); 
-    return mesh;
-}
 
         function updateTerrainGrid() {
             const camTx = Math.round(camera.position.x / TILE_SIZE), camTz = Math.round(camera.position.z / TILE_SIZE);
@@ -722,22 +664,19 @@ function createTerrainTile(tx, tz) {
         }
 
         function init() {
-            // --- HARDWARE ACCELERATION DETECTION ---
-let isSoftwareRendering = false;
-const canvasCheck = document.createElement('canvas');
-const gl = canvasCheck.getContext('webgl') || canvasCheck.getContext('experimental-webgl');
-if (gl) {
-    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-    if (debugInfo) {
-        const rendererString = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase();
-        // If "swiftshader" or "software" is found, hardware acceleration is OFF
-        if (rendererString.includes('swiftshader') || rendererString.includes('software')) {
-            isSoftwareRendering = true;
-            console.warn("Hardware acceleration is disabled. Switching to low-performance mode.");
-        }
-    }
-}
-
+            let isSoftwareRendering = false;
+            const canvasCheck = document.createElement('canvas');
+            const gl = canvasCheck.getContext('webgl') || canvasCheck.getContext('experimental-webgl');
+            if (gl) {
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                if (debugInfo) {
+                    const rendererString = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase();
+                    if (rendererString.includes('swiftshader') || rendererString.includes('software')) {
+                        isSoftwareRendering = true;
+                        console.warn("Hardware acceleration is disabled. Switching to low-performance mode.");
+                    }
+                }
+            }
 
             clock = new THREE.Clock();
             scene = new THREE.Scene();
@@ -763,7 +702,6 @@ if (gl) {
                 starObjects.push(star); starGroup.add(star);
             }
             
-
             namePlane = new THREE.Mesh(new THREE.PlaneGeometry(35, 10), new THREE.MeshStandardMaterial({ map: createNameTexture('LUKA BERNSTEIN'), transparent: true, color: 0xffd966, emissive: 0xffaa00, emissiveIntensity: 0.45, roughness: 0.1, metalness: 0.8, opacity: 0 }));
             namePlane.position.z = 200; scene.add(namePlane);
             glowPlane = createAuraMesh(); glowPlane.position.z = 200; glowPlane.material.opacity = 0; scene.add(glowPlane);
@@ -778,47 +716,40 @@ if (gl) {
             buttonBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(24, 8)), new THREE.LineBasicMaterial({ color: 0xffd966, transparent: true, opacity: 0 }));
             buttonBox.position.set(0, 0.2, 0.5); nebula.add(buttonBox); buttonBox.visible = false;
             
-          // 1. Create a fuzzy texture for the orbs
-// 1. Create a fuzzy texture for the orbs
-const createGlowTexture = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 64; canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
-    gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 64, 64);
-    return new THREE.CanvasTexture(canvas);
-};
+            const createGlowTexture = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
+                gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 64, 64);
+                return new THREE.CanvasTexture(canvas);
+            };
 
-const glowTexture = createGlowTexture();
+            const glowTexture = createGlowTexture();
 
-const configs = [{c:0xff007b, r:14, t:'h', s:0.008}, {c:0x7000ff, r:18, t:'h', s:0.006}, {c:0xffd700, r:16, t:'h', s:0.007}, {c:0x00ffff, r:15, t:'v', s:0.009}];
-configs.forEach((cfg, i) => {
-    const orb = new THREE.Group();
-    const light = new THREE.PointLight(cfg.c, 300, 60);
-    
-    // Replace the Sphere with a fuzzy Sprite
-    const spriteMat = new THREE.SpriteMaterial({ 
-        map: glowTexture, 
-        color: cfg.c, 
-        transparent: true, 
-        blending: THREE.AdditiveBlending 
-    });
-    const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(1.5, 1.5, 1); // Adjust size for fuzziness
-    
-    orb.add(light); 
-    orb.add(sprite);
-    
-    // Store references for the color shift
-    orb.data = { a: i * 2, r: cfg.r, type: cfg.t, speed: cfg.s, light: light, sprite: sprite, hue: Math.random() }; 
-    orbs.push(orb); 
-    mainGroup.add(orb);
-});
+            const configs = [{c:0xff007b, r:14, t:'h', s:0.008}, {c:0x7000ff, r:18, t:'h', s:0.006}, {c:0xffd700, r:16, t:'h', s:0.007}, {c:0x00ffff, r:15, t:'v', s:0.009}];
+            configs.forEach((cfg, i) => {
+                const orb = new THREE.Group();
+                const light = new THREE.PointLight(cfg.c, 300, 60);
+                const spriteMat = new THREE.SpriteMaterial({ 
+                    map: glowTexture, 
+                    color: cfg.c, 
+                    transparent: true, 
+                    blending: THREE.AdditiveBlending 
+                });
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.scale.set(1.5, 1.5, 1); 
+                orb.add(light); 
+                orb.add(sprite);
+                orb.data = { a: i * 2, r: cfg.r, type: cfg.t, speed: cfg.s, light: light, sprite: sprite, hue: Math.random() }; 
+                orbs.push(orb); 
+                mainGroup.add(orb);
+            });
             
             generateGrid(); 
             scene.add(tileGroup); scene.add(new THREE.AmbientLight(0xffffff, 0.45)); 
@@ -838,8 +769,12 @@ configs.forEach((cfg, i) => {
                 gsap.to(t.material, { opacity: 0.4, duration: 1.5, delay: 0.8 + Math.random() * 0.5 });
             });
             
-            window.addEventListener('mousemove', (e) => { mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1; });
-            // SAFARI FIX: Change click to pointerdown
+            window.addEventListener('mousemove', (e) => { 
+                mouse.x = (e.clientX/window.innerWidth)*2-1; 
+                mouse.y = -(e.clientY/window.innerHeight)*2+1; 
+                resetIdleTimer(); // Delay auto-advance if they are moving the mouse
+            });
+            
             window.addEventListener('pointerdown', onClick);
             window.addEventListener('resize', onResize);
             
@@ -848,6 +783,8 @@ configs.forEach((cfg, i) => {
                 namePlane.scale.set(mobileScale, mobileScale, 1);
                 glowPlane.scale.set(mobileScale, mobileScale, 1);
             }
+            
+            resetIdleTimer(); // Kick off the timer when the site loads
             animate();
         }
 
@@ -868,54 +805,60 @@ configs.forEach((cfg, i) => {
             }
         }
 
-function onClick(event) {
-    // FIX FOR SAFARI MOBILE: Update coordinates immediately on tap/click
-    if (event && event.clientX !== undefined) {
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    }
-
-    // Standardize the event to prevent issues on different browsers
-    if (event && event.preventDefault) event.preventDefault();
-
-    raycaster.setFromCamera(mouse, camera);
-
-if (isTerrainMode) {
-        const intersects = raycaster.intersectObjects(camera.children, true);
-        const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
-        
-        if (orbHit) {
-            const email = "bernsteinluka@gmail.com";
-            const subject = encodeURIComponent("Hello from your website!");
-            
-            // This specific URL forces Gmail to open a "Compose" window in a new tab
-            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
-            
-            window.open(gmailUrl, '_blank'); 
-            return;
+        // --- EXTRACTED ANIMATION HELPERS ---
+        function resetIdleTimer() {
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(autoAdvance, IDLE_TIMEOUT);
         }
-    }
 
-    if (panelReady) {
-        if (raycaster.intersectObjects(panelGroup.children).length > 0) { startTerrainTransition(); return; }
-    }
-
-    if (isSpelling) {
-        if (raycaster.intersectObjects([nebula, buttonBox], true).length > 0) {
-            // Check the flag here: if it's the first time, download. If already clicked, roll credits.
-            if (!isCredits) {
-                downloadResume();
-            } else if (!isDownloading) {
-                // We only roll credits if we aren't currently in the middle of a download lock
-                rollCreditsSequence();
+        function autoAdvance() {
+            if (isTerrainMode) {
+                const email = "bernsteinluka@gmail.com";
+                const subject = encodeURIComponent("Hello from your website!");
+                window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`, '_blank'); 
+            } else if (panelReady) {
+                startTerrainTransition();
+            } else if (isSpelling) {
+                // Skip auto-download and jump straight to credits to prevent browser popup blocking
+                if (!isCredits) {
+                    isCredits = true; 
+                    rollCreditsSequence(); 
+                }
+            } else if (arrived && !isUnfolded) {
+                executeUnfold();
+            } else if (isUnfolded && !isSpelling) {
+                executeSpell();
+            } else if (!isWarping) {
+                executeWarp();
             }
-            return;
         }
-    }
 
-    if (arrived && !isUnfolded) {
-        if (raycaster.intersectObjects(artifact.children, true).length > 0) {
+        function executeWarp() {
+            isWarping = true;
+            resetIdleTimer();
+            gsap.to([namePlane.position, glowPlane.position], { z: 100, duration: 2.5, ease: "power2.in" });
+            gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
+            gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
+            gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
+            tiles.forEach(t => {
+                const delay = Math.random() * 0.4;
+                gsap.to(t.position, { x: t.position.x * 20, y: t.position.y * 20, z: 100, duration: 2.4, delay: delay, ease: "power2.in" });
+                gsap.to(t.scale, { x: 3, y: 3, duration: 2.4, delay: delay });
+                gsap.to(t.rotation, { x: Math.random() * 12, y: Math.random() * 12, duration: 2.4, delay: delay });
+                gsap.to(t.material, { opacity: 0, duration: 1.2, delay: delay + 1.2 });
+            });
+            gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => { arrived = true; resetIdleTimer(); }});
+            starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
+            setTimeout(() => { 
+                artifact.visible = true; 
+                const targetZ = isMobile() ? -25 : -15; 
+                gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" }); 
+            }, 2800);
+        }
+
+        function executeUnfold() {
             isUnfolded = true; 
+            resetIdleTimer();
             gsap.to(nebula.material, { opacity: 0.35, duration: 2.5 });
             artifact.children.forEach(c => {
                 if(c.userData.offsetDir) {
@@ -923,57 +866,86 @@ if (isTerrainMode) {
                     gsap.to(c.position, { x: _v3.x, y: _v3.y * 1.2, z: _v3.z, duration: 3, ease: "power4.out" });
                 }
             });
-            return;
         }
-    }
 
-    if (isUnfolded && !isSpelling) {
-        if (raycaster.intersectObjects(artifact.children, true).length > 0) {
+        function executeSpell() {
             isSpelling = true; 
+            resetIdleTimer();
             artifact.children.forEach(c => { 
                 if(c.isMesh && c.material) gsap.to(c.material, { opacity: 0.05, duration: 2 }); 
             });
             gsap.to(nebula.material, { opacity: 1, duration: 1 }); 
-            return;
         }
-    }
 
-    if (!isWarping && raycaster.intersectObject(namePlane).length > 0) {
-        isWarping = true;
-        gsap.to([namePlane.position, glowPlane.position], { z: 100, duration: 2.5, ease: "power2.in" });
-        gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
-        gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
-        gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
-        tiles.forEach(t => {
-            const delay = Math.random() * 0.4;
-            gsap.to(t.position, { x: t.position.x * 20, y: t.position.y * 20, z: 100, duration: 2.4, delay: delay, ease: "power2.in" });
-            gsap.to(t.scale, { x: 3, y: 3, duration: 2.4, delay: delay });
-            gsap.to(t.rotation, { x: Math.random() * 12, y: Math.random() * 12, duration: 2.4, delay: delay });
-            gsap.to(t.material, { opacity: 0, duration: 1.2, delay: delay + 1.2 });
-        });
-        gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => arrived = true });
-        starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
-        setTimeout(() => { 
-            artifact.visible = true; 
-            const targetZ = isMobile() ? -25 : -15; 
-            gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" }); 
-        }, 2800);
-    }
-}
+        function onClick(event) {
+            startAudio(); // Start sound on first click
+
+            // FIX FOR SAFARI MOBILE: Update coordinates immediately on tap/click
+            if (event && event.clientX !== undefined) {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            }
+
+            // Standardize the event to prevent issues on different browsers
+            if (event && event.preventDefault) event.preventDefault();
+
+            resetIdleTimer(); // A real click resets the 15-second clock
+
+            raycaster.setFromCamera(mouse, camera);
+
+            if (isTerrainMode) {
+                const intersects = raycaster.intersectObjects(camera.children, true);
+                const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
+                
+                if (orbHit) {
+                    const email = "bernsteinluka@gmail.com";
+                    const subject = encodeURIComponent("Hello from your website!");
+                    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
+                    window.open(gmailUrl, '_blank'); 
+                    return;
+                }
+            }
+
+            if (panelReady) {
+                if (raycaster.intersectObjects(panelGroup.children).length > 0) { startTerrainTransition(); return; }
+            }
+
+            if (isSpelling) {
+                if (raycaster.intersectObjects([nebula, buttonBox], true).length > 0) {
+                    if (!isCredits) {
+                        downloadResume();
+                    } else if (!isDownloading) {
+                        rollCreditsSequence();
+                    }
+                    return;
+                }
+            }
+
+            if (arrived && !isUnfolded) {
+                if (raycaster.intersectObjects(artifact.children, true).length > 0) { executeUnfold(); return; }
+            }
+
+            if (isUnfolded && !isSpelling) {
+                if (raycaster.intersectObjects(artifact.children, true).length > 0) { executeSpell(); return; }
+            }
+
+            if (!isWarping && raycaster.intersectObject(namePlane).length > 0) {
+                executeWarp();
+            }
+        }
 
         function animate() {
             requestAnimationFrame(animate);
             const timeNow = clock.getElapsedTime();
 
             if (isTerrainMode) {
-                if (orbShaderMat) orbShaderMat.uniforms.time.value = timeNow; // Update shader time
+                if (orbShaderMat) orbShaderMat.uniforms.time.value = timeNow; 
 
                 raycaster.setFromCamera(mouse, camera);
-        const orbIntersects = raycaster.intersectObjects(camera.children, true);
-        const isHoveringOrb = orbIntersects.some(hit => hit.object.name === "interactiveOrb");
-        document.body.style.cursor = isHoveringOrb ? 'pointer' : 'crosshair';
-        
-    
+                const orbIntersects = raycaster.intersectObjects(camera.children, true);
+                const isHoveringOrb = orbIntersects.some(hit => hit.object.name === "interactiveOrb");
+                document.body.style.cursor = isHoveringOrb ? 'pointer' : 'crosshair';
+                
                 camera.position.z -= 1.35;
                 camera.position.x = Math.sin(timeNow * 0.3) * 25; 
                 camera.rotation.z = Math.sin(timeNow * 0.3) * 0.08; 
@@ -981,7 +953,6 @@ if (isTerrainMode) {
                 terrainStars.position.x = camera.position.x * 0.95; 
                 updateTerrainGrid();
             } else {
-                // HOVER DETECTION LOGIC
                 let isHovering = false;
                 raycaster.setFromCamera(mouse, camera);
 
@@ -1029,27 +1000,23 @@ if (isTerrainMode) {
                     camera.updateProjectionMatrix();
                 }
 
-orbs.forEach(o => {
-    o.data.a += o.data.speed;
+                orbs.forEach(o => {
+                    o.data.a += o.data.speed;
+                    o.data.hue = (o.data.hue + 0.0008) % 1; 
+                    const vColor = new THREE.Color().setHSL(o.data.hue, 1.0, 0.5); 
+                    
+                    o.data.light.color.copy(vColor);
+                    o.data.sprite.material.color.copy(vColor);
 
-    // VIBRANT COLOR CYCLE
-    // 0.001 controls speed; 1.0 is max saturation; 0.5 is the most vibrant lightness
-    o.data.hue = (o.data.hue + 0.0008) % 1; 
-    const vColor = new THREE.Color().setHSL(o.data.hue, 1.0, 0.5); 
-    
-    o.data.light.color.copy(vColor);
-    o.data.sprite.material.color.copy(vColor);
-
-    // Keep your existing movement logic below
-    let currentR = THREE.MathUtils.lerp(o.data.r, o.data.r + 5, isWarping ? warpProgress : 0);
-    const sinA = Math.sin(o.data.a); 
-    const zPos = THREE.MathUtils.lerp(-8, -15, isWarping ? warpProgress : 0);
-    if(o.data.type === 'v') { 
-        o.position.set(Math.sin(o.data.a * 0.3) * 3, Math.cos(o.data.a) * currentR, zPos + (sinA * currentR * 1.2)); 
-    } else { 
-        o.position.set(Math.cos(o.data.a) * currentR, Math.sin(o.data.a * 0.5) * 4, zPos + (sinA * currentR * 1.1)); 
-    }
-});
+                    let currentR = THREE.MathUtils.lerp(o.data.r, o.data.r + 5, isWarping ? warpProgress : 0);
+                    const sinA = Math.sin(o.data.a); 
+                    const zPos = THREE.MathUtils.lerp(-8, -15, isWarping ? warpProgress : 0);
+                    if(o.data.type === 'v') { 
+                        o.position.set(Math.sin(o.data.a * 0.3) * 3, Math.cos(o.data.a) * currentR, zPos + (sinA * currentR * 1.2)); 
+                    } else { 
+                        o.position.set(Math.cos(o.data.a) * currentR, Math.sin(o.data.a * 0.5) * 4, zPos + (sinA * currentR * 1.1)); 
+                    }
+                });
 
                 if (isSpelling) {
                     const posAttr = nebula.geometry.attributes.position, colAttr = nebula.geometry.attributes.color;
@@ -1078,14 +1045,10 @@ orbs.forEach(o => {
                     if (s.position.z > 50) { resetStar(s); if (isWarping) s.position.z = -4000; }
                 });
 
-              if (artifact.visible) {
-    // 1. Increase the constant spin and mouse sensitivity on the Y axis
-    artifact.rotation.y += 0.005 + mouse.x * 0.08; 
-    
-    // 2. Increase the vertical tilt (X axis) multiplier from 0.4 to 1.2
-    // This makes the 'peek' at the top/bottom of the shape much deeper
-    artifact.rotation.x = THREE.MathUtils.lerp(artifact.rotation.x, -mouse.y * 1.2, 0.08);
-}
+                if (artifact.visible) {
+                    artifact.rotation.y += 0.005 + mouse.x * 0.08; 
+                    artifact.rotation.x = THREE.MathUtils.lerp(artifact.rotation.x, -mouse.y * 1.2, 0.08);
+                }
             }
             renderer.render(scene, camera);
         }
