@@ -196,6 +196,7 @@
     </style>
 </head>
 <body>
+    <audio id="bg-hum" loop src="ominous_hum.mp3"></audio>
 
     <div id="transition-overlay"></div>
 
@@ -434,6 +435,29 @@ function downloadResume() {
 
             
         }
+        // 1. Create a function to handle the audio start
+function startOminousHum() {
+    const hum = document.getElementById('bg-hum');
+    if (hum && hum.paused) {
+        hum.volume = 0; // Start silent for a smooth fade
+        hum.play()
+            .then(() => {
+                // Fade volume to 30% over 5 seconds using GSAP
+                gsap.to(hum, { volume: 0.3, duration: 5 });
+                
+                // Remove the listeners once audio has successfully started
+                window.removeEventListener('click', startOminousHum);
+                window.removeEventListener('touchstart', startOminousHum);
+            })
+            .catch(error => {
+                console.log("Autoplay prevented. Waiting for interaction.");
+            });
+    }
+}
+
+// 2. Attach the listeners to the window
+window.addEventListener('click', startOminousHum);
+window.addEventListener('touchstart', startOminousHum);
 
         function revealPanel() {
             panelGroup.visible = true;
