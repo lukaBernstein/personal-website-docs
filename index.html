@@ -777,6 +777,12 @@
             
             window.addEventListener('pointerdown', onClick);
             window.addEventListener('resize', onResize);
+
+window.addEventListener('mousedown', onClick);
+window.addEventListener('touchstart', (e) => {
+    // This prevents Safari from "doubling up" the click or scrolling
+    onClick(e);
+}, { passive: false });
             
             if (isMobile()) {
                 const mobileScale = window.innerWidth / 768; 
@@ -877,62 +883,106 @@
             gsap.to(nebula.material, { opacity: 1, duration: 1 }); 
         }
 
-        function onClick(event) {
-            startAudio(); // Start sound on first click
+function onClick(event) {
+    // 1. SYSTEM TRIGGERS
+    if (typeof startAudio === "function") startAudio();
+    if (typeof resetIdleTimer === "function") resetIdleTimer();
 
-            // FIX FOR SAFARI MOBILE: Update coordinates immediately on tap/click
-            if (event && event.clientX !== undefined) {
-                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    // 2. COORDINATE HANDLING (Unified for Mouse & Safari Touch)
+    let x, y;
+    if (event.touches && event.touches.length > 0) {
+        x = event.touches[0].clientX;
+        y = event.touches[0].clientY;
+    } else if (event.changedTouches && event.changedTouches.length > 0) {
+        x = event.changedTouches[0].clientX;
+        y = event.changedTouches[0].clientY;
+    } else {
+        x = event.clientX;
+        y = event.clientY;
+    }
+
+    // Prevent issues if coordinates are missing
+    if (x === undefined || y === undefined) return;
+
+    mouse.x = (x / window.innerWidth) * 2 - 1;
+    mouse.y = -(y / window.innerHeight) * 2 + 1;
+
+    // Standardize event behavior
+    if (event && event.preventDefault && event.type !== 'touchstart') {
+        event.preventDefault();
+    }
+
+    // 3. CORE RAYCASTER SETUP
+    // We force a matrix update to ensure the 3D math is 100% accurate on mobile
+    camera.updateMatrixWorld(true);
+    raycaster.setFromCamera(mouse, camera);
+
+    // 4. LOGIC: TERRAIN MODE (EMAIL ORB)
+    if (isTerrainMode) {
+        // We look specifically in camera.children because the orb is attached to the camera
+        const intersects = raycaster.intersectObjects(camera.children, true);
+        const orbHit = intersects.find(hit => 
+            hit.object.name === "interactiveOrb" || (hit.object.parent && hit.object.parent.name === "interactiveOrb")
+        );
+        
+        if (orbHit) {
+            const email = "bernsteinluka@gmail.com";
+            const subject = encodeURIComponent("Hello from your website!");
+            const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            if (isMobileDevice) {
+                // Safari Mobile fix: Direct location change for mailto
+                window.location.href = `mailto:${email}?subject=${subject}`;
+            } else {
+                // Desktop: Open Gmail in new tab
+                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
+                window.open(gmailUrl, '_blank'); 
             }
-
-            // Standardize the event to prevent issues on different browsers
-            if (event && event.preventDefault) event.preventDefault();
-
-            resetIdleTimer(); // A real click resets the 15-second clock
-
-            raycaster.setFromCamera(mouse, camera);
-
-            if (isTerrainMode) {
-                const intersects = raycaster.intersectObjects(camera.children, true);
-                const orbHit = intersects.find(hit => hit.object.name === "interactiveOrb");
-                
-                if (orbHit) {
-                    const email = "bernsteinluka@gmail.com";
-                    const subject = encodeURIComponent("Hello from your website!");
-                    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
-                    window.open(gmailUrl, '_blank'); 
-                    return;
-                }
-            }
-
-            if (panelReady) {
-                if (raycaster.intersectObjects(panelGroup.children).length > 0) { startTerrainTransition(); return; }
-            }
-
-            if (isSpelling) {
-                if (raycaster.intersectObjects([nebula, buttonBox], true).length > 0) {
-                    if (!isCredits) {
-                        downloadResume();
-                    } else if (!isDownloading) {
-                        rollCreditsSequence();
-                    }
-                    return;
-                }
-            }
-
-            if (arrived && !isUnfolded) {
-                if (raycaster.intersectObjects(artifact.children, true).length > 0) { executeUnfold(); return; }
-            }
-
-            if (isUnfolded && !isSpelling) {
-                if (raycaster.intersectObjects(artifact.children, true).length > 0) { executeSpell(); return; }
-            }
-
-            if (!isWarping && raycaster.intersectObject(namePlane).length > 0) {
-                executeWarp();
-            }
+            return; // Exit function so we don't trigger background clicks
         }
+    }
+
+    // 5. LOGIC: PANEL READY (TRANSITION TO TERRAIN)
+    if (panelReady) {
+        if (raycaster.intersectObjects(panelGroup.children).length > 0) { 
+            startTerrainTransition(); 
+            return; 
+        }
+    }
+
+    // 6. LOGIC: RESUME / CREDITS (SPELLING MODE)
+    if (isSpelling) {
+        if (raycaster.intersectObjects([nebula, buttonBox], true).length > 0) {
+            if (!isCredits) {
+                downloadResume();
+            } else if (!isDownloading) {
+                rollCreditsSequence();
+            }
+            return;
+        }
+    }
+
+    // 7. LOGIC: ARTIFACT UNFOLD
+    if (arrived && !isUnfolded) {
+        if (raycaster.intersectObjects(artifact.children, true).length > 0) { 
+            executeUnfold(); 
+            return; 
+        }
+    }
+
+    // 8. LOGIC: ARTIFACT SPELL (NAME REVEAL)
+    if (isUnfolded && !isSpelling) {
+        if (raycaster.intersectObjects(artifact.children, true).length > 0) { 
+            executeSpell(); 
+            return; 
+        }
+    }
+
+    // 9. LOGIC: INITIAL WARP (CLICK NAME)
+    if (!isWarping && raycaster.intersectObject(namePlane).length > 0) {
+        executeWarp();
+    }
+}
 
         function animate() {
             requestAnimationFrame(animate);
