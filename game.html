@@ -56,6 +56,10 @@
 </head>
 <body>
 
+    <audio id="gameMusic" loop>
+    <source src="your-music-file.mp3" type="audio/mpeg">
+</audio>
+
     <div id="three-layer"></div>
     
     <div id="ascii-layer">
@@ -133,7 +137,15 @@
         });
 
         canvas.addEventListener('click', () => {
+
+            
             if (!isFalling) {
+
+                const music = document.getElementById('gameMusic');
+            if (music) {
+                music.volume = 0.3; // Sets volume to 30%
+                music.play().catch(e => console.log("Audio waiting for user interaction"));
+            }
                 if (window.lockCamera) window.lockCamera();
 
                 const time = Date.now() * 0.0003;
@@ -984,7 +996,7 @@ rock.castShadow = rock.receiveShadow = true;
                     instructions.style.display = "none";
                 }, 2000);
             }
-        }, 60000);
+        }, 10000);
 
     </script>
 </body>
