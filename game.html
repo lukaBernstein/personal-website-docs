@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ERTDFGCVB to Pastel Oasis</title>
+    <title>Luka's Game</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⭐</text></svg>">
     <style>
         body { 
             margin: 0; background: #000; overflow: hidden; 
@@ -970,6 +971,21 @@ rock.castShadow = rock.receiveShadow = true;
       
         animate();
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth / PIXEL_SCALE, window.innerHeight / PIXEL_SCALE, false); });
+
+        // Hide the WASD instructions after 60 seconds (60000 milliseconds)
+        setTimeout(() => {
+            const instructions = document.getElementById('ui');
+            if (instructions) {
+                instructions.style.transition = "opacity 2s ease-in-out";
+                instructions.style.opacity = "0";
+                
+                // Optional: fully remove from layout after fade is done
+                setTimeout(() => {
+                    instructions.style.display = "none";
+                }, 2000);
+            }
+        }, 60000);
+
     </script>
 </body>
 </html>
