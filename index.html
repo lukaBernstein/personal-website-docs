@@ -925,21 +925,36 @@ function onClick(event) {
             hit.object.name === "interactiveOrb" || (hit.object.parent && hit.object.parent.name === "interactiveOrb")
         );
         
-        if (orbHit) {
-            const email = "bernsteinluka@gmail.com";
-            const subject = encodeURIComponent("Hello from your website!");
-            const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+       if (orbHit) {
+        const email = "bernsteinluka@gmail.com";
+        const subject = encodeURIComponent("Hello from your website!");
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        if (isMobileDevice) {
+            // Mobile handles mailto links naturally without switching tabs
+            window.location.href = `mailto:${email}?subject=${subject}`;
+            setTimeout(() => { window.location.href = "game.html"; }, 500);
+        } else {
+            // --- THE DESKTOP BACKGROUND TRICK ---
             
-            if (isMobileDevice) {
-                // Safari Mobile fix: Direct location change for mailto
-                window.location.href = `mailto:${email}?subject=${subject}`;
-            } else {
-                // Desktop: Open Gmail in new tab
-                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}`;
-                window.open(gmailUrl, '_blank'); 
+            // 1. Open Gmail in a new tab and keep a reference to it
+            const mailTab = window.open(gmailUrl, '_blank');
+
+            // 2. Immediately tell the new tab to "blur" (go to back) 
+            // and the current window to "focus" (stay in front)
+            if (mailTab) {
+                mailTab.blur();
+                window.focus();
             }
-            return; // Exit function so we don't trigger background clicks
+
+            // 3. Navigate the current tab to the game immediately.
+            // We use 0 delay here so the browser sees the current tab 
+            // as "busy" and is less likely to switch away from it.
+            window.location.href = "game.html";
         }
+        return; 
+    }
     }
 
     // 5. LOGIC: PANEL READY (TRANSITION TO TERRAIN)
