@@ -926,10 +926,10 @@ rock.castShadow = rock.receiveShadow = true;
                 const oldX = camera.position.x;
                 const oldZ = camera.position.z;
 
-                if (keys.w) controls.moveForward(speed); 
-                if (keys.s) controls.moveForward(-speed);
-                if (keys.a) controls.moveRight(-speed); 
-                if (keys.d) controls.moveRight(speed);
+                if (keys.w || keys.arrowup) controls.moveForward(speed); 
+                if (keys.s || keys.arrowdown) controls.moveForward(-speed);
+                if (keys.a || keys.arrowleft) controls.moveRight(-speed); 
+                if (keys.d || keys.arrowright) controls.moveRight(speed);
 
                 // Check all obstacles to see if we hit a wall or landed on a roof
              
