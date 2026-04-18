@@ -157,7 +157,6 @@ if (isMobileDevice) {
             let maskFontSize = Math.floor(cols / 2.8); 
             mCtx.font = `900 ${maskFontSize}px "Times New Roman", serif`;
             mCtx.textAlign = "center"; mCtx.textBaseline = "middle"; 
-            mCtx.fillText("PLAY", cols / 2, (rows / 2) + (rows * 0.05));
 if (isMobileDevice) {
             // MOBILE: Fill the entire canvas with white 
             // This makes the whole screen a grid of characters
@@ -570,10 +569,71 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         // Loop through every individual stone in the henge
         hengeGroup.traverse(node => {
             if (node.isMesh) {
-                // Register each pillar and lintel as a separate solid object
-                obstacles.push(new THREE.Box3().setFromObject(node));
+                node.updateMatrixWorld(true);
+                obstacles.push({ type: 'box', box: new THREE.Box3().setFromObject(node) });
             }
         });
+
+        // =============================================
+        // --- PARKOUR COURSE (near spawn) ---
+        // =============================================
+        // A series of platforms leading to a tall reward tower,
+        // placed just outside the henge to the North.
+        (function buildParkourCourse() {
+            const courseOriginX = sX + 2800;
+            const courseOriginZ = sZ - 400;
+            const groundBase = getElevation(courseOriginX, courseOriginZ);
+
+            // Platform data: [relX, relZ, relY, sizeX, sizeZ, label]
+            const platforms = [
+                // Warm-up: gentle rising platforms
+                [0,    0,    120,  400, 400],
+                [500,  -60,  280,  320, 320],
+                [950,  50,   440,  280, 280],
+                [1350, -80,  580,  260, 260],
+                // Gap challenge: narrower, more spread
+                [1700, 200,  700,  200, 200],
+                [2000, -100, 820,  180, 180],
+                [2280, 100,  940,  180, 180],
+                // Wall-run-style side ledges
+                [2500, -300, 1040, 140, 320],
+                [2500,  300, 1100, 140, 320],
+                [2700,  0,   1200, 180, 180],
+                // Final ascent
+                [2900, -150, 1360, 160, 160],
+                [3100,  150, 1520, 160, 160],
+                [3280,  0,   1680, 200, 200],
+                // Reward platform at top
+                [3480,  0,   1860, 500, 500],
+            ];
+
+            for (const [rx, rz, ry, sx, sz] of platforms) {
+                const px = courseOriginX + rx;
+                const pz = courseOriginZ + rz;
+                const py = groundBase + ry;
+                const plat = new THREE.Mesh(
+                    new THREE.BoxGeometry(sx, 60, sz),
+                    rockMat
+                );
+                plat.position.set(px, py, pz);
+                plat.castShadow = plat.receiveShadow = true;
+                scene.add(plat);
+                plat.updateMatrixWorld(true);
+                obstacles.push({ type: 'box', box: new THREE.Box3().setFromObject(plat) });
+            }
+
+            const towerX = courseOriginX + 3480;
+            const towerZ = courseOriginZ;
+            const towerBase = getElevation(towerX, towerZ);
+            const tower = new THREE.Mesh(new THREE.BoxGeometry(200, 2400, 200), rockMat);
+            tower.position.set(towerX, towerBase + 1200 + 1860, towerZ - 300);
+            tower.castShadow = true;
+            scene.add(tower);
+            tower.updateMatrixWorld(true);
+            obstacles.push({ type: 'box', box: new THREE.Box3().setFromObject(tower) });
+
+        })();
+
 
         const baseRockGeo = new THREE.IcosahedronGeometry(1, 1);
         for(let i=0; i<2000; i++) {
@@ -590,22 +650,22 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 const worldZ = clusterZ + (rnd() - 0.5) * rock.scale.z * 2.5;
                 rock.position.set(worldX, getElevation(worldX, worldZ) + (rock.scale.y * 0.2), worldZ);
                 rock.rotation.set(rnd()*Math.PI, rnd()*Math.PI, rnd()*Math.PI);
-                rock.castShadow = rock.receiveShadow = true; scene.add(rock);
-                // Calculate three points around the center of the rock
-rock.castShadow = rock.receiveShadow = true; 
+                rock.castShadow = rock.receiveShadow = true;
                 scene.add(rock);
-                
-                // --- EXACT BOULDER COLLISION ---
-                const tightX = rock.scale.x * 0.7;
-                const tightZ = rock.scale.z * 0.7;
-                const tightY = rock.scale.y;
 
-                const tightBox = new THREE.Box3(
-                    new THREE.Vector3(rock.position.x - tightX/2, rock.position.y - tightY/2, rock.position.z - tightZ/2),
-                    new THREE.Vector3(rock.position.x + tightX/2, rock.position.y + tightY/2, rock.position.z + tightZ/2)
-                );
-                
-                obstacles.push(tightBox);
+                // Ellipsoid collision: transform player into rock's local space,
+                // then test (lx/rx)²+(ly/ry)²+(lz/rz)² < 1.
+                // This is exact for a scaled sphere / icosahedron regardless of rotation.
+                // 0.88 shrinks radii slightly so the hitbox hugs the visual surface.
+                rock.updateMatrixWorld(true);
+                const invMat = new THREE.Matrix4().copy(rock.matrixWorld).invert();
+                obstacles.push({ type: 'ellipsoid',
+                    invMatrix: invMat,
+                    rx: rock.scale.x * 0.88,
+                    ry: rock.scale.y * 0.88,
+                    rz: rock.scale.z * 0.88,
+                    center: rock.position.clone()
+                });
                 
                 
             }
@@ -702,18 +762,25 @@ rock.castShadow = rock.receiveShadow = true;
         
         const cM = buildCactus(); const tM = buildTree();
         
-        // 1. TREES FIRST (To keep your original world layout consistent)
         for(let i=0; i<1000; i++) {
             const vx = (rnd()-0.5)*110000; const vz = (rnd()-0.5)*110000;
             const distToSpawn = Math.sqrt((vx-sX)**2 + (vz-sZ)**2);
             if (distToSpawn < hengeRadius + 900 || (vz - sZ < 0 && Math.abs(vx - sX) < 1400)) continue;
-            const isTree = rnd() > 0.6; const m = isTree ? tM.clone() : cM.clone();
-            const s = isTree ? (2.5 + rnd()*4.5) : (1.5 + rnd()*2.5); m.scale.set(s,s,s);
-            m.position.set(vx, getElevation(vx, vz), vz); m.rotation.y = rnd()*Math.PI*2; 
-            m.traverse(node => { if(node.isMesh) node.castShadow = true; }); scene.add(m);
-            m.updateMatrixWorld(true);
-            obstacles.push(new THREE.Box3().setFromObject(m));
-
+            const isTree = rnd() > 0.6;
+            const m = isTree ? tM.clone() : cM.clone();
+            const s = isTree ? (2.5 + rnd()*4.5) : (1.5 + rnd()*2.5);
+            m.scale.set(s, s, s);
+            const groundY = getElevation(vx, vz);
+            m.position.set(vx, groundY, vz);
+            m.rotation.y = rnd() * Math.PI * 2;
+            m.traverse(node => { if(node.isMesh) node.castShadow = true; });
+            scene.add(m);
+            // Trunk-only cylinder — leaf blobs have no collision
+            if (isTree) {
+                obstacles.push({ type: 'cylinder', cx: vx, cz: vz, r: 18 * s, minY: groundY, maxY: groundY + 160 * s });
+            } else {
+                obstacles.push({ type: 'cylinder', cx: vx, cz: vz, r: 8 * s,  minY: groundY, maxY: groundY + 80 * s });
+            }
         }
 
         for(let i = 0; i < 1500; i++) {
@@ -762,31 +829,29 @@ rock.castShadow = rock.receiveShadow = true;
                 p.userData.rotSpeed = (rnd() - 0.5) * 0.2;
                 scene.add(p);
 
-                // Main Pillar Collision
-                p.updateMatrixWorld(true);
-                obstacles.push(new THREE.Box3().setFromObject(p));
+                // Cylinder — icosahedron AABB inflates badly when rotated
+                obstacles.push({ type: 'cylinder', cx: px, cz: pz, r: sW * 0.82, minY: groundH, maxY: groundH + sH + 400 });
 
-                // --- ADD PARKOUR STEPS ---
+                // --- PARKOUR STEPS ---
                 const stepCount = 10 + Math.floor(rnd() * 5);
                 for(let k = 0; k < stepCount; k++) {
-                    const angle = k * 0.9; 
-                    const hOffset = k * 350 + 400; // Jumpable height
-                    const radius = (sW * 0.5) + 300 + (rnd() * 200);
-                    
+                    const angle = k * 0.9;
+                    const hOffset = k * 200 + 200;
+                    const radius = (sW * 0.5) + 350 + (rnd() * 200);
                     const stepX = px + Math.cos(angle) * radius;
                     const stepZ = pz + Math.sin(angle) * radius;
                     const stepY = groundH + hOffset;
-
                     const stepSize = 250 + rnd() * 150;
-                    // Steps use the Rock material so they look solid
                     const step = new THREE.Mesh(new THREE.BoxGeometry(stepSize, 80, stepSize), rockMat);
                     step.position.set(stepX, stepY, stepZ);
                     step.rotation.y = rnd() * Math.PI;
                     step.castShadow = true;
                     scene.add(step);
-
-                   step.updateMatrixWorld(true);
-                    obstacles.push(new THREE.Box3().setFromObject(step));
+                    const half = stepSize / 2;
+                    obstacles.push({ type: 'box', box: new THREE.Box3(
+                        new THREE.Vector3(stepX - half, stepY - 40, stepZ - half),
+                        new THREE.Vector3(stepX + half, stepY + 40, stepZ + half)
+                    )});
                 }
 
                 pillarsSpawned++;
@@ -869,45 +934,41 @@ rock.castShadow = rock.receiveShadow = true;
             if(keys.hasOwnProperty(key)) keys[key] = 0; 
         });
 
-        // Update your movement loop (inside your requestAnimationFrame or world update)
-        // to check for BOTH sets of keys:
-        function updateMovement() {
-            if (!controls.isLocked) return;
+// --- COLLISION SETUP ---
+        scene.updateMatrixWorld(true);
 
-            const speed = 0.12;
-            
-            // Forward/Backward
-            if (keys.w || keys.arrowup) controls.moveForward(speed);
-            if (keys.s || keys.arrowdown) controls.moveForward(-speed);
-            
-            // Left/Right
-            if (keys.a || keys.arrowleft) controls.moveRight(-speed);
-            if (keys.d || keys.arrowright) controls.moveRight(speed);
-        }
+        const PR = 22; // player horizontal capsule radius
+        const _pLocal = new THREE.Vector3(); // reusable for ellipsoid test
 
-// let isGrounded = true;
-// --- EXACT HITBOX AUTO-GENERATOR ---
-        // This sweeps away the old math and builds perfect local-space hitboxes
-        obstacles.length = 0; 
-        scene.updateMatrixWorld(true); 
-        
-        scene.traverse(node => {
-            if (node.isMesh) {
-                // Target Rocks, Monoliths, Trunks, and Cacti (Ignores leaves & flowers!)
-                if (node.material === rockMat || node.material === asciiPillarMat || 
-                    node.material === barkMat || node.material === cactusMat) {
-                    
-                    if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
-                    
-                    obstacles.push({
-                        mesh: node,
-                        isRound: node.geometry.type === 'IcosahedronGeometry',
-                        localBox: node.geometry.boundingBox.clone(), // The exact raw shape
-                        worldBox: new THREE.Box3().setFromObject(node) // The world boundary
-                    });
+        function collidesAt(tx, tz) {
+            const fy = camera.position.y - USER_HEIGHT;
+            const hy = camera.position.y;
+            for (const obs of obstacles) {
+                if (obs.type === 'cylinder') {
+                    if (hy <= obs.minY || fy >= obs.maxY) continue;
+                    const dx = tx - obs.cx, dz = tz - obs.cz;
+                    if (dx*dx + dz*dz < (obs.r + PR) * (obs.r + PR)) return true;
+                } else if (obs.type === 'ellipsoid') {
+                    // Broad-phase: skip if player center is obviously far from rock center
+                    const bdx = tx - obs.center.x, bdz = tz - obs.center.z;
+                    const maxR = Math.max(obs.rx, obs.ry, obs.rz) + PR;
+                    if (bdx*bdx + bdz*bdz > maxR*maxR) continue;
+                    // Transform player into rock's local space, then ellipsoid test
+                    _pLocal.set(tx, camera.position.y - USER_HEIGHT * 0.5, tz);
+                    _pLocal.applyMatrix4(obs.invMatrix);
+                    const ex = _pLocal.x / obs.rx;
+                    const ey = _pLocal.y / obs.ry;
+                    const ez = _pLocal.z / obs.rz;
+                    if (ex*ex + ey*ey + ez*ez < 1.0) return true;
+                } else {
+                    const b = obs.box;
+                    if (hy <= b.min.y || fy >= b.max.y) continue;
+                    if (tx > b.min.x - PR && tx < b.max.x + PR &&
+                        tz > b.min.z - PR && tz < b.max.z + PR) return true;
                 }
             }
-        });
+            return false;
+        }
         
         const clock = new THREE.Clock();
 
@@ -922,7 +983,7 @@ rock.castShadow = rock.receiveShadow = true;
             if (asciiPillarMat) asciiPillarMat.uniforms.uTime.value = time;
 
           if (controls.isLocked) {
-                const speed = 1800 * delta;
+                const speed = 1400 * delta;
                 const oldX = camera.position.x;
                 const oldZ = camera.position.z;
 
@@ -931,62 +992,37 @@ rock.castShadow = rock.receiveShadow = true;
                 if (keys.a || keys.arrowleft) controls.moveRight(-speed); 
                 if (keys.d || keys.arrowright) controls.moveRight(speed);
 
-                // Check all obstacles to see if we hit a wall or landed on a roof
-             
-              // Calculate Ground Floor
+                // --- COLLISION: per-axis resolution enables wall sliding ---
+                if (collidesAt(camera.position.x, oldZ)) camera.position.x = oldX;
+                if (collidesAt(camera.position.x, camera.position.z)) camera.position.z = oldZ;
+
+                // Floor — terrain plus any surface we're standing on top of
                 let currentFloorY = getElevation(camera.position.x, camera.position.z) + USER_HEIGHT;
-                let hitWall = false;
+                const feetY = camera.position.y - USER_HEIGHT;
 
-                const playerRadius = 15; // Extremely tight radius for squeezing through gaps
-                const pWorld = camera.position.clone();
-                const pFeetY = pWorld.y - USER_HEIGHT;
-
-                // Check the perfect generated boundaries
-                for (let obs of obstacles) {
-                    const wBox = obs.worldBox;
-                    
-                    // BROAD PHASE: Are we near the object's general area?
-                    if (pWorld.x > wBox.min.x - playerRadius && pWorld.x < wBox.max.x + playerRadius &&
-                        pWorld.z > wBox.min.z - playerRadius && pWorld.z < wBox.max.z + playerRadius) {
-                        
-                        // 1. Are we stepping safely on top of it?
-                        if (wBox.max.y < pWorld.y && pFeetY > wBox.max.y - 60) {
-                            currentFloorY = Math.max(currentFloorY, wBox.max.y + USER_HEIGHT);
-                        } 
-                        // 2. Otherwise, check exact Local geometry to see if we hit a wall
-                        else if (pWorld.y > wBox.min.y && pFeetY < wBox.max.y) {
-                            
-                            // worldToLocal mathematically 'undoes' the rotation and scale
-                            const pLocal = obs.mesh.worldToLocal(pWorld.clone());
-                            let hitWallLocal = false;
-
-                            if (obs.isRound) {
-                                // Perfect Ellipsoid Check for rotated Boulders & Monoliths
-                                const avgScale = (obs.mesh.scale.x + obs.mesh.scale.y + obs.mesh.scale.z) / 3;
-                                if (pLocal.length() < 1.0 + (playerRadius / avgScale)) {
-                                    hitWallLocal = true;
-                                }
-                            } else {
-                                // Perfect Box/Cylinder Check for Henge, Steps, and Trees
-                                const lBox = obs.localBox;
-                                const localRadX = playerRadius / obs.mesh.scale.x;
-                                const localRadZ = playerRadius / obs.mesh.scale.z;
-                                
-                                if (pLocal.x > lBox.min.x - localRadX && pLocal.x < lBox.max.x + localRadX &&
-                                    pLocal.z > lBox.min.z - localRadZ && pLocal.z < lBox.max.z + localRadZ &&
-                                    pLocal.y > lBox.min.y && pLocal.y < lBox.max.y) {
-                                    hitWallLocal = true;
-                                }
-                            }
-
-                            if (hitWallLocal) hitWall = true;
+                for (const obs of obstacles) {
+                    if (obs.type === 'cylinder') {
+                        const dx = camera.position.x - obs.cx, dz = camera.position.z - obs.cz;
+                        if (dx*dx + dz*dz < (obs.r + PR) * (obs.r + PR)) {
+                            if (feetY >= obs.maxY - 5 && feetY <= obs.maxY + 200)
+                                currentFloorY = Math.max(currentFloorY, obs.maxY + USER_HEIGHT);
+                        }
+                    } else if (obs.type === 'ellipsoid') {
+                        // Can stand on top of a rock — use a simple broad check on XZ + top of ellipsoid
+                        const dx = camera.position.x - obs.center.x, dz = camera.position.z - obs.center.z;
+                        if (dx*dx + dz*dz < (obs.rx + PR) * (obs.rx + PR)) {
+                            const topY = obs.center.y + obs.ry;
+                            if (feetY >= topY - 5 && feetY <= topY + 200)
+                                currentFloorY = Math.max(currentFloorY, topY + USER_HEIGHT);
+                        }
+                    } else {
+                        const b = obs.box;
+                        if (camera.position.x > b.min.x - PR && camera.position.x < b.max.x + PR &&
+                            camera.position.z > b.min.z - PR && camera.position.z < b.max.z + PR) {
+                            if (feetY >= b.max.y - 5 && feetY <= b.max.y + 200)
+                                currentFloorY = Math.max(currentFloorY, b.max.y + USER_HEIGHT);
                         }
                     }
-                }
-
-                if (hitWall) {
-                    camera.position.x = oldX;
-                    camera.position.z = oldZ;
                 }
                 // Jump & Gravity
                 if (keys[" "] && isGrounded) { verticalVelocity = 1300; isGrounded = false; }
@@ -995,8 +1031,10 @@ rock.castShadow = rock.receiveShadow = true;
 
                 if (camera.position.y <= currentFloorY) {
                     camera.position.y = currentFloorY;
-                    verticalVelocity = 0;
+                    if (verticalVelocity < 0) verticalVelocity = 0;
                     isGrounded = true;
+                } else {
+                    isGrounded = false;
                 }
                 
                 // Update Sun/Moon
