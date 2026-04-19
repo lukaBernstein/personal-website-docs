@@ -832,14 +832,16 @@ window.addEventListener('touchstart', (e) => {
                 // Double torus — two rings crossing (torus knot p=2,q=3 gives trefoil)
                 return { geo: new THREE.TorusKnotGeometry(radius * 0.5, radius * 0.18, 80, 8, 3, 2), shapeType: 'trefoil' };
             } else {
-                // Lathe shape — vase/spindle profile
+                // Lathe shape — vase/spindle profile, closed at poles
                 const pts = [];
-                for (let j = 0; j <= 8; j++) {
+                pts.push(new THREE.Vector2(0, -radius)); // bottom pole — on axis
+                for (let j = 1; j <= 7; j++) {
                     const t = j / 8;
-                    const r = radius * (0.2 + Math.sin(t * Math.PI) * 0.8);
+                    const r = radius * Math.sin(t * Math.PI) * 0.9;
                     pts.push(new THREE.Vector2(r, (t - 0.5) * radius * 2));
                 }
-                return { geo: new THREE.LatheGeometry(pts, 12), shapeType: 'lathe' };
+                pts.push(new THREE.Vector2(0, radius)); // top pole — on axis
+                return { geo: new THREE.LatheGeometry(pts, 14), shapeType: 'lathe' };
             }
         }
 
