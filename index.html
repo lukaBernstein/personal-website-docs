@@ -999,12 +999,14 @@ window.addEventListener('touchstart', (e) => {
                 b.position.x += ud.vx; b.position.y += ud.vy; b.position.z += ud.vz;
 
                 const bW = ud.halfW - ud.radius, bH = ud.halfH - ud.radius;
-                if (b.position.x >  bW) { b.position.x =  bW; ud.vx *= -WALL_BOUNCE; }
-                if (b.position.x < -bW) { b.position.x = -bW; ud.vx *= -WALL_BOUNCE; }
-                if (b.position.y >  bH) { b.position.y =  bH; ud.vy *= -WALL_BOUNCE; }
-                if (b.position.y < -bH) { b.position.y = -bH; ud.vy *= -WALL_BOUNCE; }
-                if (b.position.z >  2.0) { b.position.z =  2.0; ud.vz *= -WALL_BOUNCE; }
-                if (b.position.z < -2.0) { b.position.z = -2.0; ud.vz *= -WALL_BOUNCE; }
+                if (!isWarping) {
+                    if (b.position.x >  bW) { b.position.x =  bW; ud.vx *= -WALL_BOUNCE; }
+                    if (b.position.x < -bW) { b.position.x = -bW; ud.vx *= -WALL_BOUNCE; }
+                    if (b.position.y >  bH) { b.position.y =  bH; ud.vy *= -WALL_BOUNCE; }
+                    if (b.position.y < -bH) { b.position.y = -bH; ud.vy *= -WALL_BOUNCE; }
+                    if (b.position.z >  2.0) { b.position.z =  2.0; ud.vz *= -WALL_BOUNCE; }
+                    if (b.position.z < -2.0) { b.position.z = -2.0; ud.vz *= -WALL_BOUNCE; }
+                }
                 if (Math.random() < 0.003) { ud.vx += (Math.random()-0.5)*0.007; ud.vy += (Math.random()-0.5)*0.007; }
             }
         }
@@ -1040,23 +1042,55 @@ window.addEventListener('touchstart', (e) => {
         function executeWarp() {
             isWarping = true;
             resetIdleTimer();
-            gsap.to([namePlane.position, glowPlane.position], { z: 100, duration: 2.5, ease: "power2.in" });
-            gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
-            gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
-            gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
-            if (mouseLight) gsap.to(mouseLight, { intensity: 0, duration: 0.8 });
+
+            // Step 1: shapes drift outward from center, then accelerate off
             tiles.forEach(t => {
-                const delay = Math.random() * 0.4;
-                gsap.to(t.position, { x: t.position.x * 18, y: t.position.y * 18, z: 80, duration: 2.2, delay, ease: "power2.in" });
-                gsap.to(t.userData.mat, { opacity: 0, duration: 1.0, delay: delay + 0.8 });
+                const delay = Math.random() * 0.25;
+                const ud = t.userData;
+                const dx = t.position.x;
+                const dy = t.position.y;
+                const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                const dist = 38 + Math.random() * 15;
+                const dur = 0.65 + Math.random() * 0.2;
+                gsap.to(t.position, {
+                    x: (dx / len) * dist,
+                    y: (dy / len) * dist,
+                    duration: dur,
+                    delay,
+                    ease: "power2.in"
+                });
+                // Spin on all axes as they fly off
+                const spinDir = Math.random() > 0.5 ? 1 : -1;
+                const spinAmt = (Math.PI * 2) * (2 + Math.random() * 3) * spinDir;
+                gsap.to(t.rotation, {
+                    x: t.rotation.x + spinAmt * (0.5 + Math.random()),
+                    y: t.rotation.y + spinAmt,
+                    z: t.rotation.z + spinAmt * (0.3 + Math.random() * 0.5),
+                    duration: dur + 0.1,
+                    delay,
+                    ease: "none"
+                });
+                if (ud.spinX !== undefined) {
+                    ud.spinX *= 8; ud.spinY *= 8; ud.spinZ *= 8;
+                }
+                gsap.to(ud.mat, { opacity: 0, duration: 0.25, delay: delay + 0.45 });
             });
-            gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => { arrived = true; resetIdleTimer(); }});
-            starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
-            setTimeout(() => { 
-                artifact.visible = true; 
-                const targetZ = isMobile() ? -25 : -15; 
-                gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" }); 
-            }, 2800);
+
+            // Step 2: warp kicks off after shapes have cleared (~0.7s)
+            setTimeout(() => {
+                gsap.to([namePlane.position, glowPlane.position], { z: 100, duration: 2.5, ease: "power2.in" });
+                gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
+                gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
+                gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
+                if (mouseLight) gsap.to(mouseLight, { intensity: 0, duration: 0.8 });
+                gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => { arrived = true; resetIdleTimer(); }});
+                starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
+                setTimeout(() => {
+                    artifact.visible = true;
+                    const targetZ = isMobile() ? -25 : -15;
+                    gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" });
+                }, 2800);
+            }, 700);
         }
 
         function executeUnfold() {
