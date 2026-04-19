@@ -247,7 +247,8 @@
         const mouse = new THREE.Vector2(-10, -10); 
         const raycaster = new THREE.Raycaster();
         const tileGroup = new THREE.Group();
-        const sharedTileGeo = new THREE.SphereGeometry(0.35, 12, 12); 
+        const sharedTileGeo = null;
+        let balls = [], BALL_COUNT = 52, mouseLight;
 
         // Terrain Globals
         let isTerrainMode = false;
@@ -687,7 +688,8 @@
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.toneMapping = THREE.ReinhardToneMapping; 
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            renderer.toneMappingExposure = 1.0;
             document.body.appendChild(renderer.domElement);
 
             const starCount = 12000;
@@ -763,10 +765,10 @@
             gsap.to(nameLight, { intensity: 280, duration: 2, delay: 0.5 });
             gsap.to(sweepLight, { intensity: 880, duration: 2, delay: 0.6 });
             
-            tiles.forEach(t => {
-                const finalZ = t.position.z; t.position.z = 300 + (Math.random() * 200); t.material.opacity = 0;
-                gsap.to(t.position, { z: finalZ, duration: 2.2 + Math.random(), ease: "power3.out", delay: Math.random() * 0.5 });
-                gsap.to(t.material, { opacity: 0.4, duration: 1.5, delay: 0.8 + Math.random() * 0.5 });
+            balls.forEach((b, i) => {
+                const fz = b.position.z; b.position.z += 280; b.userData.mat.opacity = 0;
+                gsap.to(b.position, { z: fz, duration: 1.8 + Math.random() * 0.8, ease: "power3.out", delay: i * 0.025 });
+                gsap.to(b.userData.mat, { opacity: b.userData.baseOp, duration: 1.2, delay: 0.4 + i * 0.025 });
             });
             
             window.addEventListener('mousemove', (e) => { 
@@ -794,20 +796,214 @@ window.addEventListener('touchstart', (e) => {
             animate();
         }
 
-        function generateGrid() {
-            const tileMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, metalness: 1.0, roughness: 0.05 });
-            while(tileGroup.children.length > 0) tileGroup.remove(tileGroup.children[0]);
-            tiles = [];
-            const spacing = 0.65;
-            const h = 2 * Math.tan((camera.fov * Math.PI) / 360) * 10;
-            const w = h * (window.innerWidth / window.innerHeight);
-            const cg = Math.ceil(w / spacing) + 12; const rg = Math.ceil(h / spacing) + 8;
-            for (let x = -cg/2; x < cg/2; x++) {
-                for (let y = -rg/2; y < rg/2; y++) {
-                    const tile = new THREE.Mesh(sharedTileGeo, tileMat);
-                    tile.position.set(x * spacing, y * spacing, 0); tile.scale.set(1, 1, 0.2); 
-                    tileGroup.add(tile); tiles.push(tile);
+        function makeShapeGeo(radius) {
+            const roll = Math.random();
+            if (roll < 0.12) {
+                return { geo: new THREE.SphereGeometry(radius, 22, 22), shapeType: 'sphere' };
+            } else if (roll < 0.22) {
+                return { geo: new THREE.IcosahedronGeometry(radius, 0), shapeType: 'ico' };
+            } else if (roll < 0.30) {
+                return { geo: new THREE.TorusGeometry(radius * 0.72, radius * 0.36, 14, 28), shapeType: 'torus' };
+            } else if (roll < 0.38) {
+                return { geo: new THREE.OctahedronGeometry(radius, 0), shapeType: 'octa' };
+            } else if (roll < 0.45) {
+                return { geo: new THREE.TetrahedronGeometry(radius, 0), shapeType: 'tetra' };
+            } else if (roll < 0.52) {
+                return { geo: new THREE.DodecahedronGeometry(radius, 0), shapeType: 'dodeca' };
+            } else if (roll < 0.58) {
+                // Flat disk
+                return { geo: new THREE.CylinderGeometry(radius, radius, radius * 0.18, 20), shapeType: 'disk' };
+            } else if (roll < 0.64) {
+                // Torus knot — pretzel shape
+                return { geo: new THREE.TorusKnotGeometry(radius * 0.55, radius * 0.2, 64, 8, 2, 3), shapeType: 'knot' };
+            } else if (roll < 0.70) {
+                // Cone
+                return { geo: new THREE.ConeGeometry(radius, radius * 1.8, 8, 1), shapeType: 'cone' };
+            } else if (roll < 0.76) {
+                // Triangular prism
+                return { geo: new THREE.CylinderGeometry(radius * 0.8, radius * 0.8, radius * 1.2, 3, 1), shapeType: 'prism' };
+            } else if (roll < 0.82) {
+                // Cube
+                return { geo: new THREE.BoxGeometry(radius * 1.4, radius * 1.4, radius * 1.4), shapeType: 'cube' };
+            } else if (roll < 0.87) {
+                // Capsule-like: tall cylinder with end caps
+                return { geo: new THREE.CapsuleGeometry(radius * 0.5, radius * 0.9, 8, 16), shapeType: 'capsule' };
+            } else if (roll < 0.92) {
+                // Double torus — two rings crossing (torus knot p=2,q=3 gives trefoil)
+                return { geo: new THREE.TorusKnotGeometry(radius * 0.5, radius * 0.18, 80, 8, 3, 2), shapeType: 'trefoil' };
+            } else {
+                // Lathe shape — vase/spindle profile
+                const pts = [];
+                for (let j = 0; j <= 8; j++) {
+                    const t = j / 8;
+                    const r = radius * (0.2 + Math.sin(t * Math.PI) * 0.8);
+                    pts.push(new THREE.Vector2(r, (t - 0.5) * radius * 2));
                 }
+                return { geo: new THREE.LatheGeometry(pts, 12), shapeType: 'lathe' };
+            }
+        }
+
+        function generateGrid() {
+            while (tileGroup.children.length > 0) tileGroup.remove(tileGroup.children[0]);
+            balls = []; tiles = balls;
+            BALL_COUNT = isMobile() ? 30 : 50;
+
+            // Saturated but not garish — rich, jewel-toned
+            const palette = [
+                0xcc2255, // ruby
+                0xcc5500, // burnt orange
+                0xccaa00, // gold
+                0x00aa88, // jade
+                0x2266cc, // sapphire
+                0x7722cc, // amethyst
+                0xcc2288, // magenta
+                0x00aa66, // emerald
+                0xcc7700, // amber
+                0x2288cc, // cerulean
+                0x8822cc, // violet
+                0xcc3300, // crimson
+                0x00aacc, // teal
+                0xaacc00, // lime
+                0x22cc88, // seafoam
+                0xcc2244, // rose
+            ];
+
+            const fovR = (75 * Math.PI) / 180;
+            const halfH = Math.tan(fovR / 2) * 10;
+            const halfW = halfH * (window.innerWidth / window.innerHeight);
+
+            for (let i = 0; i < BALL_COUNT; i++) {
+                const radius = 0.5 + Math.random() * 0.7;
+                const col = palette[i % palette.length];
+                const { geo, shapeType } = makeShapeGeo(radius);
+
+                const mat = new THREE.MeshPhysicalMaterial({
+                    color: col,
+                    emissive: col,
+                    emissiveIntensity: 0.08,
+                    metalness: 0.2,
+                    roughness: shapeType === 'sphere' ? 0.08 : 0.04,
+                    iridescence: 1.0,
+                    iridescenceIOR: 1.8,
+                    iridescenceThicknessRange: [200, 800],
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.05,
+                    transparent: true,
+                    opacity: 0,
+                });
+
+                const mesh = new THREE.Mesh(geo, mat);
+                const margin = radius + 0.5;
+                mesh.position.set(
+                    (Math.random() - 0.5) * (halfW * 2 - margin * 2),
+                    (Math.random() - 0.5) * (halfH * 2 - margin * 2),
+                    (Math.random() - 0.5) * 2.5
+                );
+
+                const speed = 0.012 + Math.random() * 0.032;
+                const spinMult = shapeType === 'sphere' ? 0.4 : 1.2;
+                mesh.userData = {
+                    radius, mat, shapeType,
+                    vx: (Math.random() - 0.5) * speed,
+                    vy: (Math.random() - 0.5) * speed,
+                    vz: (Math.random() - 0.5) * 0.006,
+                    baseOp: 0.78 + Math.random() * 0.18,
+                    halfW, halfH,
+                    wobblePhase: Math.random() * Math.PI * 2,
+                    wobbleSpeed: 0.4 + Math.random() * 0.6,
+                    squashTimer: 0,
+                    // Per-axis spin for non-sphere shapes
+                    spinX: (Math.random() - 0.5) * 0.012 * spinMult,
+                    spinY: (Math.random() - 0.5) * 0.012 * spinMult,
+                    spinZ: (Math.random() - 0.5) * 0.008 * spinMult,
+                };
+                tileGroup.add(mesh);
+                balls.push(mesh);
+            }
+
+            mouseLight = new THREE.PointLight(0xffffff, 0, 12);
+            mouseLight.position.set(0, 0, 2.5);
+            mainGroup.add(mouseLight);
+        }
+
+        function stepBallpit(timeNow) {
+            if (!balls.length) return;
+            const ud0 = balls[0].userData;
+            const mouseWorldX = mouse.x * ud0.halfW;
+            const mouseWorldY = mouse.y * ud0.halfH;
+
+            if (mouseLight) {
+                mouseLight.position.set(mouseWorldX, mouseWorldY, 2.5);
+                mouseLight.color.setHSL((timeNow * 0.12) % 1, 1.0, 0.65);
+                const onScreen = Math.abs(mouse.x) < 1.1 && Math.abs(mouse.y) < 1.1;
+                mouseLight.intensity = THREE.MathUtils.lerp(mouseLight.intensity, onScreen ? 28 : 0, 0.06);
+            }
+
+            const DAMP = 0.992, MOUSE_RADIUS = 5.0, MOUSE_FORCE = 0.026, WALL_BOUNCE = 0.58;
+            const GRAVITY = 0.00035;
+
+            for (let i = 0; i < balls.length; i++) {
+                const b = balls[i], ud = b.userData;
+
+                // Simple size wobble
+                const wobble = 1.0 + Math.sin(timeNow * ud.wobbleSpeed + ud.wobblePhase) * 0.025;
+                b.scale.setScalar(wobble);
+                // Non-sphere shapes tumble
+                if (ud.shapeType !== 'sphere') {
+                    b.rotation.x += ud.spinX;
+                    b.rotation.y += ud.spinY;
+                    b.rotation.z += ud.spinZ;
+                }
+
+                const dx = b.position.x - mouseWorldX, dy = b.position.y - mouseWorldY;
+                const md = Math.sqrt(dx*dx + dy*dy);
+                if (md < MOUSE_RADIUS && md > 0.01) {
+                    const force = (MOUSE_RADIUS - md) / MOUSE_RADIUS * MOUSE_FORCE;
+                    ud.vx += (dx / md) * force; ud.vy += (dy / md) * force;
+                    ud.mat.emissiveIntensity = THREE.MathUtils.lerp(ud.mat.emissiveIntensity, 0.08 + (1 - md/MOUSE_RADIUS) * 0.35, 0.15);
+                } else {
+                    ud.mat.emissiveIntensity = THREE.MathUtils.lerp(ud.mat.emissiveIntensity, 0.08, 0.04);
+                }
+
+                for (let j = i + 1; j < balls.length; j++) {
+                    const b2 = balls[j], ud2 = b2.userData;
+                    const ex = b.position.x - b2.position.x, ey = b.position.y - b2.position.y, ez = b.position.z - b2.position.z;
+                    const dist = Math.sqrt(ex*ex + ey*ey + ez*ez), minD = ud.radius + ud2.radius;
+                    if (dist < minD && dist > 0.001) {
+                        const ov = (minD - dist) / dist * 0.5;
+                        b.position.x += ex*ov; b.position.y += ey*ov;
+                        b2.position.x -= ex*ov; b2.position.y -= ey*ov;
+                        const dv = ((ud.vx*(ex/dist) + ud.vy*(ey/dist)) - (ud2.vx*(ex/dist) + ud2.vy*(ey/dist))) * 0.5;
+                        ud.vx  -= dv*(ex/dist); ud.vy  -= dv*(ey/dist);
+                        ud2.vx += dv*(ex/dist); ud2.vy += dv*(ey/dist);
+                        ud.mat.emissiveIntensity  = Math.min(ud.mat.emissiveIntensity  + 0.2, 0.5);
+                        ud2.mat.emissiveIntensity = Math.min(ud2.mat.emissiveIntensity + 0.2, 0.5);
+                        if (ud.shapeType !== 'sphere') {
+                            ud.spinX += (Math.random() - 0.5) * 0.018;
+                            ud.spinY += (Math.random() - 0.5) * 0.018;
+                        }
+                        if (ud2.shapeType !== 'sphere') {
+                            ud2.spinX += (Math.random() - 0.5) * 0.018;
+                            ud2.spinY += (Math.random() - 0.5) * 0.018;
+                        }
+                    }
+                }
+
+                ud.vx *= DAMP; ud.vy *= DAMP; ud.vz *= DAMP;
+                ud.vy -= GRAVITY; // gentle downward pull
+                if (ud.shapeType !== 'sphere') {
+                    ud.spinX *= 0.994; ud.spinY *= 0.994; ud.spinZ *= 0.994;
+                }
+                b.position.x += ud.vx; b.position.y += ud.vy; b.position.z += ud.vz;
+
+                const bW = ud.halfW - ud.radius, bH = ud.halfH - ud.radius;
+                if (b.position.x >  bW) { b.position.x =  bW; ud.vx *= -WALL_BOUNCE; }
+                if (b.position.x < -bW) { b.position.x = -bW; ud.vx *= -WALL_BOUNCE; }
+                if (b.position.y >  bH) { b.position.y =  bH; ud.vy *= -WALL_BOUNCE; }
+                if (b.position.y < -bH) { b.position.y = -bH; ud.vy *= -WALL_BOUNCE; }
+                if (b.position.z >  2.0) { b.position.z =  2.0; ud.vz *= -WALL_BOUNCE; }
+                if (b.position.z < -2.0) { b.position.z = -2.0; ud.vz *= -WALL_BOUNCE; }
+                if (Math.random() < 0.003) { ud.vx += (Math.random()-0.5)*0.007; ud.vy += (Math.random()-0.5)*0.007; }
             }
         }
 
@@ -846,12 +1042,11 @@ window.addEventListener('touchstart', (e) => {
             gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
             gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
             gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
+            if (mouseLight) gsap.to(mouseLight, { intensity: 0, duration: 0.8 });
             tiles.forEach(t => {
                 const delay = Math.random() * 0.4;
-                gsap.to(t.position, { x: t.position.x * 20, y: t.position.y * 20, z: 100, duration: 2.4, delay: delay, ease: "power2.in" });
-                gsap.to(t.scale, { x: 3, y: 3, duration: 2.4, delay: delay });
-                gsap.to(t.rotation, { x: Math.random() * 12, y: Math.random() * 12, duration: 2.4, delay: delay });
-                gsap.to(t.material, { opacity: 0, duration: 1.2, delay: delay + 1.2 });
+                gsap.to(t.position, { x: t.position.x * 18, y: t.position.y * 18, z: 80, duration: 2.2, delay, ease: "power2.in" });
+                gsap.to(t.userData.mat, { opacity: 0, duration: 1.0, delay: delay + 0.8 });
             });
             gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => { arrived = true; resetIdleTimer(); }});
             starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
@@ -1041,19 +1236,7 @@ function onClick(event) {
                     glowPlane.scale.set(1.08 + (breath * 0.07), 1.08 + (breath * 0.07), 1);
                     nameLight.intensity = 230 + (breath * 165); 
                     namePlane.material.emissiveIntensity = 0.45 + (breath * 0.38);
-                    const tx = mouse.x * 10, ty = mouse.y * 6;
-                    tiles.forEach(tile => {
-                        if(Math.abs(tile.position.z) < 5) {
-                            const d = Math.sqrt((tile.position.x - tx)**2 + (tile.position.y - ty)**2);
-                            if (d < 4) {
-                                tile.position.z = THREE.MathUtils.lerp(tile.position.z, (4 - d)/4 * 3, 0.1);
-                                tile.material.opacity = 0.4 + ((4-d)/4 * 0.3);
-                            } else {
-                                tile.position.z = THREE.MathUtils.lerp(tile.position.z, 0, 0.08);
-                                tile.material.opacity = 0.4;
-                            }
-                        }
-                    });
+                    stepBallpit(timeNow);
                 }
 
                 if(isWarping && !arrived) {
@@ -1123,7 +1306,6 @@ function onClick(event) {
             camera.fov = window.innerWidth < window.innerHeight ? 85 : 75;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            generateGrid();
         }
 
         init();
