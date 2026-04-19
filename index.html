@@ -1076,21 +1076,19 @@ window.addEventListener('touchstart', (e) => {
                 gsap.to(ud.mat, { opacity: 0, duration: 0.25, delay: delay + 0.45 });
             });
 
-            // Step 2: warp kicks off after shapes have cleared (~0.7s)
+            // Shapes fly off and warp simultaneously
+            gsap.to([namePlane.position, glowPlane.position], { z: 100, duration: 2.5, ease: "power2.in" });
+            gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
+            gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
+            gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
+            if (mouseLight) gsap.to(mouseLight, { intensity: 0, duration: 0.8 });
+            gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => { arrived = true; resetIdleTimer(); }});
+            starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
             setTimeout(() => {
-                gsap.to([namePlane.position, glowPlane.position], { z: 100, duration: 2.5, ease: "power2.in" });
-                gsap.to([namePlane.scale, glowPlane.scale], { x: 5, y: 5, duration: 2.5, ease: "power2.in" });
-                gsap.to([namePlane.material, glowPlane.material], { opacity: 0, duration: 1.8, delay: 0.5 });
-                gsap.to([nameLight, sweepLight], { intensity: 0, duration: 1.2 });
-                if (mouseLight) gsap.to(mouseLight, { intensity: 0, duration: 0.8 });
-                gsap.to(window, { duration: 4.0, onUpdate: function() { warpProgress = this.progress(); }, onComplete: () => { arrived = true; resetIdleTimer(); }});
-                starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
-                setTimeout(() => {
-                    artifact.visible = true;
-                    const targetZ = isMobile() ? -25 : -15;
-                    gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" });
-                }, 2800);
-            }, 700);
+                artifact.visible = true;
+                const targetZ = isMobile() ? -25 : -15;
+                gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" });
+            }, 2800);
         }
 
         function executeUnfold() {
