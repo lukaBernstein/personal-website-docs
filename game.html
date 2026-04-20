@@ -396,7 +396,8 @@ if (isMobileDevice) {
             starPositions[i * 3 + 2] = r * Math.cos(phi);
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xfff9e6, size: 80, transparent: true, opacity: 0.4, sizeAttenuation: true })));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xfff9e6, size: 80, transparent: true, opacity: 0.4, sizeAttenuation: true });
+        scene.add(new THREE.Points(starGeo, starMaterial));
 
         const hazeGeo = new THREE.SphereGeometry(58000, 32, 32); 
         const hazeMat = new THREE.ShaderMaterial({
@@ -417,8 +418,8 @@ if (isMobileDevice) {
 
         function createPixelGrassTexture() {
             const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
-            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#3a322a'; ctx.fillRect(0,0,64,64);
-            const colors = ['#4a4435', '#555d42', '#3d442a', '#2d331d'];
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#3a4a2a'; ctx.fillRect(0,0,64,64);
+            const colors = ['#5a6d3a', '#6b8045', '#4a5a30', '#2d3a1d'];
             for (let i = 0; i < 600; i++) { ctx.fillStyle = colors[Math.floor(rnd()*4)]; ctx.fillRect(Math.floor(rnd()*64), Math.floor(rnd()*64), 1, 1); }
             const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(600, 600); return tex;
         }
@@ -655,7 +656,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 const TRUNK_R = 1.5;
 
                 let spawned = 0;
-                for (let i = 0; i < 1500 && spawned < 500; i++) {
+                for (let i = 0; i < 3000 && spawned < 950; i++) {
                     const vx = (rnd()-0.5)*108000;
                     const vz = (rnd()-0.5)*108000;
                     if (Math.sqrt((vx-sX)**2+(vz-sZ)**2) < 2600) continue;
@@ -690,6 +691,209 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         })();
 
 
+        // ── TREE TRUNKS (stumpy fallen-log pieces scattered around the forest) ──
+        // low_poly_tree_trunk.glb is Sketchfab Z-up → Y-up (same conversion as
+        // pine_tree_low_poly). The trunk is short and chunky (wider than tall),
+        // so we measure the bbox after parent transforms resolve and shift the
+        // scene so its base sits at y=0, then clone-and-place like the others.
+        (function spawnTreeTrunks() {
+            const loader = new GLTFLoader();
+            loader.load('assets/low_poly_tree_trunk.glb', gltf => {
+                const raw = gltf.scene;
+                raw.traverse(n => {
+                    if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
+                });
+
+                // Measure world-space bounds AFTER all parent transforms resolve,
+                // then shift the raw scene so its base sits at y=0 and it's
+                // centred in X/Z around origin.
+                const bb = new THREE.Box3().setFromObject(raw);
+                const height = Math.max(bb.max.y - bb.min.y, 0.0001);
+                const widthX = bb.max.x - bb.min.x;
+                const widthZ = bb.max.z - bb.min.z;
+                raw.position.set(
+                    -(bb.min.x + bb.max.x) * 0.5,
+                    -bb.min.y,
+                    -(bb.min.z + bb.max.z) * 0.5
+                );
+                const template = new THREE.Group();
+                template.add(raw);
+
+                let placed = 0;
+                for (let i = 0; i < 1500 && placed < 450; i++) {
+                    const tx = (rnd() - 0.5) * 108000;
+                    const tz = (rnd() - 0.5) * 108000;
+                    if (Math.sqrt((tx - sX)**2 + (tz - sZ)**2) < 2600) continue;
+
+                    const gy = getElevation(tx, tz);
+                    // Chunky stump-scale — 80–260 units tall. The model is
+                    // wider than tall, so this reads as forest-floor debris
+                    // rather than a full standing tree.
+                    const worldH = 80 + rnd() * 180;
+                    const sc = worldH / height;
+
+                    const m = template.clone(true);
+                    m.scale.setScalar(sc);
+                    m.rotation.y = rnd() * Math.PI * 2;
+                    // Small random lean so they don't all look identical
+                    m.rotation.x = (rnd() - 0.5) * 0.12;
+                    m.rotation.z = (rnd() - 0.5) * 0.12;
+                    // Sink slightly so the base embeds into the terrain
+                    m.position.set(tx, gy - worldH * 0.04, tz);
+                    scene.add(m);
+
+                    // Collision cylinder hugging the widest footprint
+                    obstacles.push({
+                        type: 'cylinder',
+                        cx: tx, cz: tz,
+                        r: Math.max(widthX, widthZ) * sc * 0.4,
+                        minY: gy,
+                        maxY: gy + worldH
+                    });
+                    placed++;
+                }
+                console.log('Tree trunks spawned:', placed);
+            }, undefined, e => console.warn('Tree trunk GLB not found:', e));
+        })();
+
+
+        // ── PINE TREES ──
+        // pine_tree_low_poly.glb has the same Sketchfab Z-up → Y-up rotation
+        // as the grass pack, plus 3 child meshes (trunk + two foliage tiers)
+        // positioned with large translations baked into their per-mesh matrices.
+        // We clone the whole scene (not individual geometries) so those
+        // translations keep the three parts stacked correctly, and wrap it in
+        // a Group so placement uses the tree base as origin.
+        (function spawnPineTrees() {
+            const loader = new GLTFLoader();
+            loader.load('assets/pine_tree_low_poly.glb', gltf => {
+                const raw = gltf.scene;
+                raw.traverse(n => {
+                    if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
+                });
+
+                // Measure world-space bounds AFTER all parent transforms resolve,
+                // then shift the raw scene so its base sits at y=0 and it's
+                // centred in X/Z around origin.
+                const bb = new THREE.Box3().setFromObject(raw);
+                const height = bb.max.y - bb.min.y;
+                raw.position.set(
+                    -(bb.min.x + bb.max.x) * 0.5,
+                    -bb.min.y,
+                    -(bb.min.z + bb.max.z) * 0.5
+                );
+                const template = new THREE.Group();
+                template.add(raw);
+
+                let placed = 0;
+                for (let i = 0; i < 2000 && placed < 340; i++) {
+                    const tx = (rnd() - 0.5) * 108000;
+                    const tz = (rnd() - 0.5) * 108000;
+                    if (Math.sqrt((tx - sX)**2 + (tz - sZ)**2) < 2600) continue;
+
+                    const gy = getElevation(tx, tz);
+                    const worldH = 500 + rnd() * 600;           // 500–1100 units tall
+                    const sc = worldH / height;
+
+                    const m = template.clone(true);
+                    m.scale.setScalar(sc);
+                    m.rotation.y = rnd() * Math.PI * 2;
+                    // Small sink so the base is below ground rather than floating
+                    m.position.set(tx, gy - worldH * 0.012, tz);
+                    scene.add(m);
+
+                    // Trunk collision cylinder — narrow so players can walk
+                    // between branches but not through the stem.
+                    obstacles.push({
+                        type: 'cylinder',
+                        cx: tx, cz: tz,
+                        r: worldH * 0.025,
+                        minY: gy,
+                        maxY: gy + worldH
+                    });
+                    placed++;
+                }
+                console.log('Pine trees spawned:', placed);
+            }, undefined, e => console.warn('Pine GLB not found:', e));
+        })();
+
+
+        // ── BROADLEAF TREES (tree2) ──
+        // 8 sub-meshes (1 trunk-plane + 7 foliage icospheres at baked-in
+        // rotations/scales). Scene-cloning this 200+ times would be ~1600
+        // draw calls. Instead: bake each sub-mesh's world matrix into its
+        // cloned geometry, then make one InstancedMesh per sub-mesh. All
+        // trees of this type render in 8 draw calls regardless of count.
+        // Sketchfab also ships a leftover Camera node in this GLB; it's
+        // ignored automatically since it isn't a Mesh.
+        (function spawnTree2() {
+            const loader = new GLTFLoader();
+            loader.load('assets/low_poly_tree2.glb', gltf => {
+                gltf.scene.updateMatrixWorld(true);
+                const subs = [];
+                const overallBB = new THREE.Box3();
+                gltf.scene.traverse(n => {
+                    if (n.isMesh) {
+                        const geo = n.geometry.clone();
+                        geo.applyMatrix4(n.matrixWorld);
+                        geo.computeBoundingBox();
+                        overallBB.union(geo.boundingBox);
+                        subs.push({ geometry: geo, material: n.material });
+                    }
+                });
+                if (subs.length === 0) { console.warn('No tree2 meshes'); return; }
+
+                // Shift all sub-geometries so tree base sits at y=0 and it's
+                // centred in X/Z — now a single instance matrix per tree
+                // handles world placement and all 8 parts follow together.
+                const offX = -(overallBB.min.x + overallBB.max.x) * 0.5;
+                const offY = -overallBB.min.y;
+                const offZ = -(overallBB.min.z + overallBB.max.z) * 0.5;
+                for (const s of subs) s.geometry.translate(offX, offY, offZ);
+                const height = overallBB.max.y - overallBB.min.y;
+
+                // Build instance placements + register trunk collisions
+                const dummy = new THREE.Object3D();
+                const mats = [];
+                let attempts = 0;
+                while (mats.length < 500 && attempts < 2500) {
+                    attempts++;
+                    const tx = (rnd() - 0.5) * 108000;
+                    const tz = (rnd() - 0.5) * 108000;
+                    if (Math.sqrt((tx - sX)**2 + (tz - sZ)**2) < 2600) continue;
+
+                    const gy = getElevation(tx, tz);
+                    const worldH = 450 + rnd() * 650;              // 450–1100
+                    const sc = worldH / height;
+
+                    dummy.position.set(tx, gy - worldH * 0.012, tz);
+                    dummy.rotation.set(0, rnd() * Math.PI * 2, 0);
+                    dummy.scale.setScalar(sc);
+                    dummy.updateMatrix();
+                    mats.push(dummy.matrix.clone());
+
+                    obstacles.push({
+                        type: 'cylinder',
+                        cx: tx, cz: tz,
+                        r: worldH * 0.03,
+                        minY: gy,
+                        maxY: gy + worldH
+                    });
+                }
+
+                // One InstancedMesh per sub-mesh, sharing instance matrices
+                for (const s of subs) {
+                    const im = new THREE.InstancedMesh(s.geometry, s.material, mats.length);
+                    im.castShadow = true;
+                    im.receiveShadow = true;
+                    im.frustumCulled = false;
+                    for (let i = 0; i < mats.length; i++) im.setMatrixAt(i, mats[i]);
+                    im.instanceMatrix.needsUpdate = true;
+                    scene.add(im);
+                }
+                console.log('Broadleaf trees spawned:', mats.length, 'across', subs.length, 'sub-meshes');
+            }, undefined, e => console.warn('Tree2 GLB not found:', e));
+        })();
 
 
         // ── FLOWERS ──
@@ -727,7 +931,8 @@ const s = Math.sin(angle); const c = Math.cos(angle);
 
                 // 400 normal-sized flowers
                 let normalPlaced = 0;
-                for (let i = 0; i < 4000 && normalPlaced < 400; i++) {
+                for (let i = 0; i < 5500; i++) {
+                    if (normalPlaced >= 650) break;
                     const fx = (rnd()-0.5)*108000;
                     const fz = (rnd()-0.5)*108000;
                     if (tooClose(fx, fz)) continue;
@@ -742,6 +947,162 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 }
                 console.log('Flowers spawned');
             }, undefined, e => console.warn('Flowers GLB not found:', e));
+        })();
+
+
+        // ── GRASS TUFTS ──
+        // low_poly_grass_pack.glb: 4 tuft variants under RootNode (Circle.018/.015/.012/.005).
+        // Raw heights ≈ 2.7 / 7.0 / 11.1 / 8.3 units. Models' min.y is ~-1.6, so tufts
+        // embed naturally if we sit the origin on the terrain (no lift needed).
+        // Uses InstancedMesh per template — cloning ~15k individual meshes would
+        // tank framerate; instancing draws each template in a single call.
+        (function spawnGrass() {
+            const loader = new GLTFLoader();
+            loader.load('assets/low_poly_grass_pack.glb', gltf => {
+                // Parent nodes in Sketchfab-exported FBX glTFs carry a Z-up → Y-up
+                // rotation AND a per-mesh scale/rotation. Cloning just the geometry
+                // (like rocks do) skips all that and leaves tufts sideways. Fix:
+                // bake each mesh's full world matrix into its cloned geometry, then
+                // re-center in X/Z with the base at y=0 so placement code is simple.
+                gltf.scene.updateMatrixWorld(true);
+                const templates = [];
+                gltf.scene.traverse(n => {
+                    if (n.isMesh) {
+                        const geo = n.geometry.clone();
+                        geo.applyMatrix4(n.matrixWorld);
+                        geo.computeBoundingBox();
+                        const bb = geo.boundingBox;
+                        geo.translate(
+                            -(bb.min.x + bb.max.x) * 0.5,   // centre X on origin
+                            -bb.min.y,                       // base sits at y=0
+                            -(bb.min.z + bb.max.z) * 0.5    // centre Z on origin
+                        );
+                        const h = bb.max.y - bb.min.y;
+                        templates.push({ geometry: geo, material: n.material, height: h });
+                    }
+                });
+                if (templates.length === 0) { console.warn('No grass meshes'); return; }
+
+                function tooClose(vx, vz) {
+                    return Math.sqrt((vx-sX)**2 + (vz-sZ)**2) < 2600;
+                }
+
+                // Accumulate target matrices per template, then build one InstancedMesh each
+                const buckets = templates.map(() => []);
+                const dummy = new THREE.Object3D();
+
+                const CLUSTER_COUNT = 5200;
+                for (let i = 0; i < CLUSTER_COUNT; i++) {
+                    const cx = (rnd()-0.5) * 108000;
+                    const cz = (rnd()-0.5) * 108000;
+                    if (tooClose(cx, cz)) continue;
+
+                    const tuftCount     = 8 + Math.floor(rnd() * 16);   // 8–23 tufts per patch
+                    const clusterRadius = 90 + rnd() * 260;             // patch size
+                    for (let j = 0; j < tuftCount; j++) {
+                        const a  = rnd() * Math.PI * 2;
+                        // Sqrt of rnd gives denser centers, natural dropoff toward edges
+                        const r  = Math.sqrt(rnd()) * clusterRadius;
+                        const gx = cx + Math.cos(a) * r;
+                        const gz = cz + Math.sin(a) * r;
+                        const gy = getElevation(gx, gz);
+
+                        const tIdx    = Math.floor(rnd() * templates.length);
+                        const targetH = 24 + rnd() * 40;                // 24–64 world units tall
+                        const sc      = targetH / templates[tIdx].height;
+
+                        // Sink ~3 units so roots are below terrain, no floating tufts
+                        dummy.position.set(gx, gy - 3, gz);
+                        dummy.rotation.set(0, rnd() * Math.PI * 2, 0);
+                        dummy.scale.setScalar(sc);
+                        dummy.updateMatrix();
+                        buckets[tIdx].push(dummy.matrix.clone());
+                    }
+                }
+
+                let total = 0;
+                for (let t = 0; t < templates.length; t++) {
+                    const bucket = buckets[t];
+                    if (bucket.length === 0) continue;
+                    const mat = templates[t].material.clone();
+                    mat.side = THREE.DoubleSide;   // grass cards need to render from both sides
+                    const im = new THREE.InstancedMesh(templates[t].geometry, mat, bucket.length);
+                    im.receiveShadow = true;
+                    im.castShadow = false;         // grass shadows would be expensive & noisy
+                    im.frustumCulled = false;       // instances span whole world; skip per-instance culling
+                    for (let i = 0; i < bucket.length; i++) im.setMatrixAt(i, bucket[i]);
+                    im.instanceMatrix.needsUpdate = true;
+                    scene.add(im);
+                    total += bucket.length;
+                }
+                console.log('Grass spawned:', total, 'tufts across', templates.length, 'variants');
+            }, undefined, e => console.warn('Grass GLB not found:', e));
+        })();
+
+
+        // ── MUSHROOMS (GLB) ──
+        // low_poly_mushrooms.glb scattered across the forest floor in natural
+        // patches. Same clone-per-instance pattern as the other tree GLBs —
+        // 450-ish individual mushrooms is well within per-frame budget and
+        // lets them cast/receive shadows nicely. Placed in small rings (you
+        // notice one, look around, see the rest) rather than even spread.
+        (function spawnMushrooms() {
+            const loader = new GLTFLoader();
+            loader.load('assets/low_poly_mushrooms.glb', gltf => {
+                const raw = gltf.scene;
+                raw.traverse(n => {
+                    if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
+                });
+
+                // Measure after parent transforms resolve, then shift so base
+                // sits at y=0 and it's centred in X/Z.
+                const bb = new THREE.Box3().setFromObject(raw);
+                const height = Math.max(bb.max.y - bb.min.y, 0.0001);
+                raw.position.set(
+                    -(bb.min.x + bb.max.x) * 0.5,
+                    -bb.min.y,
+                    -(bb.min.z + bb.max.z) * 0.5
+                );
+                const template = new THREE.Group();
+                template.add(raw);
+
+                function tooClose(vx, vz) {
+                    return Math.sqrt((vx-sX)**2 + (vz-sZ)**2) < 2600;
+                }
+
+                let placed = 0;
+                const PATCHES = 160;
+                for (let p = 0; p < PATCHES; p++) {
+                    const cx = (rnd() - 0.5) * 108000;
+                    const cz = (rnd() - 0.5) * 108000;
+                    if (tooClose(cx, cz)) continue;
+
+                    const count  = 2 + Math.floor(rnd() * 5);    // 2–6 mushrooms per patch
+                    const patchR = 60 + rnd() * 140;
+
+                    for (let j = 0; j < count; j++) {
+                        const a  = rnd() * Math.PI * 2;
+                        const r  = Math.sqrt(rnd()) * patchR;
+                        const mx = cx + Math.cos(a) * r;
+                        const mz = cz + Math.sin(a) * r;
+                        const gy = getElevation(mx, mz);
+
+                        const worldH = 25 + rnd() * 55;          // 25–80 units tall
+                        const sc = worldH / height;
+
+                        const m = template.clone(true);
+                        m.scale.setScalar(sc);
+                        m.rotation.y = rnd() * Math.PI * 2;
+                        // Tiny random lean so they don't all face identically
+                        m.rotation.x = (rnd() - 0.5) * 0.08;
+                        m.rotation.z = (rnd() - 0.5) * 0.08;
+                        m.position.set(mx, gy, mz);
+                        scene.add(m);
+                        placed++;
+                    }
+                }
+                console.log('Mushrooms spawned:', placed);
+            }, undefined, e => console.warn('Mushroom GLB not found:', e));
         })();
 
 
@@ -823,51 +1184,131 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     return Math.sqrt((vx-sX)**2+(vz-sZ)**2) < 2600;
                 }
 
-                // 1200 Joshua Tree style clusters — mostly BIG rocks
-                for (let i = 0; i < 1200; i++) {
+                // ──────────────────────────────────────────────────────
+                // Rocks in three distinct tiers — big size variance is the
+                // whole point of this layout. TIER 1 sprinkles tiny stones
+                // everywhere so the ground reads as lived-in. TIER 2 is the
+                // everyday rock pile. TIER 3 is the occasional monumental
+                // boulder formation that you stumble onto and go "whoa".
+                // ──────────────────────────────────────────────────────
+
+                // TIER 1 — pebble scatter. Thousands of small stones, no
+                // collision (they're ankle-high, no point blocking the player).
+                for (let i = 0; i < 2000; i++) {
+                    const cx = (rnd()-0.5) * 108000;
+                    const cz = (rnd()-0.5) * 108000;
+                    if (tooClose(cx, cz)) continue;
+
+                    const count = 1 + Math.floor(rnd() * 4);   // 1–4 pebbles
+                    const spread = 80 + rnd() * 180;
+                    for (let k = 0; k < count; k++) {
+                        const a = rnd() * Math.PI * 2;
+                        const d = rnd() * spread;
+                        const sx = cx + Math.cos(a) * d;
+                        const sz = cz + Math.sin(a) * d;
+                        const gy = getElevation(sx, sz);
+                        placeRock(sx, gy, sz, 25 + rnd()*130, pickSmall());
+                    }
+                }
+
+                // TIER 2 — standard mixed piles. Roughly what used to live
+                // here, but slightly trimmed in size and count so the mega
+                // piles stand out.
+                for (let i = 0; i < 800; i++) {
                     const clX = (rnd()-0.5)*108000;
                     const clZ = (rnd()-0.5)*108000;
                     if (tooClose(clX, clZ)) continue;
 
-                    const spread = 250 + rnd()*600;
+                    const spread = 220 + rnd()*550;
 
-                    // 2–4 LARGE anchor rocks — bigger world size + all from big pool
-                    const anchorCount = Math.floor(rnd()*3)+2;
-                    for (let a=0; a<anchorCount; a++) {
-                        const ax = clX+(rnd()-0.5)*180;
-                        const az = clZ+(rnd()-0.5)*180;
+                    // 1–3 medium anchors
+                    const anchorCount = 1 + Math.floor(rnd()*3);
+                    for (let a = 0; a < anchorCount; a++) {
+                        const ax = clX + (rnd()-0.5)*180;
+                        const az = clZ + (rnd()-0.5)*180;
                         const gy = getElevation(ax, az);
-                        const worldH = 350 + rnd()*450; // 350–800 world units (was 200–500)
+                        const worldH = 220 + rnd()*330;          // 220–550
                         placeRock(ax, gy, az, worldH, pickBig());
                         obstacles.push({type:'cylinder', cx:ax, cz:az,
                             r:worldH*0.4, minY:gy, maxY:gy+worldH});
                     }
 
-                    // 3–6 medium-large rocks around the anchors (still biased toward big pool)
-                    const medCount = Math.floor(rnd()*4)+3;
-                    for (let m2=0; m2<medCount; m2++) {
-                        const angle = rnd()*Math.PI*2;
-                        const dist = 120 + rnd()*spread*0.4;
-                        const bx = clX+Math.cos(angle)*dist;
-                        const bz = clZ+Math.sin(angle)*dist;
+                    // 3–5 medium surrounders
+                    const medCount = 3 + Math.floor(rnd()*3);
+                    for (let m2 = 0; m2 < medCount; m2++) {
+                        const a = rnd()*Math.PI*2;
+                        const d = 110 + rnd()*spread*0.4;
+                        const bx = clX + Math.cos(a)*d;
+                        const bz = clZ + Math.sin(a)*d;
                         const gy = getElevation(bx, bz);
-                        const worldH = 150 + rnd()*200; // 150–350 (was 60–160)
-                        // 70% big, 30% medium pool
-                        const tmpl = rnd() < 0.7 ? pickBig() : pickMed();
+                        const worldH = 110 + rnd()*170;          // 110–280
+                        const tmpl = rnd() < 0.6 ? pickBig() : pickMed();
                         placeRock(bx, gy, bz, worldH, tmpl);
                         obstacles.push({type:'cylinder', cx:bx, cz:bz,
                             r:worldH*0.35, minY:gy, maxY:gy+worldH});
                     }
 
-                    // Only 1–2 small scatter rocks — far fewer small rocks than before
-                    const smallCount = Math.floor(rnd()*2)+1;
-                    for (let s=0; s<smallCount; s++) {
-                        const angle = rnd()*Math.PI*2;
-                        const dist = spread*0.4 + rnd()*spread*0.6;
-                        const sx = clX+Math.cos(angle)*dist;
-                        const sz = clZ+Math.sin(angle)*dist;
+                    // 2–4 small trailing stones
+                    const smallCount = 2 + Math.floor(rnd()*3);
+                    for (let s = 0; s < smallCount; s++) {
+                        const a = rnd()*Math.PI*2;
+                        const d = spread*0.4 + rnd()*spread*0.7;
+                        const sx = clX + Math.cos(a)*d;
+                        const sz = clZ + Math.sin(a)*d;
                         const gy = getElevation(sx, sz);
-                        placeRock(sx, gy, sz, 50+rnd()*80, pickMed()); // medium-small
+                        placeRock(sx, gy, sz, 40 + rnd()*80, pickSmall());
+                    }
+                }
+
+                // TIER 3 — mega boulder formations. Rare. The anchors here
+                // push close together (tight 140-unit cluster radius instead
+                // of loose 180-400) so their size + the settle-sink
+                // visually stack them against each other like a pile.
+                for (let i = 0; i < 55; i++) {
+                    const clX = (rnd()-0.5)*108000;
+                    const clZ = (rnd()-0.5)*108000;
+                    if (tooClose(clX, clZ)) continue;
+
+                    const spread = 500 + rnd()*500;
+
+                    // 3–6 HUGE anchor boulders pressed close together
+                    const anchorCount = 3 + Math.floor(rnd()*4);
+                    for (let a = 0; a < anchorCount; a++) {
+                        const angle = (a / anchorCount) * Math.PI * 2 + rnd()*0.8;
+                        const r = rnd() * 140;                    // tight cluster
+                        const ax = clX + Math.cos(angle) * r;
+                        const az = clZ + Math.sin(angle) * r;
+                        const gy = getElevation(ax, az);
+                        const worldH = 750 + rnd()*550;           // 750–1300!
+                        placeRock(ax, gy, az, worldH, pickBig());
+                        obstacles.push({type:'cylinder', cx:ax, cz:az,
+                            r:worldH*0.42, minY:gy, maxY:gy+worldH});
+                    }
+
+                    // 6–10 large-medium rocks in a wider ring
+                    const medCount = 6 + Math.floor(rnd()*5);
+                    for (let m2 = 0; m2 < medCount; m2++) {
+                        const a = rnd()*Math.PI*2;
+                        const d = 200 + rnd()*spread*0.55;
+                        const bx = clX + Math.cos(a)*d;
+                        const bz = clZ + Math.sin(a)*d;
+                        const gy = getElevation(bx, bz);
+                        const worldH = 220 + rnd()*380;           // 220–600
+                        const tmpl = rnd() < 0.55 ? pickBig() : pickMed();
+                        placeRock(bx, gy, bz, worldH, tmpl);
+                        obstacles.push({type:'cylinder', cx:bx, cz:bz,
+                            r:worldH*0.38, minY:gy, maxY:gy+worldH});
+                    }
+
+                    // 4–8 small scatter rocks around the edges
+                    const smallCount = 4 + Math.floor(rnd()*5);
+                    for (let s = 0; s < smallCount; s++) {
+                        const a = rnd()*Math.PI*2;
+                        const d = spread*0.5 + rnd()*spread*0.8;
+                        const sx = clX + Math.cos(a)*d;
+                        const sz = clZ + Math.sin(a)*d;
+                        const gy = getElevation(sx, sz);
+                        placeRock(sx, gy, sz, 60 + rnd()*140, pickMed());
                     }
                 }
                 console.log('Rocks spawned');
@@ -952,23 +1393,90 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         const lanternGroup = new THREE.Group();
         const lanternCore = new THREE.Mesh(new THREE.TorusKnotGeometry(10, 3, 50, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 10 }));
         const lanternLight = new THREE.PointLight(0xffccaa, 25000, 2000); lanternGroup.add(lanternCore, lanternLight); scene.add(lanternGroup);
-        const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(35000, 35000), new THREE.ShaderMaterial({
+        const sunMat = new THREE.ShaderMaterial({
             transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
             uniforms: { coreColor: { value: new THREE.Color(0xffffff) }, glowColor: { value: new THREE.Color(0xffa066) } },
             vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`,
             fragmentShader: `uniform vec3 coreColor; uniform vec3 glowColor; varying vec2 vUv; void main() { float d = distance(vUv, vec2(0.5)); float m = smoothstep(0.5, 0.25, d); float disk = smoothstep(0.12, 0.02, d); float g = exp(-(d*d)/(2.0*0.18*0.18))*1.5; gl_FragColor = vec4(mix(glowColor, coreColor, disk), (disk + g*0.8)*m); }`
-        }));
+        });
+        const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(35000, 35000), sunMat);
         scene.add(sunMesh);
         const sunLight = new THREE.DirectionalLight(0xffccaa, 2.5); sunLight.castShadow = true; 
         sunLight.shadow.mapSize.set(2048, 2048); sunLight.shadow.camera.left = -6000; sunLight.shadow.camera.right = 6000;
         sunLight.shadow.camera.top = 6000; sunLight.shadow.camera.bottom = -6000;
         sunLight.shadow.camera.near = 100; sunLight.shadow.camera.far = 80000; sunLight.shadow.bias = -0.0005;
-        scene.add(sunLight, sunLight.target, new THREE.HemisphereLight(0x99aacc, 0xffb59d, 1.2));
+        const hemiLight = new THREE.HemisphereLight(0x99aacc, 0xffb59d, 1.2);
+        scene.add(sunLight, sunLight.target, hemiLight);
 
         function createMoonTexture() {
-            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
-            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fdfdfd'; ctx.beginPath(); ctx.arc(32, 32, 20, 0, Math.PI * 2); ctx.fill();
-            ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); ctx.arc(42, 22, 20, 0, Math.PI * 2); ctx.fill();
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const cx = size / 2, cy = size / 2;
+            const r = size * 0.36;            // leaves room for halo outside disc
+
+            // Soft outer halo
+            const halo = ctx.createRadialGradient(cx, cy, r * 0.95, cx, cy, size * 0.5);
+            halo.addColorStop(0.0, 'rgba(220, 230, 255, 0.35)');
+            halo.addColorStop(0.35, 'rgba(190, 205, 240, 0.12)');
+            halo.addColorStop(1.0, 'rgba(180, 200, 235, 0)');
+            ctx.fillStyle = halo;
+            ctx.fillRect(0, 0, size, size);
+
+            // Main disc with gentle limb darkening + off-centre highlight
+            const disc = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.25, r * 0.05, cx, cy, r);
+            disc.addColorStop(0.00, '#fefdf5');
+            disc.addColorStop(0.55, '#ebe8dc');
+            disc.addColorStop(0.88, '#c8c3b2');
+            disc.addColorStop(1.00, '#a8a395');
+            ctx.fillStyle = disc;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Clip subsequent details to the disc
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.clip();
+
+            // Craters — soft darker circles at hand-picked positions
+            const craters = [
+                { x:  0.25, y:  0.32, r: 0.14 },
+                { x: -0.18, y: -0.22, r: 0.09 },
+                { x: -0.32, y:  0.10, r: 0.16 },
+                { x:  0.10, y: -0.38, r: 0.07 },
+                { x:  0.42, y:  0.02, r: 0.06 },
+                { x: -0.05, y:  0.20, r: 0.10 },
+                { x:  0.30, y: -0.18, r: 0.055 },
+                { x: -0.40, y: -0.08, r: 0.05 },
+                { x:  0.05, y:  0.48, r: 0.045 }
+            ];
+            for (const c of craters) {
+                const ccx = cx + c.x * r;
+                const ccy = cy + c.y * r;
+                const cr  = c.r * r;
+                const g = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, cr);
+                g.addColorStop(0.0, 'rgba(120, 115, 100, 0.55)');
+                g.addColorStop(0.6, 'rgba(150, 145, 130, 0.30)');
+                g.addColorStop(1.0, 'rgba(180, 175, 160, 0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(ccx, ccy, cr, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Fine grain noise for surface texture
+            for (let i = 0; i < 1400; i++) {
+                const px = rnd() * size;
+                const py = rnd() * size;
+                const shade = 200 + Math.floor(rnd() * 50);
+                ctx.fillStyle = `rgba(${shade},${shade - 5},${shade - 12},${rnd() * 0.18})`;
+                ctx.fillRect(px, py, 1, 1);
+            }
+
+            ctx.restore();
             return new THREE.CanvasTexture(canvas);
         }
         const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: createMoonTexture(), transparent: true }));
@@ -1045,6 +1553,152 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         
         const clock = new THREE.Clock();
 
+        // ─── DAY / NIGHT CYCLE ──────────────────────────────────────────
+        // A full cycle (midnight → noon → midnight) takes DAY_DURATION seconds.
+        // WARP_AMOUNT slows the sun's apparent motion near sunrise (t=0.25)
+        // and sunset (t=0.75) by bending the angle-vs-time curve with a sine
+        // term that's zero at those key moments. dθ/dt at dawn/dusk is
+        // 2π(1 − 2A); at noon/midnight it's 2π(1 + 2A). With A = 0.35 the sun
+        // drifts ~4× slower through golden hour than through midday.
+        const DAY_DURATION = 240;        // seconds per full cycle
+        const WARP_AMOUNT  = 0.35;       // 0 = linear, <0.5 stays monotonic
+        const START_PHASE  = 0.32;       // start in mid-morning on page load
+
+        function smoothstepTOD(a, b, x) {
+            const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+            return t * t * (3 - 2 * t);
+        }
+
+        // Three keyframe palettes. Everything else is a blend of these.
+        const TOD_NIGHT = {
+            skyTop:     new THREE.Color(0x0a0f25),
+            skyMid:     new THREE.Color(0x1b2148),
+            skyBottom:  new THREE.Color(0x2d3366),
+            sunCol:     new THREE.Color(0x5566aa),   // "moonlight"
+            sunInt:     0.55,
+            hemiSky:    new THREE.Color(0x4a5a88),
+            hemiGround: new THREE.Color(0x14121c),
+            hemiInt:    0.55,
+            fogCol:     new THREE.Color(0x1a2048),
+            hazeCol:    new THREE.Color(0x2a3a66),
+            sunGlow:    new THREE.Color(0x667799),
+            sunCore:    new THREE.Color(0xccddff),
+            starOp:     0.85,
+            moonOp:     1.0
+        };
+        const TOD_GOLDEN = {
+            skyTop:     new THREE.Color(0x5a6a90),
+            skyMid:     new THREE.Color(0xffa98a),
+            skyBottom:  new THREE.Color(0xffd8b8),
+            sunCol:     new THREE.Color(0xffb58a),
+            sunInt:     2.0,
+            hemiSky:    new THREE.Color(0xffc2a3),
+            hemiGround: new THREE.Color(0x6a4a33),
+            hemiInt:    1.15,
+            fogCol:     new THREE.Color(0xffb599),
+            hazeCol:    new THREE.Color(0xff9966),
+            sunGlow:    new THREE.Color(0xffa878),
+            sunCore:    new THREE.Color(0xfff2d8),
+            starOp:     0.12,
+            moonOp:     0.35
+        };
+        const TOD_DAY = {
+            skyTop:     new THREE.Color(0x9ebcd6),
+            skyMid:     new THREE.Color(0xc2d6e3),
+            skyBottom:  new THREE.Color(0xdde8ee),
+            sunCol:     new THREE.Color(0xfff4dd),
+            sunInt:     2.8,
+            hemiSky:    new THREE.Color(0xb5ccdc),
+            hemiGround: new THREE.Color(0x7a6a55),
+            hemiInt:    1.4,
+            fogCol:     new THREE.Color(0xd0dbe4),
+            hazeCol:    new THREE.Color(0xffceaa),
+            sunGlow:    new THREE.Color(0xffd8a8),
+            sunCore:    new THREE.Color(0xffffff),
+            starOp:     0.0,
+            moonOp:     0.0
+        };
+
+        // Scratch objects reused every frame (no per-frame allocations)
+        function makePal() {
+            return {
+                skyTop: new THREE.Color(), skyMid: new THREE.Color(), skyBottom: new THREE.Color(),
+                sunCol: new THREE.Color(), hemiSky: new THREE.Color(), hemiGround: new THREE.Color(),
+                fogCol: new THREE.Color(), hazeCol: new THREE.Color(),
+                sunGlow: new THREE.Color(), sunCore: new THREE.Color(),
+                sunInt: 0, hemiInt: 0, starOp: 0, moonOp: 0
+            };
+        }
+        const _palA = makePal();
+        const _palOut = makePal();
+
+        function lerpPal(a, b, t, out) {
+            out.skyTop.lerpColors(a.skyTop, b.skyTop, t);
+            out.skyMid.lerpColors(a.skyMid, b.skyMid, t);
+            out.skyBottom.lerpColors(a.skyBottom, b.skyBottom, t);
+            out.sunCol.lerpColors(a.sunCol, b.sunCol, t);
+            out.hemiSky.lerpColors(a.hemiSky, b.hemiSky, t);
+            out.hemiGround.lerpColors(a.hemiGround, b.hemiGround, t);
+            out.fogCol.lerpColors(a.fogCol, b.fogCol, t);
+            out.hazeCol.lerpColors(a.hazeCol, b.hazeCol, t);
+            out.sunGlow.lerpColors(a.sunGlow, b.sunGlow, t);
+            out.sunCore.lerpColors(a.sunCore, b.sunCore, t);
+            out.sunInt  = a.sunInt  + (b.sunInt  - a.sunInt)  * t;
+            out.hemiInt = a.hemiInt + (b.hemiInt - a.hemiInt) * t;
+            out.starOp  = a.starOp  + (b.starOp  - a.starOp)  * t;
+            out.moonOp  = a.moonOp  + (b.moonOp  - a.moonOp)  * t;
+        }
+
+        function updateTimeOfDay(time) {
+            // Linear phase advances at constant rate; angle gets the warp.
+            const linearPhase = ((time / DAY_DURATION) + START_PHASE) % 1.0;
+            const angle = linearPhase * 2 * Math.PI - Math.PI / 2
+                        + WARP_AMOUNT * Math.sin(4 * Math.PI * linearPhase);
+            const elev = Math.sin(angle);   // −1 midnight, 0 horizon, +1 noon
+            const azim = Math.cos(angle);   // +1 east (dawn), −1 west (dusk)
+
+            // Sun direction: traces an east-overhead-west arc with a slight
+            // north tilt so the light isn't perfectly axis-aligned.
+            SUN_DIR.set(azim * 0.95, elev, -0.3).normalize();
+
+            // Two-stage blend: night → golden → day, keyed off elevation.
+            const t1 = smoothstepTOD(-0.22, 0.05, elev); // night → golden
+            const t2 = smoothstepTOD( 0.05, 0.45, elev); // golden → day
+            lerpPal(TOD_NIGHT, TOD_GOLDEN, t1, _palA);
+            lerpPal(_palA, TOD_DAY, t2, _palOut);
+
+            // Apply to sky, fog, haze
+            skyMat.uniforms.topColor.value.copy(_palOut.skyTop);
+            skyMat.uniforms.midColor.value.copy(_palOut.skyMid);
+            skyMat.uniforms.bottomColor.value.copy(_palOut.skyBottom);
+            scene.fog.color.copy(_palOut.fogCol);
+            hazeMat.uniforms.glowColor.value.copy(_palOut.hazeCol);
+            // hazeMat.uniforms.sunDir already references SUN_DIR, so the
+            // mutation above propagates automatically.
+
+            // Apply to lights
+            sunLight.color.copy(_palOut.sunCol);
+            sunLight.intensity = _palOut.sunInt;
+            hemiLight.color.copy(_palOut.hemiSky);
+            hemiLight.groundColor.copy(_palOut.hemiGround);
+            hemiLight.intensity = _palOut.hemiInt;
+
+            // Apply to sun disc and stars/moon
+            sunMat.uniforms.glowColor.value.copy(_palOut.sunGlow);
+            sunMat.uniforms.coreColor.value.copy(_palOut.sunCore);
+            starMaterial.opacity = _palOut.starOp;
+            moon.material.opacity = _palOut.moonOp;
+
+            // Lantern: brighter, longer reach, and more luminous core at night
+            // so it genuinely lights the path. Flicker rides on top.
+            const nightness = 1.0 - smoothstepTOD(-0.05, 0.25, elev);
+            const baseLantern = 22000 + nightness * 80000;
+            const flicker = Math.random() * (2500 + nightness * 9000) - (1250 + nightness * 4500);
+            lanternLight.intensity = baseLantern + flicker;
+            lanternLight.distance  = 2000 + nightness * 2800;
+            lanternCore.material.emissiveIntensity = 8 + nightness * 22;
+        }
+
         
         function animate() {
             requestAnimationFrame(animate);
@@ -1054,6 +1708,9 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             // Update Shader Times
             moteMat.uniforms.uTime.value = time;
             if (asciiPillarMat) asciiPillarMat.uniforms.uTime.value = time;
+
+            // Advance day/night cycle (sun direction, sky, lights, fog, haze)
+            updateTimeOfDay(time);
 
           if (controls.isLocked) {
                 const speed = 1400 * delta;
@@ -1118,7 +1775,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 const sDist = 35000;
                 sunMesh.position.set(camera.position.x + (SUN_DIR.x * sDist), camera.position.y + (SUN_DIR.y * sDist), camera.position.z + (SUN_DIR.z * sDist));
                 sunMesh.lookAt(camera.position);
-                moon.position.set(camera.position.x - (SUN_DIR.x * sDist), camera.position.y + 12000, camera.position.z - (SUN_DIR.z * sDist));
+                moon.position.set(camera.position.x - (SUN_DIR.x * sDist), camera.position.y - (SUN_DIR.y * sDist), camera.position.z - (SUN_DIR.z * sDist));
                 sunLight.position.copy(sunMesh.position);
                 sunLight.target.position.set(camera.position.x, 0, camera.position.z);
             }
@@ -1132,7 +1789,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 camera.position.z + Math.sin(time * 0.6) * 150
             );
             lanternGroup.position.lerp(tP, 0.04); 
-            lanternLight.intensity = 25000 + Math.random() * 4000; 
+            // lanternLight.intensity is driven by updateTimeOfDay (with flicker + night boost)
 
             skyMesh.position.copy(camera.position);
             hazeMesh.position.copy(camera.position);
