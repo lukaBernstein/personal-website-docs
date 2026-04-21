@@ -1368,7 +1368,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             }
         }
 
-        const moteCount = 5000;
+        const moteCount = 1500;
         const moteGeo = new THREE.BufferGeometry();
         const motePos = new Float32Array(moteCount * 3);
         const moteSeeds = new Float32Array(moteCount);
@@ -1482,6 +1482,38 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: createMoonTexture(), transparent: true }));
         moon.scale.set(4000, 4000, 1); scene.add(moon);
 
+        // --- MOON HALO ---
+        // A larger additive-blend sprite behind the moon. During the day
+        // it fades out (see TOD update). At night it layers a soft
+        // luminescent glow around the disc so the moon reads as a light
+        // source rather than a pasted-on decal.
+        function createMoonHaloTexture() {
+            const size = 256;
+            const c = document.createElement('canvas');
+            c.width = size; c.height = size;
+            const ctx = c.getContext('2d');
+            const cx = size / 2, cy = size / 2;
+            const g = ctx.createRadialGradient(cx, cy, size * 0.05, cx, cy, size * 0.5);
+            // Tight bright core fading through cool white to deep blue-violet
+            g.addColorStop(0.00, 'rgba(255, 250, 235, 0.95)');
+            g.addColorStop(0.12, 'rgba(220, 232, 255, 0.55)');
+            g.addColorStop(0.30, 'rgba(170, 195, 250, 0.22)');
+            g.addColorStop(0.60, 'rgba(110, 145, 220, 0.07)');
+            g.addColorStop(1.00, 'rgba(80, 110, 190, 0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, size, size);
+            return new THREE.CanvasTexture(c);
+        }
+        const moonHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: createMoonHaloTexture(),
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            opacity: 0
+        }));
+        moonHalo.scale.set(13000, 13000, 1);
+        scene.add(moonHalo);
+
         const USER_HEIGHT = 160; camera.position.set(sX, maxH + USER_HEIGHT, sZ);
        const controls = new PointerLockControls(camera, document.body);
         
@@ -1552,6 +1584,47 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         }
         
         const clock = new THREE.Clock();
+
+        // ─── MOVEMENT PHYSICS ───────────────────────────────────────────
+        // Target top speeds (units/sec). Forward is the fastest, backpedal
+        // is slower, strafe is slowest — so strafing feels deliberate rather
+        // than twitchy.
+        const MAX_FORWARD_SPEED  = 850;
+        const MAX_BACKWARD_SPEED = 650;
+        const MAX_STRAFE_SPEED   = 520;
+
+        // Acceleration (units/sec^2). Lower strafe accel = more sluggish
+        // side movement even when the top speed is close. GROUND_DECEL is
+        // how quickly you coast to a stop when there's no input.
+        const GROUND_ACCEL_FWD    = 10500;
+        const GROUND_ACCEL_STRAFE = 5800;
+        const GROUND_DECEL        = 9000;
+        const AIR_CONTROL         = 0.35;   // accel multiplier while airborne
+
+        // Live horizontal velocity (world-space, y unused) + scratch vectors
+        const moveVel = new THREE.Vector3();
+        const _fwd    = new THREE.Vector3();
+        const _right  = new THREE.Vector3();
+        const _worldUp = new THREE.Vector3(0, 1, 0);
+
+        // Moves `current` toward `target` by at most `maxDelta`. Used for
+        // velocity smoothing along the forward and strafe axes.
+        function approach(current, target, maxDelta) {
+            const diff = target - current;
+            if (diff >  maxDelta) return current + maxDelta;
+            if (diff < -maxDelta) return current - maxDelta;
+            return target;
+        }
+
+        // ─── JUMPING (coyote time + double jump) ────────────────────────
+        const JUMP_VELOCITY        = 1300;   // initial from ground / coyote
+        const DOUBLE_JUMP_VELOCITY = 1150;   // air jump is a touch weaker
+        const COYOTE_DURATION      = 0.3;    // seconds of grace after leaving ground
+        const MAX_AIR_JUMPS        = 1;      // 1 extra = "double jump"
+
+        let coyoteTimer        = 0;
+        let airJumpsRemaining  = MAX_AIR_JUMPS;
+        let jumpHeldLastFrame  = false;       // for edge-detection on spacebar
 
         // ─── DAY / NIGHT CYCLE ──────────────────────────────────────────
         // A full cycle (midnight → noon → midnight) takes DAY_DURATION seconds.
@@ -1688,15 +1761,31 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             sunMat.uniforms.coreColor.value.copy(_palOut.sunCore);
             starMaterial.opacity = _palOut.starOp;
             moon.material.opacity = _palOut.moonOp;
+            // Halo rides on top of the moon's opacity curve, but a bit
+            // steeper — it should almost fully fade out even in dusk/dawn
+            // golden hour, then pop at full night.
+            moonHalo.material.opacity = _palOut.moonOp * _palOut.moonOp * 0.9;
 
-            // Lantern: brighter, longer reach, and more luminous core at night
-            // so it genuinely lights the path. Flicker rides on top.
+            // Lantern: at night it's genuinely your light source. The knot
+            // itself stays the original subtle brightness — over-cooking
+            // its emissive just makes it look like a disco ball and doesn't
+            // actually illuminate the ground. Instead we push the
+            // PointLight's DISTANCE hard, so the inverse-square falloff
+            // reaches much further across the terrain.
             const nightness = 1.0 - smoothstepTOD(-0.05, 0.25, elev);
-            const baseLantern = 22000 + nightness * 80000;
-            const flicker = Math.random() * (2500 + nightness * 9000) - (1250 + nightness * 4500);
+            const baseLantern = 40000 + nightness * 220000;
+            const flicker = Math.random() * (3000 + nightness * 12000) - (1500 + nightness * 6000);
             lanternLight.intensity = baseLantern + flicker;
-            lanternLight.distance  = 2000 + nightness * 2800;
+            lanternLight.distance  = 6000 + nightness * 16000;   // up to ~22000 units at full night
             lanternCore.material.emissiveIntensity = 8 + nightness * 22;
+
+            // Sun disc shrinks when high in the sky (real atmospheres make
+            // the sun *look* bigger near the horizon for optical/illusion
+            // reasons — matching that feel reads as "overhead sun is
+            // smaller" without actually touching horizon sizing).
+            // elev = 0 → 1.00x scale, elev = 1 (noon) → 0.70x.
+            const sunScale = 1.0 - Math.max(0, elev) * 0.30;
+            sunMesh.scale.set(sunScale, sunScale, 1);
         }
 
         
@@ -1713,18 +1802,63 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             updateTimeOfDay(time);
 
           if (controls.isLocked) {
-                const speed = 1400 * delta;
+                // --- INPUT DIRECTION (normalized-ish: -1 / 0 / +1 per axis) ---
+                let inFwd = 0, inStrafe = 0;
+                if (keys.w || keys.arrowup)    inFwd    += 1;
+                if (keys.s || keys.arrowdown)  inFwd    -= 1;
+                if (keys.d || keys.arrowright) inStrafe += 1;
+                if (keys.a || keys.arrowleft)  inStrafe -= 1;
+
+                // --- CAMERA-RELATIVE HORIZONTAL AXES ---
+                // We accelerate along the direction the camera is actually
+                // facing, projected to the ground plane.
+                camera.getWorldDirection(_fwd);
+                _fwd.y = 0;
+                if (_fwd.lengthSq() > 1e-6) _fwd.normalize();
+                _right.crossVectors(_fwd, _worldUp).normalize();
+
+                // --- PROJECT CURRENT VELOCITY ONTO THOSE AXES ---
+                let curFwd    = moveVel.dot(_fwd);
+                let curStrafe = moveVel.dot(_right);
+
+                // --- TARGET SPEEDS (asymmetric: fwd > back > strafe) ---
+                const targetFwd    = inFwd > 0 ? inFwd * MAX_FORWARD_SPEED
+                                  : inFwd < 0 ? inFwd * MAX_BACKWARD_SPEED
+                                  : 0;
+                const targetStrafe = inStrafe * MAX_STRAFE_SPEED;
+
+                // --- ACCELERATE EACH AXIS SEPARATELY ---
+                // If the player is holding a direction, use the accel for
+                // that axis; otherwise use the higher decel rate so you
+                // actually slow down. Air control lowers both.
+                const airMul      = isGrounded ? 1.0 : AIR_CONTROL;
+                const accelFwd    = (inFwd    !== 0 ? GROUND_ACCEL_FWD    : GROUND_DECEL) * airMul;
+                const accelStrafe = (inStrafe !== 0 ? GROUND_ACCEL_STRAFE : GROUND_DECEL) * airMul;
+
+                curFwd    = approach(curFwd,    targetFwd,    accelFwd    * delta);
+                curStrafe = approach(curStrafe, targetStrafe, accelStrafe * delta);
+
+                // --- REBUILD WORLD-SPACE VELOCITY ---
+                moveVel.set(0, 0, 0);
+                moveVel.addScaledVector(_fwd,   curFwd);
+                moveVel.addScaledVector(_right, curStrafe);
+
                 const oldX = camera.position.x;
                 const oldZ = camera.position.z;
-
-                if (keys.w || keys.arrowup) controls.moveForward(speed); 
-                if (keys.s || keys.arrowdown) controls.moveForward(-speed);
-                if (keys.a || keys.arrowleft) controls.moveRight(-speed); 
-                if (keys.d || keys.arrowright) controls.moveRight(speed);
+                camera.position.x += moveVel.x * delta;
+                camera.position.z += moveVel.z * delta;
 
                 // --- COLLISION: per-axis resolution enables wall sliding ---
-                if (collidesAt(camera.position.x, oldZ)) camera.position.x = oldX;
-                if (collidesAt(camera.position.x, camera.position.z)) camera.position.z = oldZ;
+                // Killing the velocity component on a blocked axis stops the
+                // player from "pressing into" a wall and storing up speed.
+                if (collidesAt(camera.position.x, oldZ)) {
+                    camera.position.x = oldX;
+                    moveVel.x = 0;
+                }
+                if (collidesAt(camera.position.x, camera.position.z)) {
+                    camera.position.z = oldZ;
+                    moveVel.z = 0;
+                }
 
                 // Floor — terrain plus any surface we're standing on top of
                 let currentFloorY = getElevation(camera.position.x, camera.position.z) + USER_HEIGHT;
@@ -1758,15 +1892,42 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         }
                     }
                 }
-                // Jump & Gravity
-                if (keys[" "] && isGrounded) { verticalVelocity = 1300; isGrounded = false; }
-                verticalVelocity -= 2600 * delta; 
+                // --- JUMP (coyote + double) + GRAVITY ---
+                // Edge-detect spacebar so one press = one jump attempt,
+                // even if the key stays held.
+                const jumpPressed = !!keys[" "] && !jumpHeldLastFrame;
+                jumpHeldLastFrame = !!keys[" "];
+
+                // Coyote timer always counts down; the floor check below
+                // refreshes it whenever the player is actually grounded.
+                if (coyoteTimer > 0) coyoteTimer -= delta;
+
+                if (jumpPressed) {
+                    if (isGrounded || coyoteTimer > 0) {
+                        // Ground jump OR coyote-time jump (just ran off a
+                        // ledge within 0.3s). Keep the air-jump available.
+                        verticalVelocity   = JUMP_VELOCITY;
+                        isGrounded         = false;
+                        coyoteTimer        = 0;
+                        airJumpsRemaining  = MAX_AIR_JUMPS;
+                    } else if (airJumpsRemaining > 0) {
+                        // Double jump. Reset vertical velocity so a jump
+                        // mid-fall still gives full lift (classic platformer
+                        // feel), don't just add to current velocity.
+                        verticalVelocity   = DOUBLE_JUMP_VELOCITY;
+                        airJumpsRemaining -= 1;
+                    }
+                }
+
+                verticalVelocity -= 2600 * delta;
                 camera.position.y += verticalVelocity * delta;
 
                 if (camera.position.y <= currentFloorY) {
                     camera.position.y = currentFloorY;
                     if (verticalVelocity < 0) verticalVelocity = 0;
-                    isGrounded = true;
+                    isGrounded        = true;
+                    coyoteTimer       = COYOTE_DURATION;   // refresh while grounded
+                    airJumpsRemaining = MAX_AIR_JUMPS;     // refresh while grounded
                 } else {
                     isGrounded = false;
                 }
@@ -1776,6 +1937,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 sunMesh.position.set(camera.position.x + (SUN_DIR.x * sDist), camera.position.y + (SUN_DIR.y * sDist), camera.position.z + (SUN_DIR.z * sDist));
                 sunMesh.lookAt(camera.position);
                 moon.position.set(camera.position.x - (SUN_DIR.x * sDist), camera.position.y - (SUN_DIR.y * sDist), camera.position.z - (SUN_DIR.z * sDist));
+                moonHalo.position.copy(moon.position);
                 sunLight.position.copy(sunMesh.position);
                 sunLight.target.position.set(camera.position.x, 0, camera.position.z);
             }
