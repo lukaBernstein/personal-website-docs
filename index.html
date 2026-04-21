@@ -226,6 +226,17 @@
         let warpProgress = 0, mainGroup, starGroup; 
 
         let panelGroup, outerWire, innerWire, panelTextMesh, panelReady = false;
+
+        // --- Liquid ether backdrop state ---
+        let liquidEtherMesh = null;
+        const liquidEtherUniforms = {
+            uTime:      { value: 0 },
+            uMouse:     { value: new THREE.Vector2(0, 0) }, // smoothed clip-space mouse (-1..1)
+            uMousePrev: { value: new THREE.Vector2(0, 0) },
+            uMouseVel:  { value: new THREE.Vector2(0, 0) },
+            uOpacity:   { value: 0 },
+            uAspect:    { value: window.innerWidth / window.innerHeight }
+        };
         
         // --- AUDIO SETUP ---
         const bgAudio = new Audio('ominous_hum.mp3');
@@ -404,41 +415,258 @@
                 });
         }
 
+        // Build four L-shaped corner brackets (no full rectangle)
+        function createCornerBrackets(panelWidth, panelHeight, z, bracketLen) {
+            const w = panelWidth * 0.5, h = panelHeight * 0.5, b = bracketLen;
+            const v = [
+                // Top-left
+                -w,  h, z,  -w + b,  h,     z,
+                -w,  h, z,  -w,      h - b, z,
+                // Top-right
+                 w,  h, z,   w - b,  h,     z,
+                 w,  h, z,   w,      h - b, z,
+                // Bottom-left
+                -w, -h, z,  -w + b, -h,     z,
+                -w, -h, z,  -w,     -h + b, z,
+                // Bottom-right
+                 w, -h, z,   w - b, -h,     z,
+                 w, -h, z,   w,     -h + b, z
+            ];
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+            return g;
+        }
+
+        function createLiquidEtherBackdrop() {
+            // Mouse-reactive flowing-color shader. Attached to the camera so it tracks the view.
+            const mat = new THREE.ShaderMaterial({
+                uniforms: liquidEtherUniforms,
+                transparent: true,
+                depthWrite: false,
+                depthTest: false,
+                blending: THREE.NormalBlending,
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    precision highp float;
+                    varying vec2 vUv;
+                    uniform float uTime;
+                    uniform vec2  uMouse;
+                    uniform vec2  uMouseVel;
+                    uniform float uOpacity;
+                    uniform float uAspect;
+
+                    // 3D simplex noise (Ashima / Stefan Gustavson)
+                    vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+                    vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+                    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+                    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+                    float snoise(vec3 v){
+                        const vec2 C=vec2(1.0/6.0,1.0/3.0);
+                        const vec4 D=vec4(0.0,0.5,1.0,2.0);
+                        vec3 i=floor(v+dot(v,C.yyy));
+                        vec3 x0=v-i+dot(i,C.xxx);
+                        vec3 g=step(x0.yzx,x0.xyz);
+                        vec3 l=1.0-g;
+                        vec3 i1=min(g.xyz,l.zxy);
+                        vec3 i2=max(g.xyz,l.zxy);
+                        vec3 x1=x0-i1+C.xxx;
+                        vec3 x2=x0-i2+C.yyy;
+                        vec3 x3=x0-D.yyy;
+                        i=mod289(i);
+                        vec4 p=permute(permute(permute(
+                            i.z+vec4(0.0,i1.z,i2.z,1.0))
+                            +i.y+vec4(0.0,i1.y,i2.y,1.0))
+                            +i.x+vec4(0.0,i1.x,i2.x,1.0));
+                        float n_=0.142857142857;
+                        vec3 ns=n_*D.wyz-D.xzx;
+                        vec4 j=p-49.0*floor(p*ns.z*ns.z);
+                        vec4 x_=floor(j*ns.z);
+                        vec4 y_=floor(j-7.0*x_);
+                        vec4 x=x_*ns.x+ns.yyyy;
+                        vec4 y=y_*ns.x+ns.yyyy;
+                        vec4 h=1.0-abs(x)-abs(y);
+                        vec4 b0=vec4(x.xy,y.xy);
+                        vec4 b1=vec4(x.zw,y.zw);
+                        vec4 s0=floor(b0)*2.0+1.0;
+                        vec4 s1=floor(b1)*2.0+1.0;
+                        vec4 sh=-step(h,vec4(0.0));
+                        vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;
+                        vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+                        vec3 p0=vec3(a0.xy,h.x);
+                        vec3 p1=vec3(a0.zw,h.y);
+                        vec3 p2=vec3(a1.xy,h.z);
+                        vec3 p3=vec3(a1.zw,h.w);
+                        vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+                        p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;
+                        vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);
+                        m=m*m;
+                        return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+                    }
+
+                    float fbm(vec3 p) {
+                        float v = 0.0, a = 0.55;
+                        for (int i = 0; i < 5; i++) {
+                            v += a * snoise(p);
+                            p = p * 2.02 + vec3(11.3, 7.1, 3.7);
+                            a *= 0.5;
+                        }
+                        return v;
+                    }
+
+                    void main() {
+                        vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0) * 2.0;
+
+                        // Mouse in the same aspect-corrected space
+                        vec2 mp = vec2(uMouse.x * uAspect, uMouse.y);
+                        vec2 toMouse = p - mp;
+                        float md = length(toMouse);
+                        float influence = exp(-md * 2.2);
+
+                        // Swirl + velocity trail distortion
+                        vec2 swirl = vec2(-toMouse.y, toMouse.x) * influence * 0.8;
+                        p += swirl * 0.5;
+                        p += uMouseVel * influence * 3.5;
+
+                        // Two-pass domain warping
+                        float t = uTime * 0.18;
+                        vec3 q = vec3(
+                            fbm(vec3(p * 0.75, t)),
+                            fbm(vec3(p * 0.75 + vec2(5.2, 1.3), t)),
+                            fbm(vec3(p * 0.75 + vec2(2.9, 8.7), t))
+                        );
+                        vec3 r = vec3(
+                            fbm(vec3(p * 0.9 + q.xy * 1.8, t + 0.7)),
+                            fbm(vec3(p * 0.9 + q.yz * 1.8 + vec2(1.7, 9.2), t + 1.3)),
+                            fbm(vec3(p * 0.9 + q.zx * 1.8, t + 2.1))
+                        );
+                        float n = fbm(vec3(p + r.xy * 1.5, t));
+
+                        // Liquid ether palette
+                        vec3 c1 = vec3(0.02, 0.01, 0.10);
+                        vec3 c2 = vec3(0.18, 0.04, 0.45);
+                        vec3 c3 = vec3(0.85, 0.18, 0.75);
+                        vec3 c4 = vec3(0.15, 0.85, 1.00);
+
+                        vec3 col = mix(c1, c2, smoothstep(-0.6, 0.25, n));
+                        col = mix(col, c3, smoothstep(0.15, 0.55, length(q.xy)) * 0.85);
+                        col = mix(col, c4, smoothstep(0.35, 0.75, length(r.yz)) * 0.75);
+
+                        col += vec3(0.55, 0.4, 1.0) * influence * 1.4;
+
+                        // Gentle vignette
+                        float vig = smoothstep(1.8, 0.4, length(p));
+                        col *= mix(0.55, 1.0, vig);
+
+                        gl_FragColor = vec4(col, uOpacity);
+                    }
+                `
+            });
+
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+            const depth = 80;
+            mesh.position.set(0, 0, -depth);
+            // Size the plane to generously cover the camera frustum at that depth
+            const hFov = 75 * Math.PI / 180;
+            const h = Math.tan(hFov / 2) * depth * 2 * 1.6;
+            mesh.scale.set(h * 2, h, 1);
+            mesh.renderOrder = -1;
+            mesh.frustumCulled = false;
+            // Don't let the backdrop steal hover/clicks from the sign
+            mesh.raycast = () => {};
+            return mesh;
+        }
+
         function createPanelButton() {
             panelGroup = new THREE.Group();
             panelGroup.visible = false;
+
+            const panelWidth = 42;
+            const panelHeight = 5.2;
+
+            // --- Corner brackets (outer + subtle inner) ---
+            outerWire = new THREE.LineSegments(
+                createCornerBrackets(panelWidth, panelHeight, 0.25, 2.8),
+                new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0 })
+            );
+            innerWire = new THREE.LineSegments(
+                createCornerBrackets(panelWidth - 0.8, panelHeight - 0.8, 0.1, 1.6),
+                new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0 })
+            );
+
+            // Invisible mesh that actually receives hover/click raycasts over the sign area
+            const glassPanel = new THREE.Mesh(
+                new THREE.PlaneGeometry(panelWidth, panelHeight),
+                new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 })
+            );
+            glassPanel.name = 'panelGlass';
+
+            // --- Text with scanline overlay ---
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 2048; canvas.height = 512;
-            const panelWidth = 42; const panelHeight = 5.2;
-            
-            const outerGeo = new THREE.BoxGeometry(panelWidth, panelHeight, 0.5);
-            outerWire = new THREE.LineSegments(new THREE.EdgesGeometry(outerGeo), new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0 }));
-            const innerGeo = new THREE.BoxGeometry(panelWidth - 0.8, panelHeight - 0.8, 0.2);
-            innerWire = new THREE.LineSegments(new THREE.EdgesGeometry(innerGeo), new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0 }));
-            const glassPanel = new THREE.Mesh(new THREE.PlaneGeometry(panelWidth, panelHeight), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 }));
+
             const faceMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
-            
-            panelTextMesh = new THREE.Mesh(new THREE.PlaneGeometry(41.5, panelHeight - 0.5), faceMat);
+            panelTextMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(41.5, panelHeight - 0.5),
+                faceMat
+            );
             panelTextMesh.position.z = 0.3;
-            panelTextMesh.scale.y = 1.45; 
-            
+            panelTextMesh.scale.y = 1.45;
+
             document.fonts.load('900 90px Inter').then(() => {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.font = '900 90px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // Subtle chromatic-aberration pass for CRT feel
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 0.55;
+                ctx.fillStyle = '#ff2244';
+                ctx.fillText('SHOW ME WHAT ELSE THIS GUY CAN DO!', 1024 - 3, 256);
+                ctx.fillStyle = '#22ffdd';
+                ctx.fillText('SHOW ME WHAT ELSE THIS GUY CAN DO!', 1024 + 3, 256);
+                ctx.globalAlpha = 1.0;
+
+                // Main glowing text
                 ctx.fillStyle = '#00ff41';
-                ctx.font = '900 90px Inter, sans-serif'; 
-                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00ff41';
+                ctx.shadowBlur = 14;
                 ctx.fillText('SHOW ME WHAT ELSE THIS GUY CAN DO!', 1024, 256);
+                ctx.shadowBlur = 0;
+
+                // Horizontal scanlines across the whole canvas
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
+                for (let y = 0; y < canvas.height; y += 4) {
+                    ctx.fillRect(0, y, canvas.width, 2);
+                }
+                // A soft vertical falloff so the scanline band reads as a screen
+                const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                grad.addColorStop(0.00, 'rgba(0, 255, 65, 0.00)');
+                grad.addColorStop(0.48, 'rgba(0, 255, 65, 0.10)');
+                grad.addColorStop(0.52, 'rgba(0, 255, 65, 0.00)');
+                grad.addColorStop(1.00, 'rgba(0, 255, 65, 0.00)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
                 faceMat.map = new THREE.CanvasTexture(canvas);
                 faceMat.needsUpdate = true;
             });
 
-            panelGroup.add(outerWire, innerWire, glassPanel, panelTextMesh);
+            // --- Liquid ether backdrop sits behind everything ---
+            liquidEtherMesh = createLiquidEtherBackdrop();
+
+            panelGroup.add(liquidEtherMesh, outerWire, innerWire, glassPanel, panelTextMesh);
             camera.add(panelGroup);
             panelGroup.position.set(0, 0, -25);
-           if (isMobile()) {
-                panelGroup.scale.set(0.45, 0.45, 0.45); 
+            if (isMobile()) {
+                panelGroup.scale.set(0.45, 0.45, 0.45);
             }
             return panelGroup;
         }
@@ -449,7 +677,8 @@
             gsap.to(panelGroup.position, { z: -20, duration: 2, ease: "expo.out" });
             gsap.to(outerWire.material, { opacity: 1, duration: 1.5, delay: 0.5 });
             gsap.to(panelTextMesh.material, { opacity: 1, duration: 1.5, delay: 0.5 });
-            gsap.to(innerWire.material, { opacity: 0.5, duration: 1.5, delay: 0.8 });
+            gsap.to(innerWire.material, { opacity: 0.45, duration: 1.5, delay: 0.8 });
+            gsap.to(liquidEtherUniforms.uOpacity, { value: 0.85, duration: 2.8, delay: 0.2, ease: "power2.out" });
         }
 
         function rollCreditsSequence() {
@@ -478,7 +707,8 @@
             const overlay = document.getElementById('transition-overlay'); 
             panelReady = false; 
             
-            gsap.to([outerWire.material, panelTextMesh.material], { opacity: 0, duration: 1.0 });
+            gsap.to([outerWire.material, innerWire.material, panelTextMesh.material], { opacity: 0, duration: 1.0 });
+            gsap.to(liquidEtherUniforms.uOpacity, { value: 0, duration: 1.2 });
             gsap.to(panelGroup.position, { z: -50, duration: 1.5, ease: "power2.in" });
             
             gsap.to(overlay, { 
@@ -1232,6 +1462,16 @@ function onClick(event) {
             requestAnimationFrame(animate);
             const timeNow = clock.getElapsedTime();
 
+            // --- Drive liquid ether uniforms ---
+            liquidEtherUniforms.uTime.value = timeNow;
+            liquidEtherUniforms.uMousePrev.value.copy(liquidEtherUniforms.uMouse.value);
+            liquidEtherUniforms.uMouse.value.x += (mouse.x - liquidEtherUniforms.uMouse.value.x) * 0.12;
+            liquidEtherUniforms.uMouse.value.y += (mouse.y - liquidEtherUniforms.uMouse.value.y) * 0.12;
+            const _dvx = liquidEtherUniforms.uMouse.value.x - liquidEtherUniforms.uMousePrev.value.x;
+            const _dvy = liquidEtherUniforms.uMouse.value.y - liquidEtherUniforms.uMousePrev.value.y;
+            liquidEtherUniforms.uMouseVel.value.x = liquidEtherUniforms.uMouseVel.value.x * 0.85 + _dvx * 0.7;
+            liquidEtherUniforms.uMouseVel.value.y = liquidEtherUniforms.uMouseVel.value.y * 0.85 + _dvy * 0.7;
+
             if (isTerrainMode) {
                 if (orbShaderMat) orbShaderMat.uniforms.time.value = timeNow; 
 
@@ -1340,6 +1580,7 @@ function onClick(event) {
             camera.fov = window.innerWidth < window.innerHeight ? 85 : 75;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            liquidEtherUniforms.uAspect.value = window.innerWidth / window.innerHeight;
         }
 
         init();
