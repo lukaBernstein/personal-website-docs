@@ -127,7 +127,30 @@ if (isMobileDevice) {
 
         let isFalling = false;
         let fallOffsets, fallVelocities, fallDelays, fallJitter;
-        window.worldActive = false; 
+        window.worldActive = false;
+
+        // --- LIQUID ASCII SIMULATION STATE (Stable Fluids grid) ---
+        // Grid-based Eulerian fluid (Jos Stam's "Stable Fluids").
+        // No particles: a density field is advected on a regular grid,
+        // with a velocity field projected to divergence-free each step.
+        // ASCII renderer just samples the density field — like
+        // "dithering" the fluid into characters.
+        let fluidMode = false;
+        let fluidMousePx = -9999, fluidMousePy = -9999;
+        let fluidMouseLastPx = -9999, fluidMouseLastPy = -9999;
+        let fluidCursorVx = 0, fluidCursorVy = 0;
+        let fluidLastFrame = 0;
+        let fluid = null;              // grid state, allocated on start
+
+        const FLUID_N             = 80;     // grid columns (rows derived from aspect)
+        const FLUID_PROJ_ITERS    = 15;     // pressure relaxation passes
+        const FLUID_GRAVITY       = 3.2;    // scales the density × down-force
+        const FLUID_DECAY         = 0.998;  // slow density dissipation to stop drift
+        const FLUID_FILL_HEIGHT   = 0.42;   // bottom fraction that starts as water
+        const FLUID_CURSOR_R      = 5.5;    // cursor push radius in grid cells
+        const FLUID_CURSOR_FORCE  = 0.7;    // how strongly cursor drags fluid (0..1)
+        const FLUID_CHARS         = [" ", "·", ":", "-", "=", "+", "*", "#", "@"];
+        const FLUID_DENSITY_FLOOR = 0.22;   // below this, render as empty
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -176,6 +199,10 @@ if (isMobileDevice) {
         }
 
         window.addEventListener('mousemove', (e) => {
+            // Always track pixel coords — the fluid sim needs continuous
+            // positions even during the crumble/fall sequence.
+            fluidMousePx = e.clientX;
+            fluidMousePy = e.clientY;
             if (isFalling) return; 
             mouse.x = (e.clientX / window.innerWidth) * cols;
             mouse.y = (e.clientY / window.innerHeight) * rows;
@@ -183,10 +210,19 @@ if (isMobileDevice) {
             mouse.vy = mouse.y - mouse.lastY;
         });
 
-        canvas.addEventListener('click', () => {
+        canvas.addEventListener('click', (e) => {
 
-            
-            if (!isFalling) {
+            if (isFalling || fluidMode) return;
+
+            // Shift+Click: drop the PLAY letters into a liquid ASCII sim
+            // instead of booting into the 3D world. Pure easter egg — does
+            // NOT start the game, does NOT play music, does NOT lock camera.
+            if (e.shiftKey) {
+                startFluidMode();
+                return;
+            }
+
+            {
 
                 const music = document.getElementById('gameMusic');
             if (music) {
@@ -224,6 +260,42 @@ if (isMobileDevice) {
 
         function animate() {
             if (document.getElementById('ascii-layer').style.display === 'none') return; 
+
+            // --- FLUID MODE: short-circuit the PLAY render loop ---
+            // Once shift+click has happened, we stop drawing the swirling
+            // "PLAY" text entirely and just run the particle sim instead.
+            if (fluidMode) {
+                const now = performance.now();
+                let dt = (now - fluidLastFrame) / 1000;
+                if (dt > 0.05) dt = 0.05;    // clamp big gaps (tab refocus)
+                if (dt < 0)    dt = 0;
+                fluidLastFrame = now;
+
+                // Keep the rainbow cycle advancing at the same rate PLAY
+                // used — the fluid inherits PLAY's running color phase so
+                // the shift-click transition is visually seamless.
+                colorPhase += 0.2;
+
+                // Cursor velocity — adds drag/stir to nearby particles
+                fluidCursorVx = fluidMousePx - fluidMouseLastPx;
+                fluidCursorVy = fluidMousePy - fluidMouseLastPy;
+                fluidMouseLastPx = fluidMousePx;
+                fluidMouseLastPy = fluidMousePy;
+
+                ctx.fillStyle = "black";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.font = `bold ${fontSize}px monospace`;
+                ctx.textAlign = "left";
+                ctx.textBaseline = "top";
+
+                // Stam Stable Fluids runs the full sim in one step —
+                // no need for substepping or dt-stashing.
+                updateFluid(dt);
+                renderFluid();
+
+                requestAnimationFrame(animate);
+                return;
+            }
 
             const time = Date.now() * 0.0003; 
             colorPhase += 0.2;
@@ -322,6 +394,266 @@ if (isMobileDevice) {
             }
             if (!isFalling) { mouse.lastX = mouse.x; mouse.lastY = mouse.y; }
             requestAnimationFrame(animate);
+        }
+
+        // =============================================================
+        //   LIQUID ASCII — Stam's Stable Fluids (compact)
+        // =============================================================
+        // Grid of size (N+2)×(M+2) (including boundary ring). All fields
+        // stored as flat Float32Arrays indexed by IX(i,j) = i + (N+2)*j.
+        // `d` is density (1 = water, 0 = air), `u/v` are velocity.
+        // Per frame: add gravity to v, add cursor force, project, advect
+        // velocity, project again, advect density.
+
+        function IX(i, j) { return i + (fluid.N + 2) * j; }
+
+        function setBnd(b, x) {
+            const { N, M } = fluid;
+            for (let i = 1; i <= N; i++) {
+                x[IX(i, 0)]     = b === 2 ? -x[IX(i, 1)] : x[IX(i, 1)];
+                x[IX(i, M + 1)] = b === 2 ? -x[IX(i, M)] : x[IX(i, M)];
+            }
+            for (let j = 1; j <= M; j++) {
+                x[IX(0, j)]     = b === 1 ? -x[IX(1, j)] : x[IX(1, j)];
+                x[IX(N + 1, j)] = b === 1 ? -x[IX(N, j)] : x[IX(N, j)];
+            }
+        }
+
+        function project() {
+            const { N, M, u, v, p, div } = fluid;
+            const hInv = 1 / N;
+            for (let j = 1; j <= M; j++) for (let i = 1; i <= N; i++) {
+                div[IX(i, j)] = -0.5 * hInv *
+                    (u[IX(i + 1, j)] - u[IX(i - 1, j)] +
+                     v[IX(i, j + 1)] - v[IX(i, j - 1)]);
+                p[IX(i, j)] = 0;
+            }
+            setBnd(0, div); setBnd(0, p);
+            for (let k = 0; k < FLUID_PROJ_ITERS; k++) {
+                for (let j = 1; j <= M; j++) for (let i = 1; i <= N; i++) {
+                    p[IX(i, j)] = (div[IX(i, j)] +
+                        p[IX(i - 1, j)] + p[IX(i + 1, j)] +
+                        p[IX(i, j - 1)] + p[IX(i, j + 1)]) * 0.25;
+                }
+                setBnd(0, p);
+            }
+            for (let j = 1; j <= M; j++) for (let i = 1; i <= N; i++) {
+                u[IX(i, j)] -= 0.5 * N * (p[IX(i + 1, j)] - p[IX(i - 1, j)]);
+                v[IX(i, j)] -= 0.5 * N * (p[IX(i, j + 1)] - p[IX(i, j - 1)]);
+            }
+            setBnd(1, u); setBnd(2, v);
+        }
+
+        function advect(b, dst, src, uu, vv, dt) {
+            const { N, M } = fluid;
+            const dt0 = dt * N;
+            for (let j = 1; j <= M; j++) for (let i = 1; i <= N; i++) {
+                let x = i - dt0 * uu[IX(i, j)];
+                let y = j - dt0 * vv[IX(i, j)];
+                if (x < 0.5) x = 0.5; else if (x > N + 0.5) x = N + 0.5;
+                if (y < 0.5) y = 0.5; else if (y > M + 0.5) y = M + 0.5;
+                const i0 = x | 0, i1 = i0 + 1;
+                const j0 = y | 0, j1 = j0 + 1;
+                const s1 = x - i0, s0 = 1 - s1;
+                const t1 = y - j0, t0 = 1 - t1;
+                dst[IX(i, j)] =
+                    s0 * (t0 * src[IX(i0, j0)] + t1 * src[IX(i0, j1)]) +
+                    s1 * (t0 * src[IX(i1, j0)] + t1 * src[IX(i1, j1)]);
+            }
+            setBnd(b, dst);
+        }
+
+        function startFluidMode() {
+            const W = canvas.width, H = canvas.height;
+            const N = FLUID_N;
+            const M = Math.max(4, Math.round(N * H / W));
+            const size = (N + 2) * (M + 2);
+            fluid = {
+                N, M, size, W, H,
+                u:     new Float32Array(size), v:     new Float32Array(size),
+                uPrev: new Float32Array(size), vPrev: new Float32Array(size),
+                d:     new Float32Array(size), dPrev: new Float32Array(size),
+                p:     new Float32Array(size), div:   new Float32Array(size),
+            };
+
+            // Pre-fill bottom FLUID_FILL_HEIGHT of the tank with water.
+            const fillTopRow = Math.max(1, Math.floor(M * (1 - FLUID_FILL_HEIGHT)) + 1);
+            for (let j = fillTopRow; j <= M; j++)
+                for (let i = 1; i <= N; i++)
+                    fluid.d[IX(i, j)] = 1.0;
+
+            // "Splash" density at every currently-visible PLAY cell — the
+            // letters dissolve into water that falls and merges with the
+            // pool. Matches the swirl offset the PLAY renderer uses so
+            // the visual transition is continuous.
+            const time = Date.now() * 0.0003;
+            for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+                const offX = Math.floor(Math.sin(y * 0.2 + time * 4) * 1.1);
+                const offY = Math.floor(Math.cos(x * 0.2 + time * 3) * 0.8);
+                const lx = Math.min(cols - 1, Math.max(0, x + offX));
+                const ly = Math.min(rows - 1, Math.max(0, y + offY));
+                if (mask[(ly * cols + lx) * 4] > 128) {
+                    const gi = Math.min(N, Math.max(1, 1 + ((x / cols) * N) | 0));
+                    const gj = Math.min(M, Math.max(1, 1 + ((y / rows) * M) | 0));
+                    fluid.d[IX(gi, gj)] = 1.0;
+                }
+            }
+
+            fluidMode = true;
+            fluidLastFrame = performance.now();
+            fluidMouseLastPx = fluidMousePx;
+            fluidMouseLastPy = fluidMousePy;
+            const ui = document.getElementById('ui');
+            if (ui) ui.style.display = 'none';
+        }
+
+        function updateFluid(dt) {
+            if (!fluid) return;
+            const { N, M, u, v, d, uPrev, vPrev, dPrev, W, H } = fluid;
+
+            // 1. Gravity — proportional to density so only "water" falls.
+            for (let j = 1; j <= M; j++) for (let i = 1; i <= N; i++) {
+                v[IX(i, j)] += FLUID_GRAVITY * d[IX(i, j)] * dt;
+            }
+
+            // 2. Cursor — carves a cavity (drops density) and pushes
+            //    fluid radially OUTWARD from the cursor center, with a
+            //    small drag component aligned to cursor motion. This
+            //    makes the cursor feel like a solid obstacle moving
+            //    through the pool (ReactBits-style), rather than a
+            //    giant finger that drags fluid up and away.
+            if (fluidMousePx > -9000 && dt > 0.001) {
+                const cx = (fluidMousePx / W) * N + 0.5;
+                const cy = (fluidMousePy / H) * M + 0.5;
+                // Cursor velocity in grid-cells / second (for the drag term)
+                const dtSafe = Math.max(dt, 0.004);
+                const cVX = (fluidCursorVx / W) * N / dtSafe;
+                const cVY = (fluidCursorVy / H) * M / dtSafe;
+                const DRAG_CLAMP = 10;
+                const dVX = cVX > DRAG_CLAMP ? DRAG_CLAMP : (cVX < -DRAG_CLAMP ? -DRAG_CLAMP : cVX);
+                const dVY = cVY > DRAG_CLAMP ? DRAG_CLAMP : (cVY < -DRAG_CLAMP ? -DRAG_CLAMP : cVY);
+
+                const r = FLUID_CURSOR_R;
+                const r2 = r * r;
+                const PUSH_SPEED = 9;  // radial outward speed (grid-cells/s)
+
+                const iMin = Math.max(1, (cx - r) | 0);
+                const iMax = Math.min(N, ((cx + r) | 0) + 1);
+                const jMin = Math.max(1, (cy - r) | 0);
+                const jMax = Math.min(M, ((cy + r) | 0) + 1);
+
+                for (let j = jMin; j <= jMax; j++) for (let i = iMin; i <= iMax; i++) {
+                    const dx = i - cx, dy = j - cy;
+                    const dd2 = dx * dx + dy * dy;
+                    if (dd2 >= r2) continue;
+                    const dd = Math.sqrt(dd2);
+                    const fall = 1 - dd / r;
+                    const k = IX(i, j);
+
+                    // (a) Carve: reduce density inside the disc so a
+                    //     visible hole forms. The pool top-up slowly
+                    //     refills this, so the hole fades when the
+                    //     cursor leaves.
+                    d[k] *= 1 - fall * 0.45;
+
+                    // (b) Push fluid radially OUTWARD — this is what
+                    //     makes the cursor feel solid. Waves ripple out.
+                    if (dd > 0.25) {
+                        const outX = dx / dd;
+                        const outY = dy / dd;
+                        u[k] += outX * PUSH_SPEED * fall;
+                        v[k] += outY * PUSH_SPEED * fall;
+                    }
+
+                    // (c) Small drag in cursor's motion direction so
+                    //     fast swipes create a visible streak. Light
+                    //     enough it doesn't turn into a wake-lift.
+                    u[k] += dVX * fall * FLUID_CURSOR_FORCE * 0.25;
+                    v[k] += dVY * fall * FLUID_CURSOR_FORCE * 0.25;
+                }
+            }
+
+            // 3. Velocity step: project → advect → project.
+            project();
+            uPrev.set(u); vPrev.set(v);
+            advect(1, u, uPrev, uPrev, vPrev, dt);
+            advect(2, v, vPrev, uPrev, vPrev, dt);
+            project();
+
+            // 4. Density step: just advect (no diffusion = crisp free surface).
+            dPrev.set(d);
+            advect(0, d, dPrev, u, v, dt);
+
+            // 5. Pool maintenance. Semi-Lagrangian advection loses mass
+            //    at the water/air interface every frame (bilinear smears
+            //    it into the air cells, where it then "escapes"). Without
+            //    this top-up the whole pool evaporates in ~3 seconds.
+            //    The nudge is gentle enough that the cursor can still
+            //    carve visible cavities; they just slowly refill, which
+            //    reads as a bathtub settling.
+            const poolTopJ = Math.max(1, Math.floor(M * (1 - FLUID_FILL_HEIGHT)) + 1);
+            for (let j = poolTopJ; j <= M; j++) {
+                for (let i = 1; i <= N; i++) {
+                    const k = IX(i, j);
+                    if (d[k] < 1.0) d[k] += (1.0 - d[k]) * 0.04;
+                }
+            }
+
+            // 6. Safety clamp — stop any numerical run-away.
+            for (let k = 0; k < d.length; k++) {
+                if (d[k] < 0) d[k] = 0;
+                else if (d[k] > 1.4) d[k] = 1.4;
+            }
+        }
+
+        function renderFluid() {
+            if (!fluid) return;
+            const { N, M, d, u, v } = fluid;
+            const N2 = N + 2;
+            const time = Date.now() * 0.0003;
+            const baseHue = colorPhase % 360;
+            const nChars = FLUID_CHARS.length;
+            const floor = FLUID_DENSITY_FLOOR;
+
+            // For each ASCII cell, sample the density grid at that
+            // position and map density → character (heavier when fuller).
+            // Per-cell stable noise is added to `t` so the char choice
+            // jitters cell-to-cell, which reads as dithered water
+            // instead of solid horizontal stripes.
+            for (let ry = 0; ry < rows; ry++) {
+                const yOff = ry * cellH;
+                const gj = Math.min(M, Math.max(1, 1 + ((ry / rows) * M) | 0));
+                for (let rx = 0; rx < cols; rx++) {
+                    const gi = Math.min(N, Math.max(1, 1 + ((rx / cols) * N) | 0));
+                    const gidx = gi + N2 * gj;
+                    const density = d[gidx];
+
+                    // Stable hash noise in [-1, 1] — same per (rx, ry) every
+                    // frame, so the dither pattern holds still even while
+                    // density changes underneath it.
+                    const h = Math.sin(rx * 12.9898 + ry * 78.233) * 43758.5453;
+                    const noise = (h - Math.floor(h)) * 2 - 1;
+
+                    const effective = density + noise * 0.22;
+                    if (effective < floor) continue;
+
+                    const t = Math.min(1, (effective - floor) / (1.25 - floor));
+                    const cIdx = Math.min(nChars - 1, 1 + (t * (nChars - 2)) | 0);
+
+                    // Color from PLAY's phase + wave formulas → continuous
+                    // rainbow cycle inherited from pre-click.
+                    const w1 = Math.sin(rx * 0.09 + ry * 0.045 + time * 2);
+                    const w2 = Math.cos(rx * 0.04 - ry * 0.075 + time * 1.5);
+                    const wave = (w1 + w2) * 0.5;
+                    const shimmer = Math.pow(Math.max(0, Math.sin(rx * 0.5 + ry * 0.3 + time * 8)), 10) * 35;
+                    const vel = Math.abs(u[gidx]) + Math.abs(v[gidx]);
+                    const lightness = Math.min(90,
+                        32 + wave * 10 + shimmer + density * 22 + vel * 0.6);
+
+                    ctx.fillStyle = `hsl(${baseHue + wave * 10}, 80%, ${lightness}%)`;
+                    ctx.fillText(FLUID_CHARS[cIdx], rx * cellW, yOff);
+                }
+            }
         }
 
         window.addEventListener('resize', resize);
