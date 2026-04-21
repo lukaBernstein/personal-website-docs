@@ -332,8 +332,8 @@
         // Uniforms for the nebula drift+twinkle shader. Tweened on state changes.
         const nebulaDrift = {
             uTime:       { value: 0 },
-            uDriftAmp:   { value: 0.22 }, // world-space drift radius per particle
-            uTwinkleAmp: { value: 0.55 }  // 0 = steady, 1 = heavy modulation
+            uDriftAmp:   { value: 0.55 }, // world-space drift radius per particle
+            uTwinkleAmp: { value: 0.80 }  // 0 = steady, 1 = heavy modulation
         };
 
         function createNebula() {
@@ -388,11 +388,11 @@
                     '#include <begin_vertex>',
                     `#include <begin_vertex>
                      // Tiny per-axis orbital drift — keeps each particle near its rest position
-                     transformed.x += sin(uTime * 0.8 + phase)        * uDriftAmp;
-                     transformed.y += cos(uTime * 0.6 + phase * 1.3)  * uDriftAmp;
-                     transformed.z += sin(uTime * 0.7 + phase * 0.7)  * uDriftAmp;
+                     transformed.x += sin(uTime * 1.10 + phase)        * uDriftAmp;
+                     transformed.y += cos(uTime * 0.95 + phase * 1.3)  * uDriftAmp;
+                     transformed.z += sin(uTime * 1.05 + phase * 0.7)  * uDriftAmp;
                      // Brightness modulation — 1.0 at rest, scales down based on phase/time
-                     vTwinkle = 1.0 - uTwinkleAmp + uTwinkleAmp * (0.5 + 0.5 * sin(uTime * 2.5 + phase * 2.0));`
+                     vTwinkle = 1.0 - uTwinkleAmp + uTwinkleAmp * (0.5 + 0.5 * sin(uTime * 3.2 + phase * 2.0));`
                 );
 
                 shader.fragmentShader = shader.fragmentShader.replace(
@@ -1483,11 +1483,12 @@
                 // Tuned for performance — visually indistinguishable from defaults
                 DYE_RESOLUTION: 1024,        // down from 1440 (~50% fewer pixels in dye texture)
                 PRESSURE_ITERATIONS: 14,     // down from 20 (~30% less pressure-solve work)
-                DENSITY_DISSIPATION: 3.5,
-                VELOCITY_DISSIPATION: 2,
-                CURL: 3,
-                SPLAT_RADIUS: 0.2,
-                SPLAT_FORCE: 6000,
+                // Tuned for "more effusive" feel — bigger splats, slower dissipation, more swirl
+                DENSITY_DISSIPATION: 1.8,    // was 3.5 — dye lingers ~2x longer
+                VELOCITY_DISSIPATION: 1.1,   // was 2   — flow keeps swirling longer
+                CURL: 4.5,                   // was 3   — more turbulent eddies
+                SPLAT_RADIUS: 0.36,          // was 0.2 — fatter initial blob per splat
+                SPLAT_FORCE: 9500,           // was 6000 — stronger push, dye spreads farther
                 RAINBOW_MODE: true,
                 SHADING: true
             });
