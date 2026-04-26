@@ -144,13 +144,36 @@ if (isMobileDevice) {
 
         const FLUID_N             = 80;     // grid columns (rows derived from aspect)
         const FLUID_PROJ_ITERS    = 15;     // pressure relaxation passes
-        const FLUID_GRAVITY       = 3.2;    // scales the density × down-force
+        const FLUID_GRAVITY       = 2.2;    // scales the density × down-force (lower = more viscous fall)
+        const FLUID_VISCOSITY     = 0.0002; // velocity diffusion. 0 ≈ water; ~0.001+ feels like oil/honey
+        const FLUID_VISC_ITERS    = 4;      // gauss-seidel passes for the viscosity diffuse step
+        const FLUID_VEL_FRICTION  = 1.1;    // global per-second velocity decay → fluid actually settles
         const FLUID_DECAY         = 0.998;  // slow density dissipation to stop drift
         const FLUID_FILL_HEIGHT   = 0.42;   // bottom fraction that starts as water
         const FLUID_CURSOR_R      = 5.5;    // cursor push radius in grid cells
         const FLUID_CURSOR_FORCE  = 0.7;    // how strongly cursor drags fluid (0..1)
-        const FLUID_CHARS         = [" ", "·", ":", "-", "=", "+", "*", "#", "@"];
-        const FLUID_DENSITY_FLOOR = 0.22;   // below this, render as empty
+        const FLUID_DENSITY_FLOOR = 0.42;   // below this, render as empty (raised → sharper meniscus, no stray mist)
+
+        // ASCII ramp — tiered instead of a single linear array. Density
+        // picks WHICH tier (denser cells → heavier glyphs); a per-cell
+        // stable hash picks WHICH glyph inside that tier. So adjacent
+        // cells of similar density don't all render as the same character —
+        // you get a textured "alphabet soup" surface instead of horizontal
+        // stripes of `:` and `-`. Glyphs intentionally chosen to match the
+        // pre-click PLAY palette (smudgeChars / thinChars / boldChars).
+        const FLUID_CHAR_TIERS = [
+            [" "],                                   //  0: empty (skipped via DENSITY_FLOOR)
+            ["·", "'", "`", "′", ".", ","],          //  1: faint mist
+            [":", ";", "ι", "*", "¹"],               //  2: spray
+            ["-", "_", "~", "°"],                    //  3: surface ripples
+            ["+", "=", "x", "*"],                    //  4: light flow
+            ["i", "l", "1", "/", "\\"],              //  5: thin streams
+            ["c", "v", "u", "n", "z", "y"],          //  6: medium-light
+            ["o", "e", "s", "a", "t"],               //  7: medium body
+            ["O", "0", "Q", "C", "G", "D", "U"],     //  8: heavy
+            ["#", "%", "&", "$", "X", "K", "A", "8"],//  9: very heavy
+            ["█", "▓", "▒", "@", "M", "W", "B", "N"] // 10: water core
+        ];
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -463,6 +486,27 @@ if (isMobileDevice) {
             setBnd(b, dst);
         }
 
+        // Viscosity diffusion via Gauss-Seidel — same shape as the pressure
+        // solve in project(). Each cell pulls toward the average of its 4
+        // neighbours, weighted by `a = dt * visc * N * M`. Higher viscosity
+        // (or longer dt) → bigger `a` → more smoothing per step → fluid
+        // resists shear and feels heavier. This is the step that turns
+        // water into honey.
+        function diffuse(b, dst, src, visc, dt) {
+            const { N, M } = fluid;
+            const a = dt * visc * N * M;
+            const inv = 1 / (1 + 4 * a);
+            for (let k = 0; k < FLUID_VISC_ITERS; k++) {
+                for (let j = 1; j <= M; j++) for (let i = 1; i <= N; i++) {
+                    dst[IX(i, j)] = (src[IX(i, j)] + a * (
+                        dst[IX(i - 1, j)] + dst[IX(i + 1, j)] +
+                        dst[IX(i, j - 1)] + dst[IX(i, j + 1)]
+                    )) * inv;
+                }
+                setBnd(b, dst);
+            }
+        }
+
         function startFluidMode() {
             const W = canvas.width, H = canvas.height;
             const N = FLUID_N;
@@ -573,7 +617,14 @@ if (isMobileDevice) {
                 }
             }
 
-            // 3. Velocity step: project → advect → project.
+            // 3. Velocity step: viscosity → project → advect → project.
+            //    Adding a viscosity diffuse before the standard Stam pass
+            //    is what makes the fluid resist shear instead of jiggling
+            //    like water. Without it, gravity and cursor pushes
+            //    propagate too fast and the surface never settles.
+            uPrev.set(u); vPrev.set(v);
+            diffuse(1, u, uPrev, FLUID_VISCOSITY, dt);
+            diffuse(2, v, vPrev, FLUID_VISCOSITY, dt);
             project();
             uPrev.set(u); vPrev.set(v);
             advect(1, u, uPrev, uPrev, vPrev, dt);
@@ -583,6 +634,16 @@ if (isMobileDevice) {
             // 4. Density step: just advect (no diffusion = crisp free surface).
             dPrev.set(d);
             advect(0, d, dPrev, u, v, dt);
+
+            // 4.5. Velocity friction. Acts like drag — viscous fluids
+            //      don't keep sloshing forever after you poke them.
+            //      Without this the surface jiggles indefinitely; with it,
+            //      the pool returns to flat in ~half a second.
+            const damp = Math.exp(-FLUID_VEL_FRICTION * dt);
+            for (let k = 0; k < u.length; k++) {
+                u[k] *= damp;
+                v[k] *= damp;
+            }
 
             // 5. Pool maintenance. Semi-Lagrangian advection loses mass
             //    at the water/air interface every frame (bilinear smears
@@ -604,6 +665,38 @@ if (isMobileDevice) {
                 if (d[k] < 0) d[k] = 0;
                 else if (d[k] > 1.4) d[k] = 1.4;
             }
+
+            // 7. Surface tension / wisp evaporation in the AIR zone.
+            //    Stable Fluids' bilinear advection smears a tiny bit of
+            //    density into air cells along the water/air interface
+            //    every frame. Those wisps are too light for gravity to
+            //    pull down quickly (gravity scales with density), so
+            //    they hover indefinitely above the pool — that's where
+            //    the "stray dots floating in the air" came from. Real
+            //    water holds together via surface tension; we
+            //    approximate that here by aggressively decaying any
+            //    below-floor density above the pool baseline:
+            //      • cells with NO wet neighbours → fast evaporation
+            //        (no isolated drops in mid-air)
+            //      • cells touching the body → gentle decay
+            //        (sharp meniscus, no fuzzy halo)
+            //    The pool body itself is untouched so cursor cavities
+            //    and waves still behave naturally.
+            const cleanupTopJ = Math.max(1, Math.floor(M * (1 - FLUID_FILL_HEIGHT)));
+            for (let j = 1; j <= cleanupTopJ; j++) {
+                for (let i = 1; i <= N; i++) {
+                    const k = IX(i, j);
+                    const dk = d[k];
+                    if (dk > 0.001 && dk < FLUID_DENSITY_FLOOR) {
+                        const wet =
+                            (d[IX(i - 1, j)] >= FLUID_DENSITY_FLOOR ? 1 : 0) +
+                            (d[IX(i + 1, j)] >= FLUID_DENSITY_FLOOR ? 1 : 0) +
+                            (d[IX(i, j - 1)] >= FLUID_DENSITY_FLOOR ? 1 : 0) +
+                            (d[IX(i, j + 1)] >= FLUID_DENSITY_FLOOR ? 1 : 0);
+                        d[k] *= wet === 0 ? 0.4 : 0.85;
+                    }
+                }
+            }
         }
 
         function renderFluid() {
@@ -612,14 +705,24 @@ if (isMobileDevice) {
             const N2 = N + 2;
             const time = Date.now() * 0.0003;
             const baseHue = colorPhase % 360;
-            const nChars = FLUID_CHARS.length;
             const floor = FLUID_DENSITY_FLOOR;
 
-            // For each ASCII cell, sample the density grid at that
-            // position and map density → character (heavier when fuller).
-            // Per-cell stable noise is added to `t` so the char choice
-            // jitters cell-to-cell, which reads as dithered water
-            // instead of solid horizontal stripes.
+            // Density maps to a WINDOWED tier range. Window cuts off:
+            //   • bottom (tiers 1-3): dots/punctuation `·'`,.;:` — these
+            //     made the body look like it had stray speckles even
+            //     when they were "valid" density-mapped picks. Gone.
+            //   • top    (tier 10): full-block characters `█▓▒` —
+            //     these read as solid blocks rather than ASCII letters
+            //     and made the pool look chunky/blocky.
+            // What's left is tiers 4-9: `+ = x i l c v o e # & % $ X 8`
+            // and friends — all normal-looking letter/symbol glyphs.
+            // Within that window we still scale by density, so light
+            // meniscus picks lighter glyphs and the heavy core picks
+            // chunkier letters. Alphabet-soup texture, no dots, no blocks.
+            const MIN_TIER = 4;
+            const MAX_TIER = 9;
+            const tierSpan = MAX_TIER - MIN_TIER;   // 5
+
             for (let ry = 0; ry < rows; ry++) {
                 const yOff = ry * cellH;
                 const gj = Math.min(M, Math.max(1, 1 + ((ry / rows) * M) | 0));
@@ -628,17 +731,31 @@ if (isMobileDevice) {
                     const gidx = gi + N2 * gj;
                     const density = d[gidx];
 
-                    // Stable hash noise in [-1, 1] — same per (rx, ry) every
-                    // frame, so the dither pattern holds still even while
-                    // density changes underneath it.
-                    const h = Math.sin(rx * 12.9898 + ry * 78.233) * 43758.5453;
-                    const noise = (h - Math.floor(h)) * 2 - 1;
+                    // Visibility from density ALONE — no noise term.
+                    // (Adding noise here was what let stray air cells
+                    // light up as floating dots above the pool.)
+                    if (density < floor) continue;
 
-                    const effective = density + noise * 0.22;
-                    if (effective < floor) continue;
+                    // Stable per-cell density jitter — same per (rx, ry)
+                    // every frame, so adjacent cells of similar density
+                    // pick slightly different tiers and you get an
+                    // alphabet-soup texture instead of horizontal stripes
+                    // of one character. ONLY affects which glyph the
+                    // cell renders; visibility was already decided above.
+                    const hT = Math.sin(rx * 12.9898 + ry * 78.233) * 43758.5453;
+                    const noise = (hT - Math.floor(hT)) * 2 - 1;
 
-                    const t = Math.min(1, (effective - floor) / (1.25 - floor));
-                    const cIdx = Math.min(nChars - 1, 1 + (t * (nChars - 2)) | 0);
+                    const effective = density + noise * 0.18;
+                    const t = Math.max(0, Math.min(1,
+                        (effective - floor) / (1.25 - floor)));
+                    const tierIdx = MIN_TIER +
+                        Math.min(tierSpan, (t * (tierSpan + 1)) | 0);
+                    const tier = FLUID_CHAR_TIERS[tierIdx];
+
+                    // Independent stable hash → glyph pick inside the tier.
+                    const h2 = Math.sin(rx * 91.345 + ry * 47.853 + 17.0) * 31415.9265;
+                    const pick = h2 - Math.floor(h2);
+                    const char = tier[Math.min(tier.length - 1, (pick * tier.length) | 0)];
 
                     // Color from PLAY's phase + wave formulas → continuous
                     // rainbow cycle inherited from pre-click.
@@ -651,7 +768,7 @@ if (isMobileDevice) {
                         32 + wave * 10 + shimmer + density * 22 + vel * 0.6);
 
                     ctx.fillStyle = `hsl(${baseHue + wave * 10}, 80%, ${lightness}%)`;
-                    ctx.fillText(FLUID_CHARS[cIdx], rx * cellW, yOff);
+                    ctx.fillText(char, rx * cellW, yOff);
                 }
             }
         }
@@ -1070,8 +1187,19 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     // Small random lean so they don't all look identical
                     m.rotation.x = (rnd() - 0.5) * 0.12;
                     m.rotation.z = (rnd() - 0.5) * 0.12;
-                    // Sink slightly so the base embeds into the terrain
-                    m.position.set(tx, gy - worldH * 0.04, tz);
+                    // Footprint-aware grounding. Stumps are wider than they
+                    // are tall, so a single center sample leaves one side
+                    // floating on any sloped terrain. Sample at the four
+                    // edges of the footprint plus center, take the LOWEST,
+                    // and sink slightly so the base reads as embedded.
+                    const footR = Math.max(widthX, widthZ) * sc * 0.45;
+                    const gyC = getElevation(tx, tz);
+                    const gyN = getElevation(tx, tz - footR);
+                    const gyS = getElevation(tx, tz + footR);
+                    const gyE = getElevation(tx + footR, tz);
+                    const gyW = getElevation(tx - footR, tz);
+                    const lowestGy = Math.min(gyC, gyN, gyS, gyE, gyW);
+                    m.position.set(tx, lowestGy - worldH * 0.08, tz);
                     scene.add(m);
 
                     // Collision cylinder hugging the widest footprint
@@ -1079,8 +1207,8 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         type: 'cylinder',
                         cx: tx, cz: tz,
                         r: Math.max(widthX, widthZ) * sc * 0.4,
-                        minY: gy,
-                        maxY: gy + worldH
+                        minY: lowestGy,
+                        maxY: lowestGy + worldH
                     });
                     placed++;
                 }
@@ -1229,20 +1357,53 @@ const s = Math.sin(angle); const c = Math.cos(angle);
 
 
         // ── FLOWERS ──
-        // low_poly_flowers.glb: two meshes under RootNode (Circle.001 + Circle.006_Circle.007)
-        // Y-up, ~0.33 units tall, base Y=-0.256. Lift = 0.256 * scale.
+        // low_poly_flowers.glb ships TWO flowers modeled at different
+        // positions inside one scene — cloning the whole scene meant
+        // every spawn placed both flowers stuck together at fixed
+        // relative positions. Fix: bake each mesh's world matrix into
+        // a recentered geometry (same approach grass pack uses), then
+        // pick ONE template per spawn. Now each flower sits alone at
+        // its placement point, and the randomness gives natural variety.
         (function spawnFlowers() {
             const loader = new GLTFLoader();
             loader.load('assets/low_poly_flowers.glb', gltf => {
-                const template = gltf.scene;
-                template.traverse(n => {
-                    if (n.isMesh) { n.castShadow = false; n.receiveShadow = true; }
+                gltf.scene.updateMatrixWorld(true);
+                const templates = [];
+                gltf.scene.traverse(n => {
+                    if (n.isMesh) {
+                        const geo = n.geometry.clone();
+                        geo.applyMatrix4(n.matrixWorld);
+                        geo.computeBoundingBox();
+                        const bb = geo.boundingBox;
+                        // Recenter X/Z and lift base to y=0 so placement
+                        // is just `gy` (no per-template BASE_Y math).
+                        geo.translate(
+                            -(bb.min.x + bb.max.x) * 0.5,
+                            -bb.min.y,
+                            -(bb.min.z + bb.max.z) * 0.5
+                        );
+                        templates.push({ geometry: geo, material: n.material });
+                    }
                 });
-
-                const BASE_Y = 0.256;
+                if (templates.length === 0) {
+                    console.warn('No flower meshes in GLB');
+                    return;
+                }
+                console.log('Flower templates extracted:', templates.length);
 
                 function tooClose(vx, vz) {
                     return Math.sqrt((vx-sX)**2+(vz-sZ)**2) < 2600;
+                }
+
+                function spawnOne(fx, fz, sc) {
+                    const tmpl = templates[Math.floor(rnd() * templates.length)];
+                    const m = new THREE.Mesh(tmpl.geometry, tmpl.material);
+                    m.scale.setScalar(sc);
+                    m.rotation.y = rnd() * Math.PI * 2;
+                    const gy = getElevation(fx, fz);
+                    m.position.set(fx, gy, fz);
+                    m.receiveShadow = true;
+                    scene.add(m);
                 }
 
                 // 12 giant landmark flowers
@@ -1251,33 +1412,20 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     const fx = (rnd()-0.5)*108000;
                     const fz = (rnd()-0.5)*108000;
                     if (tooClose(fx, fz)) continue;
-                    const gy = getElevation(fx, fz);
-                    const sc = 20 + rnd()*50; // original tree-sized
-                    const m = template.clone();
-                    m.scale.setScalar(sc);
-                    m.rotation.y = rnd()*Math.PI*2;
-                    m.position.set(fx, gy + BASE_Y * sc, fz);
-                    scene.add(m);
+                    spawnOne(fx, fz, 20 + rnd()*50);
                     giantsPlaced++;
                 }
 
-                // 400 normal-sized flowers
+                // ~650 normal-sized flowers
                 let normalPlaced = 0;
-                for (let i = 0; i < 5500; i++) {
-                    if (normalPlaced >= 650) break;
+                for (let i = 0; i < 5500 && normalPlaced < 650; i++) {
                     const fx = (rnd()-0.5)*108000;
                     const fz = (rnd()-0.5)*108000;
                     if (tooClose(fx, fz)) continue;
-                    const gy = getElevation(fx, fz);
-                    const sc = 1.5 + rnd()*2; // normal flower sized
-                    const m = template.clone();
-                    m.scale.setScalar(sc);
-                    m.rotation.y = rnd()*Math.PI*2;
-                    m.position.set(fx, gy + BASE_Y * sc, fz);
-                    scene.add(m);
+                    spawnOne(fx, fz, 1.5 + rnd()*2);
                     normalPlaced++;
                 }
-                console.log('Flowers spawned');
+                console.log('Flowers spawned:', giantsPlaced + normalPlaced);
             }, undefined, e => console.warn('Flowers GLB not found:', e));
         })();
 
@@ -1340,7 +1488,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const gy = getElevation(gx, gz);
 
                         const tIdx    = Math.floor(rnd() * templates.length);
-                        const targetH = 24 + rnd() * 40;                // 24–64 world units tall
+                        const targetH = 60 + rnd() * 90;                // 60–150 world units tall
                         const sc      = targetH / templates[tIdx].height;
 
                         // Sink ~3 units so roots are below terrain, no floating tufts
@@ -1390,6 +1538,8 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // sits at y=0 and it's centred in X/Z.
                 const bb = new THREE.Box3().setFromObject(raw);
                 const height = Math.max(bb.max.y - bb.min.y, 0.0001);
+                const widthX = bb.max.x - bb.min.x;
+                const widthZ = bb.max.z - bb.min.z;
                 raw.position.set(
                     -(bb.min.x + bb.max.x) * 0.5,
                     -bb.min.y,
@@ -1417,7 +1567,6 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const r  = Math.sqrt(rnd()) * patchR;
                         const mx = cx + Math.cos(a) * r;
                         const mz = cz + Math.sin(a) * r;
-                        const gy = getElevation(mx, mz);
 
                         const worldH = 25 + rnd() * 55;          // 25–80 units tall
                         const sc = worldH / height;
@@ -1428,7 +1577,22 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         // Tiny random lean so they don't all face identically
                         m.rotation.x = (rnd() - 0.5) * 0.08;
                         m.rotation.z = (rnd() - 0.5) * 0.08;
-                        m.position.set(mx, gy, mz);
+                        // Footprint-aware grounding. On hills a single
+                        // center-sample left the downslope edge of the
+                        // base hovering above terrain. Sample at the four
+                        // edges of the footprint plus center, take the
+                        // LOWEST, then sink hard so the entire base reads
+                        // as planted in soil. The cap is round and small,
+                        // so over-sinking the upslope side just blends
+                        // into the ground naturally.
+                        const footR = Math.max(widthX, widthZ) * sc * 0.5;
+                        const gyC = getElevation(mx, mz);
+                        const gyN = getElevation(mx, mz - footR);
+                        const gyS = getElevation(mx, mz + footR);
+                        const gyE = getElevation(mx + footR, mz);
+                        const gyW = getElevation(mx - footR, mz);
+                        const lowestGy = Math.min(gyC, gyN, gyS, gyE, gyW);
+                        m.position.set(mx, lowestGy - worldH * 0.18, mz);
                         scene.add(m);
                         placed++;
                     }
@@ -1482,13 +1646,13 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 console.log('Loaded', templates.length, 'rock templates from 70-pack');
                 if (templates.length === 0) return;
                 
-                // Biased pickers: templates are sorted smallest→biggest (70 total).
-                // Big pool = indexes 35–69 (bigger half). Med pool = 15–54. Small = 0–19.
-                function pickBig()   { return templates[35 + Math.floor(rnd() * 35)]; }
-                function pickMed()   { return templates[15 + Math.floor(rnd() * 40)]; }
-                function pickSmall() { return templates[Math.floor(rnd() * 20)]; }
+                // Templates are sorted smallest→biggest (70 total). Per
+                // user request we now ONLY use the 10 BIGGEST types — the
+                // small ones added thousands of barely-visible pebbles
+                // that tanked perf without contributing to the silhouette.
+                function pickBig() { return templates[60 + Math.floor(rnd() * 10)]; }
 
-                function placeRock(wx, wy, wz, worldH, tmpl) {
+                function placeRock(wx, wy, wz, worldH, tmpl, addCollision = false) {
                     tmpl = tmpl || pickBig();
                     const sc = worldH / tmpl.height;
                     const m = new THREE.Mesh(tmpl.geometry, tmpl.material);
@@ -1509,6 +1673,33 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     m.castShadow = true;
                     m.receiveShadow = true;
                     scene.add(m);
+
+                    // OBB (oriented bounding box). Same shape as the local
+                    // bbox of the geometry, but rotated WITH the rock instead
+                    // of axis-aligned to the world. This eliminates the
+                    // rotation inflation that AABBs suffer (a square rock
+                    // rotated 45° gives an AABB ~41% bigger than its actual
+                    // footprint). The match is exact at every Y rotation.
+                    // Stored as: center, half-extents in local space (already
+                    // scaled to world units), and precomputed cos/sin of the
+                    // Y rotation so the per-frame test is just a 2D rotate
+                    // + AABB compare in the rock's local frame.
+                    if (addCollision) {
+                        const bb = tmpl.geometry.boundingBox;
+                        const hx = (bb.max.x - bb.min.x) * 0.5 * sc;
+                        const hy = (bb.max.y - bb.min.y) * 0.5 * sc;
+                        const hz = (bb.max.z - bb.min.z) * 0.5 * sc;
+                        obstacles.push({
+                            type: 'obb',
+                            cx: m.position.x, cy: m.position.y, cz: m.position.z,
+                            hx, hy, hz,
+                            minY: m.position.y - hy,
+                            maxY: m.position.y + hy,
+                            cosT: Math.cos(m.rotation.y),
+                            sinT: Math.sin(m.rotation.y)
+                        });
+                    }
+
                     return { mesh: m, scaledHeight: worldH };
                 }
 
@@ -1517,36 +1708,19 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 }
 
                 // ──────────────────────────────────────────────────────
-                // Rocks in three distinct tiers — big size variance is the
-                // whole point of this layout. TIER 1 sprinkles tiny stones
-                // everywhere so the ground reads as lived-in. TIER 2 is the
-                // everyday rock pile. TIER 3 is the occasional monumental
-                // boulder formation that you stumble onto and go "whoa".
+                // TWO-TIER ROCK LAYOUT (down from 3). Pebble scatter was
+                // dropped — the smallest 60 rock TYPES are no longer used,
+                // only templates 60–69 ship to the world. Counts also
+                // trimmed since each placement is now a "real" rock.
+                //
+                // TIER A = standard mixed piles (the everyday rock pile).
+                // TIER B = rare mega boulder formations.
                 // ──────────────────────────────────────────────────────
 
-                // TIER 1 — pebble scatter. Thousands of small stones, no
-                // collision (they're ankle-high, no point blocking the player).
-                for (let i = 0; i < 2000; i++) {
-                    const cx = (rnd()-0.5) * 108000;
-                    const cz = (rnd()-0.5) * 108000;
-                    if (tooClose(cx, cz)) continue;
-
-                    const count = 1 + Math.floor(rnd() * 4);   // 1–4 pebbles
-                    const spread = 80 + rnd() * 180;
-                    for (let k = 0; k < count; k++) {
-                        const a = rnd() * Math.PI * 2;
-                        const d = rnd() * spread;
-                        const sx = cx + Math.cos(a) * d;
-                        const sz = cz + Math.sin(a) * d;
-                        const gy = getElevation(sx, sz);
-                        placeRock(sx, gy, sz, 25 + rnd()*130, pickSmall());
-                    }
-                }
-
-                // TIER 2 — standard mixed piles. Roughly what used to live
-                // here, but slightly trimmed in size and count so the mega
-                // piles stand out.
-                for (let i = 0; i < 800; i++) {
+                // TIER A — standard mixed piles. Sizes shifted down a bit
+                // since even the small/medium calls now resolve to one of
+                // the 10 biggest templates, just at a smaller world scale.
+                for (let i = 0; i < 700; i++) {
                     const clX = (rnd()-0.5)*108000;
                     const clZ = (rnd()-0.5)*108000;
                     if (tooClose(clX, clZ)) continue;
@@ -1560,9 +1734,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const az = clZ + (rnd()-0.5)*180;
                         const gy = getElevation(ax, az);
                         const worldH = 220 + rnd()*330;          // 220–550
-                        placeRock(ax, gy, az, worldH, pickBig());
-                        obstacles.push({type:'cylinder', cx:ax, cz:az,
-                            r:worldH*0.4, minY:gy, maxY:gy+worldH});
+                        placeRock(ax, gy, az, worldH, pickBig(), true);
                     }
 
                     // 3–5 medium surrounders
@@ -1574,13 +1746,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const bz = clZ + Math.sin(a)*d;
                         const gy = getElevation(bx, bz);
                         const worldH = 110 + rnd()*170;          // 110–280
-                        const tmpl = rnd() < 0.6 ? pickBig() : pickMed();
-                        placeRock(bx, gy, bz, worldH, tmpl);
-                        obstacles.push({type:'cylinder', cx:bx, cz:bz,
-                            r:worldH*0.35, minY:gy, maxY:gy+worldH});
+                        placeRock(bx, gy, bz, worldH, pickBig(), true);
                     }
 
-                    // 2–4 small trailing stones
+                    // 2–4 trailing stones (now "small" only by world scale,
+                    // not by template — these are still the chunky types).
                     const smallCount = 2 + Math.floor(rnd()*3);
                     for (let s = 0; s < smallCount; s++) {
                         const a = rnd()*Math.PI*2;
@@ -1588,11 +1758,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const sx = clX + Math.cos(a)*d;
                         const sz = clZ + Math.sin(a)*d;
                         const gy = getElevation(sx, sz);
-                        placeRock(sx, gy, sz, 40 + rnd()*80, pickSmall());
+                        placeRock(sx, gy, sz, 70 + rnd()*100, pickBig());
                     }
                 }
 
-                // TIER 3 — mega boulder formations. Rare. The anchors here
+                // TIER B — mega boulder formations. Rare. The anchors here
                 // push close together (tight 140-unit cluster radius instead
                 // of loose 180-400) so their size + the settle-sink
                 // visually stack them against each other like a pile.
@@ -1612,9 +1782,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const az = clZ + Math.sin(angle) * r;
                         const gy = getElevation(ax, az);
                         const worldH = 750 + rnd()*550;           // 750–1300!
-                        placeRock(ax, gy, az, worldH, pickBig());
-                        obstacles.push({type:'cylinder', cx:ax, cz:az,
-                            r:worldH*0.42, minY:gy, maxY:gy+worldH});
+                        placeRock(ax, gy, az, worldH, pickBig(), true);
                     }
 
                     // 6–10 large-medium rocks in a wider ring
@@ -1626,13 +1794,10 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const bz = clZ + Math.sin(a)*d;
                         const gy = getElevation(bx, bz);
                         const worldH = 220 + rnd()*380;           // 220–600
-                        const tmpl = rnd() < 0.55 ? pickBig() : pickMed();
-                        placeRock(bx, gy, bz, worldH, tmpl);
-                        obstacles.push({type:'cylinder', cx:bx, cz:bz,
-                            r:worldH*0.38, minY:gy, maxY:gy+worldH});
+                        placeRock(bx, gy, bz, worldH, pickBig(), true);
                     }
 
-                    // 4–8 small scatter rocks around the edges
+                    // 4–8 scatter rocks around the edges
                     const smallCount = 4 + Math.floor(rnd()*5);
                     for (let s = 0; s < smallCount; s++) {
                         const a = rnd()*Math.PI*2;
@@ -1640,7 +1805,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const sx = clX + Math.cos(a)*d;
                         const sz = clZ + Math.sin(a)*d;
                         const gy = getElevation(sx, sz);
-                        placeRock(sx, gy, sz, 60 + rnd()*140, pickMed());
+                        placeRock(sx, gy, sz, 90 + rnd()*150, pickBig());
                     }
                 }
                 console.log('Rocks spawned');
@@ -1905,6 +2070,18 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     const ey = _pLocal.y / obs.ry;
                     const ez = _pLocal.z / obs.rz;
                     if (ex*ex + ey*ey + ez*ez < 1.0) return true;
+                } else if (obs.type === 'obb') {
+                    // Y-band reject (same shape as cylinder/box).
+                    if (hy <= obs.minY || fy >= obs.maxY) continue;
+                    // Bring the test point into the OBB's local XZ frame by
+                    // rotating it by -theta around the OBB's center. Since
+                    // we only rotate around Y, the vertical axis is shared
+                    // with the world and we can test it as a band above.
+                    const dx = tx - obs.cx, dz = tz - obs.cz;
+                    const lx = dx * obs.cosT - dz * obs.sinT;
+                    const lz = dx * obs.sinT + dz * obs.cosT;
+                    if (Math.abs(lx) < obs.hx + PR &&
+                        Math.abs(lz) < obs.hz + PR) return true;
                 } else {
                     const b = obs.box;
                     if (hy <= b.min.y || fy >= b.max.y) continue;
@@ -2214,6 +2391,20 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             // Accept a wide vertical window so fast-falling frames don't tunnel through
                             if (feetY <= topY + 500 && feetY >= topY - 120)
                                 currentFloorY = Math.max(currentFloorY, topY + USER_HEIGHT);
+                        }
+                    } else if (obs.type === 'obb') {
+                        // OBB-local XZ test for "is the player standing over
+                        // the rock's footprint", then world-Y test for the
+                        // top surface (Y-only rotation means world top ==
+                        // OBB top).
+                        const dx = camera.position.x - obs.cx;
+                        const dz = camera.position.z - obs.cz;
+                        const lx = dx * obs.cosT - dz * obs.sinT;
+                        const lz = dx * obs.sinT + dz * obs.cosT;
+                        if (Math.abs(lx) < obs.hx + PR &&
+                            Math.abs(lz) < obs.hz + PR) {
+                            if (feetY >= obs.maxY - 5 && feetY <= obs.maxY + 200)
+                                currentFloorY = Math.max(currentFloorY, obs.maxY + USER_HEIGHT);
                         }
                     } else {
                         const b = obs.box;
