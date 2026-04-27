@@ -2093,7 +2093,9 @@ window.addEventListener('touchstart', (e) => {
             starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
             setTimeout(() => {
                 artifact.visible = true;
-                const targetZ = isMobile() ? -25 : -15;
+                // Land the artifact CLOSE to camera first — feels more intimate / scrutinizable.
+                // It pulls back to the standard distance on unfold so the shards have room.
+                const targetZ = isMobile() ? -14 : -9;
                 gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" });
                 // Bring up the dedicated holo lighting alongside the artifact reveal
                 gsap.to(artifactKey,  { intensity: 1000, duration: 2.0, ease: "power2.out" });
@@ -2104,6 +2106,11 @@ window.addEventListener('touchstart', (e) => {
         function executeUnfold() {
             isUnfolded = true;
             resetIdleTimer();
+            // Pull the artifact back to its standard distance as it shatters open.
+            // Matches the shard tween easing/duration so the camera "settles" as
+            // the pieces drift outward, instead of clipping into the lens.
+            const farZ = isMobile() ? -25 : -15;
+            gsap.to(artifact.position, { z: farZ, duration: 2.8, ease: "power3.out" });
             gsap.to(nebula.material, { opacity: 0.35, duration: 2.5 });
             artifact.children.forEach(c => {
                 if (c.userData.offsetDir) {
