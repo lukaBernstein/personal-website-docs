@@ -237,7 +237,7 @@
     <script>
         let orbShaderMat;
         let isDownloading = false;
-        let scene, camera, renderer, clock, tiles = [], starObjects = [], orbs = [], namePlane, glowPlane, nameLight, sweepLight;
+        let scene, camera, renderer, clock, tiles = [], starObjects = [], orbs = [], namePlane, glowPlane, nameLight, sweepLight, artifactKey, artifactFill;
         let artifact, nebula, buttonBox, isWarping = false, arrived = false, isUnfolded = false, isSpelling = false, isCredits = false, isPanning = false;
         let warpProgress = 0, mainGroup, starGroup; 
 
@@ -409,26 +409,186 @@
             return new THREE.Points(geo, mat);
         }
 
-        function createObsidianPolyhedron() {
+        function createVoronoiShell() {
             const group = new THREE.Group();
-            const baseGeo = new THREE.DodecahedronGeometry(4, 0);
+            const radius = 4;
+
+            // Subdivided icosahedron — sub 4 = 5120 triangles, finer cell boundaries
+            const baseGeo = new THREE.IcosahedronGeometry(radius, 4);
             const posAttr = baseGeo.attributes.position;
-            const faceMat = new THREE.MeshPhysicalMaterial({ 
-                color: 0x222222, metalness: 1.0, roughness: 0.15,
-                iridescence: 1.0, iridescenceIOR: 1.8, iridescenceThicknessRange: [100, 400],
-                transparent: true, opacity: 0.9, side: THREE.DoubleSide 
-            });
-            const edgeMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 });
-            for (let i = 0; i < posAttr.count; i += 3) {
-                const geometry = new THREE.BufferGeometry();
-                const v = [posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i), posAttr.getX(i+1), posAttr.getY(i+1), posAttr.getZ(i+1), posAttr.getX(i+2), posAttr.getY(i+2), posAttr.getZ(i+2)];
-                geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v), 3));
-                geometry.computeVertexNormals();
-                const mesh = new THREE.Mesh(geometry, faceMat);
-                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMat));
-                mesh.userData = { offsetDir: new THREE.Vector3((v[0]+v[3]+v[6])/3, (v[1]+v[4]+v[7])/3, (v[2]+v[5]+v[8])/3).normalize() };
-                group.add(mesh);
+            const uvAttr  = baseGeo.attributes.uv;
+
+            // Fibonacci spiral seed distribution on the unit sphere
+            const seedCount = 75;
+            const seeds = [];
+            const phi = Math.PI * (3 - Math.sqrt(5)); // golden angle
+            for (let i = 0; i < seedCount; i++) {
+                const y = 1 - ((i + 0.5) / seedCount) * 2; // avoids exact poles
+                const r = Math.sqrt(1 - y * y);
+                const theta = phi * i;
+                const v = new THREE.Vector3(Math.cos(theta) * r, y, Math.sin(theta) * r);
+                // Perturb so cells aren't perfectly uniform — feels more "fractured"
+                v.x += (Math.random() - 0.5) * 0.22;
+                v.y += (Math.random() - 0.5) * 0.22;
+                v.z += (Math.random() - 0.5) * 0.22;
+                v.normalize();
+                seeds.push(v);
             }
+
+            // Bin each triangle into the nearest seed's cell.
+            // Track UVs in parallel so the holo texture maps correctly per cell.
+            const cellTriangles = Array.from({ length: seedCount }, () => []);
+            const cellUVs       = Array.from({ length: seedCount }, () => []);
+            const triCount = posAttr.count / 3;
+
+            for (let t = 0; t < triCount; t++) {
+                const i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
+                const cx = (posAttr.getX(i0) + posAttr.getX(i1) + posAttr.getX(i2)) / 3;
+                const cy = (posAttr.getY(i0) + posAttr.getY(i1) + posAttr.getY(i2)) / 3;
+                const cz = (posAttr.getZ(i0) + posAttr.getZ(i1) + posAttr.getZ(i2)) / 3;
+                const cl = Math.sqrt(cx*cx + cy*cy + cz*cz);
+                const nx = cx / cl, ny = cy / cl, nz = cz / cl;
+
+                let best = 0, bestDist = Infinity;
+                for (let s = 0; s < seedCount; s++) {
+                    const dx = nx - seeds[s].x, dy = ny - seeds[s].y, dz = nz - seeds[s].z;
+                    const d = dx*dx + dy*dy + dz*dz;
+                    if (d < bestDist) { bestDist = d; best = s; }
+                }
+
+                cellTriangles[best].push(
+                    posAttr.getX(i0), posAttr.getY(i0), posAttr.getZ(i0),
+                    posAttr.getX(i1), posAttr.getY(i1), posAttr.getZ(i1),
+                    posAttr.getX(i2), posAttr.getY(i2), posAttr.getZ(i2)
+                );
+                cellUVs[best].push(
+                    uvAttr.getX(i0), uvAttr.getY(i0),
+                    uvAttr.getX(i1), uvAttr.getY(i1),
+                    uvAttr.getX(i2), uvAttr.getY(i2)
+                );
+            }
+
+            // --- HOLO STRIPE TEXTURE ---
+            // Diagonal grayscale gradient drives iridescence thickness, which
+            // produces the rainbow band shifts characteristic of holo foil.
+            // The 0–255 grayscale is interpolated across iridescenceThicknessRange.
+            const stripeSize = 256;
+            const stripeCanvas = document.createElement('canvas');
+            stripeCanvas.width = stripeCanvas.height = stripeSize;
+            const stripeCtx = stripeCanvas.getContext('2d');
+            const stripeData = stripeCtx.createImageData(stripeSize, stripeSize);
+            const cosA = Math.cos(Math.PI / 4); // 45° diagonal
+            const sinA = Math.sin(Math.PI / 4);
+            const bandCount = 4; // visible color bands per texture tile
+            for (let y = 0; y < stripeSize; y++) {
+                for (let x = 0; x < stripeSize; x++) {
+                    const diag = x * cosA + y * sinA;
+                    const v = (Math.sin(diag * Math.PI * 2 * bandCount / stripeSize) + 1) * 0.5 * 255;
+                    const idx = (y * stripeSize + x) * 4;
+                    stripeData.data[idx]     = v;
+                    stripeData.data[idx + 1] = v;
+                    stripeData.data[idx + 2] = v;
+                    stripeData.data[idx + 3] = 255;
+                }
+            }
+            stripeCtx.putImageData(stripeData, 0, 0);
+            const stripeTex = new THREE.CanvasTexture(stripeCanvas);
+            stripeTex.wrapS = stripeTex.wrapT = THREE.RepeatWrapping;
+            stripeTex.repeat.set(2, 2);
+
+            // --- HOLO GROOVE + GLITTER NORMAL MAP ---
+            // Base layer: diagonal grooves perpendicular to the bands —
+            // this is the actual physical structure of holographic foil
+            // (microscopic linear gratings that diffract light).
+            // Glitter layer: ~3% of pixels are stamped with high-amplitude
+            // random-direction bumps, like metal flake in car paint. Each
+            // flake catches light at a different angle and twinkles as the
+            // artifact rotates.
+            const grooveSize = 256;
+            const grooveCanvas = document.createElement('canvas');
+            grooveCanvas.width = grooveCanvas.height = grooveSize;
+            const grooveCtx = grooveCanvas.getContext('2d');
+            const grooveData = grooveCtx.createImageData(grooveSize, grooveSize);
+            const grooveFreq = 16; // grooves per texture tile
+            for (let y = 0; y < grooveSize; y++) {
+                for (let x = 0; x < grooveSize; x++) {
+                    const diag = x * cosA + y * sinA;
+                    const groove = Math.sin(diag * Math.PI * 2 * grooveFreq / grooveSize);
+                    // Base groove normal — perpendicular to groove direction
+                    let nxv = 128 + cosA * groove * 70;
+                    let nyv = 128 + sinA * groove * 70;
+                    // Stamp glitter flakes — sparse, high-amplitude, random direction
+                    if (Math.random() < 0.03) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const amp   = 90 + Math.random() * 35; // strong push (max valid offset is 127)
+                        nxv = 128 + Math.cos(angle) * amp;
+                        nyv = 128 + Math.sin(angle) * amp;
+                    }
+                    const idx = (y * grooveSize + x) * 4;
+                    grooveData.data[idx]     = nxv;
+                    grooveData.data[idx + 1] = nyv;
+                    grooveData.data[idx + 2] = 255;
+                    grooveData.data[idx + 3] = 255;
+                }
+            }
+            grooveCtx.putImageData(grooveData, 0, 0);
+            const grooveTex = new THREE.CanvasTexture(grooveCanvas);
+            grooveTex.wrapS = grooveTex.wrapT = THREE.RepeatWrapping;
+            grooveTex.repeat.set(4, 4);
+
+            // Shared materials — holographic foil + cyan crack edges
+            const faceMat = new THREE.MeshPhysicalMaterial({
+                color: 0x3a3a48,
+                metalness: 1.0,
+                roughness: 0.04,
+                iridescence: 1.0,
+                iridescenceIOR: 3.0,
+                iridescenceThicknessRange: [0, 2400],
+                iridescenceThicknessMap: stripeTex,
+                normalMap: grooveTex,
+                normalScale: new THREE.Vector2(0.7, 0.7),
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.05,
+                transparent: true,
+                opacity: 0.94,
+                side: THREE.DoubleSide
+            });
+            const edgeMat = new THREE.LineBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.7
+            });
+
+            // Build one mesh per cell
+            cellTriangles.forEach((flatVerts, idx) => {
+                if (flatVerts.length === 0) return;
+
+                const cellGeo = new THREE.BufferGeometry();
+                cellGeo.setAttribute('position', new THREE.Float32BufferAttribute(flatVerts, 3));
+                cellGeo.setAttribute('uv',       new THREE.Float32BufferAttribute(cellUVs[idx], 2));
+                cellGeo.computeVertexNormals();
+
+                const mesh = new THREE.Mesh(cellGeo, faceMat);
+
+                // EdgesGeometry with high threshold hides internal triangulation,
+                // showing only the cell perimeter as a glowing crack.
+                // Per-shard cloned material so the cracks can pulse out of phase.
+                const edges = new THREE.EdgesGeometry(cellGeo, 30);
+                const ownEdgeMat = edgeMat.clone();
+                const edgeLines = new THREE.LineSegments(edges, ownEdgeMat);
+                mesh.add(edgeLines);
+
+                mesh.userData = {
+                    offsetDir: seeds[idx].clone(),
+                    restPos: mesh.position.clone(),
+                    wobblePhase: Math.random() * Math.PI * 2,
+                    wobbleSeed:  Math.random() * 100,
+                    edgeMat: ownEdgeMat,
+                    edgePhase: Math.random() * Math.PI * 2
+                };
+                group.add(mesh);
+            });
+
             return group;
         }
 
@@ -605,7 +765,7 @@
                 opacity: 1, 
                 duration: 1.5, 
                 onComplete: () => {
-                    scene.remove(mainGroup, starGroup, tileGroup, namePlane, glowPlane, nameLight, sweepLight);
+                    scene.remove(mainGroup, starGroup, tileGroup, namePlane, glowPlane, nameLight, sweepLight, artifactKey, artifactFill);
                     camera.remove(panelGroup); 
                     document.getElementById('crawl-container').style.display = 'none';
                     
@@ -1544,8 +1704,15 @@
             glowPlane = createAuraMesh(); glowPlane.position.z = 200; glowPlane.material.opacity = 0; scene.add(glowPlane);
             nameLight = new THREE.PointLight(0xffcc00, 0, 60); nameLight.position.set(0, 0, -4.5); scene.add(nameLight);
             sweepLight = new THREE.PointLight(0xffffff, 0, 45); sweepLight.position.set(-20, 10, -5); scene.add(sweepLight);
+            // Dedicated lights for the holo artifact — pure white, high intensity,
+            // orbiting in the animate loop so the rainbow bands shift continuously.
+            artifactKey  = new THREE.PointLight(0xffffff, 0, 200, 1.5);
+            artifactFill = new THREE.PointLight(0xaaccff, 0, 200, 1.5);
+            artifactKey.position.set(20, 15, 5);
+            artifactFill.position.set(-15, -10, 8);
+            scene.add(artifactKey, artifactFill);
             
-            artifact = createObsidianPolyhedron();
+            artifact = createVoronoiShell();
             nebula = createNebula(); artifact.add(nebula);
             if (isMobile()) nebula.scale.set(1.2, 1.2, 1.2);
             artifact.position.z = -1500; artifact.visible = false;
@@ -1555,15 +1722,20 @@
             
             const createGlowTexture = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = 64; canvas.height = 64;
+                canvas.width = 256; canvas.height = 256;
                 const ctx = canvas.getContext('2d');
-                const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-                gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
-                gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
-                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+                // Solid white-hot disc core (full opacity 0–18%), then a hard
+                // shoulder, then a fast falloff to a faint halo. Reads as a
+                // sharp ball of light, not a fuzzy blob.
+                gradient.addColorStop(0.00, 'rgba(255, 255, 255, 1.0)');
+                gradient.addColorStop(0.18, 'rgba(255, 255, 255, 1.0)');
+                gradient.addColorStop(0.22, 'rgba(255, 255, 255, 0.85)');
+                gradient.addColorStop(0.30, 'rgba(255, 255, 255, 0.30)');
+                gradient.addColorStop(0.55, 'rgba(255, 255, 255, 0.06)');
+                gradient.addColorStop(1.00, 'rgba(255, 255, 255, 0)');
                 ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, 64, 64);
+                ctx.fillRect(0, 0, 256, 256);
                 return new THREE.CanvasTexture(canvas);
             };
 
@@ -1572,7 +1744,7 @@
             const configs = [{c:0xff007b, r:14, t:'h', s:0.008}, {c:0x7000ff, r:18, t:'h', s:0.006}, {c:0xffd700, r:16, t:'h', s:0.007}, {c:0x00ffff, r:15, t:'v', s:0.009}];
             configs.forEach((cfg, i) => {
                 const orb = new THREE.Group();
-                const light = new THREE.PointLight(cfg.c, 300, 60);
+                const light = new THREE.PointLight(cfg.c, 550, 110);
                 const spriteMat = new THREE.SpriteMaterial({ 
                     map: glowTexture, 
                     color: cfg.c, 
@@ -1580,7 +1752,7 @@
                     blending: THREE.AdditiveBlending 
                 });
                 const sprite = new THREE.Sprite(spriteMat);
-                sprite.scale.set(1.5, 1.5, 1); 
+                sprite.scale.set(1.9, 1.9, 1); 
                 orb.add(light); 
                 orb.add(sprite);
                 orb.data = { a: i * 2, r: cfg.r, type: cfg.t, speed: cfg.s, light: light, sprite: sprite, hue: Math.random() }; 
@@ -1923,17 +2095,38 @@ window.addEventListener('touchstart', (e) => {
                 artifact.visible = true;
                 const targetZ = isMobile() ? -25 : -15;
                 gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" });
+                // Bring up the dedicated holo lighting alongside the artifact reveal
+                gsap.to(artifactKey,  { intensity: 1000, duration: 2.0, ease: "power2.out" });
+                gsap.to(artifactFill, { intensity: 600,  duration: 2.0, ease: "power2.out" });
             }, 2800);
         }
 
         function executeUnfold() {
-            isUnfolded = true; 
+            isUnfolded = true;
             resetIdleTimer();
             gsap.to(nebula.material, { opacity: 0.35, duration: 2.5 });
             artifact.children.forEach(c => {
-                if(c.userData.offsetDir) {
-                    _v3.copy(c.userData.offsetDir).multiplyScalar(14.5);
-                    gsap.to(c.position, { x: _v3.x, y: _v3.y * 1.2, z: _v3.z, duration: 3, ease: "power4.out" });
+                if (c.userData.offsetDir) {
+                    const dist = 9 + Math.random() * 8;        // 9–17 units outward
+                    _v3.copy(c.userData.offsetDir).multiplyScalar(dist);
+                    const dur = 2.5 + Math.random() * 1.2;
+                    const dly = Math.random() * 0.35;
+                    gsap.to(c.position, {
+                        x: _v3.x,
+                        y: _v3.y * 1.15,
+                        z: _v3.z,
+                        duration: dur,
+                        delay: dly,
+                        ease: "power4.out"
+                    });
+                    gsap.to(c.rotation, {
+                        x: c.rotation.x + (Math.random() - 0.5) * 1.4,
+                        y: c.rotation.y + (Math.random() - 0.5) * 1.4,
+                        z: c.rotation.z + (Math.random() - 0.5) * 1.4,
+                        duration: dur,
+                        delay: dly,
+                        ease: "power3.out"
+                    });
                 }
             });
         }
@@ -2171,6 +2364,35 @@ function onClick(event) {
                 if (artifact.visible) {
                     artifact.rotation.y += 0.005 + mouse.x * 0.08; 
                     artifact.rotation.x = THREE.MathUtils.lerp(artifact.rotation.x, -mouse.y * 1.2, 0.08);
+                    // Per-shard idle drift — barely-held-together feel.
+                    // Skipped after unfold so GSAP shatter tweens own the position.
+                    if (!isUnfolded) {
+                        artifact.children.forEach(c => {
+                            const ud = c.userData;
+                            if (!ud.restPos) return;
+                            const t = timeNow * 0.9 + ud.wobbleSeed;
+                            c.position.x = ud.restPos.x + Math.sin(t)        * 0.06;
+                            c.position.y = ud.restPos.y + Math.sin(t * 1.3 + ud.wobblePhase) * 0.06;
+                            c.position.z = ud.restPos.z + Math.cos(t * 1.1) * 0.06;
+                            // Pulse the cyan crack: 0.4–1.0 on a slow per-shard phase.
+                            if (ud.edgeMat) {
+                                ud.edgeMat.opacity = 0.4 + (Math.sin(timeNow * 1.6 + ud.edgePhase) * 0.5 + 0.5) * 0.6;
+                            }
+                        });
+                    }
+                    // Orbit the holo lights around the artifact — this is what makes
+                    // the rainbow bands continuously shift, like tilting a holo card.
+                    const az = artifact.position.z;
+                    artifactKey.position.set(
+                        Math.cos(timeNow * 1.3) * 22,
+                        Math.sin(timeNow * 0.9) * 14,
+                        az + Math.sin(timeNow * 1.3) * 22 + 8
+                    );
+                    artifactFill.position.set(
+                        Math.cos(timeNow * 1.1 + Math.PI) * 18,
+                        Math.sin(timeNow * 1.5 + Math.PI) * 12,
+                        az + Math.sin(timeNow * 1.1 + Math.PI) * 18 + 8
+                    );
                 }
             }
             renderer.render(scene, camera);
