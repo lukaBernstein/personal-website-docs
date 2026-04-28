@@ -845,7 +845,7 @@ if (isMobileDevice) {
             starPositions[i * 3 + 2] = r * Math.cos(phi);
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        const starMaterial = new THREE.PointsMaterial({ color: 0xfff9e6, size: 80, transparent: true, opacity: 0.4, sizeAttenuation: true });
+        const starMaterial = new THREE.PointsMaterial({ color: 0xfff9e6, size: 80, transparent: true, opacity: 0.4, sizeAttenuation: true, depthWrite: false });
         scene.add(new THREE.Points(starGeo, starMaterial));
 
         const hazeGeo = new THREE.SphereGeometry(58000, 32, 32); 
@@ -1812,6 +1812,312 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             }, undefined, e => console.warn('70-rock pack not found:', e));
         })();
 
+        // ── CLOUDS (GLB) ──
+        // Loads assets/Clouds.glb — a low-poly pack with 3 cumulus shapes
+        // merged into one mesh. We split that one mesh into the 3 distinct
+        // shapes by spatial-clustering its triangles (the GLB has unwelded
+        // verts so we can't use connected components — every face would
+        // be its own "cloud"). Then instance each cloud type across the
+        // sky at high altitude. MeshStandardMaterial means clouds inherit
+        // the existing sun + hemisphere lighting automatically — they
+        // tint warm at sunset and cool blue at night without any extra
+        // shader work, just like trees and rocks do.
+        (function spawnClouds() {
+            const loader = new GLTFLoader();
+            loader.load('assets/Clouds.glb', gltf => {
+                // Find the (single) mesh and pull out its geometry.
+                let srcMesh = null;
+                gltf.scene.traverse(n => { if (n.isMesh && !srcMesh) srcMesh = n; });
+                if (!srcMesh) { console.warn('No mesh in Clouds.glb'); return; }
+
+                const srcGeo = srcMesh.geometry;
+                const posAttr = srcGeo.attributes.position;
+                const idxAttr = srcGeo.index;
+                if (!idxAttr) { console.warn('Clouds.glb mesh has no index buffer'); return; }
+                const positions = posAttr.array;
+                const indices = idxAttr.array;
+                const triCount = indices.length / 3;
+
+                // Compute triangle centroids for spatial clustering.
+                const centroids = new Float32Array(triCount * 3);
+                for (let t = 0; t < triCount; t++) {
+                    const a = indices[t*3]   * 3;
+                    const b = indices[t*3+1] * 3;
+                    const c = indices[t*3+2] * 3;
+                    centroids[t*3]   = (positions[a]   + positions[b]   + positions[c])   / 3;
+                    centroids[t*3+1] = (positions[a+1] + positions[b+1] + positions[c+1]) / 3;
+                    centroids[t*3+2] = (positions[a+2] + positions[b+2] + positions[c+2]) / 3;
+                }
+
+                // Spatial-hash union-find: tris within R of each other join
+                // the same cluster. R=0.04 (model-local units) is bigger
+                // than typical face size (~0.03) but smaller than gaps
+                // between separate cloud bodies (>0.05).
+                const R = 0.04, R2 = R * R, CELL = R;
+                const parent = new Int32Array(triCount);
+                for (let i = 0; i < triCount; i++) parent[i] = i;
+                const find = x => {
+                    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+                    return x;
+                };
+                const union = (a, b) => {
+                    const ra = find(a), rb = find(b);
+                    if (ra !== rb) parent[ra] = rb;
+                };
+                const grid = new Map();
+                const cellKey = (cx, cy, cz) => cx + ',' + cy + ',' + cz;
+                for (let t = 0; t < triCount; t++) {
+                    const cx = Math.floor(centroids[t*3]   / CELL);
+                    const cy = Math.floor(centroids[t*3+1] / CELL);
+                    const cz = Math.floor(centroids[t*3+2] / CELL);
+                    const k = cellKey(cx, cy, cz);
+                    let bucket = grid.get(k);
+                    if (!bucket) { bucket = []; grid.set(k, bucket); }
+                    bucket.push(t);
+                }
+                for (let t = 0; t < triCount; t++) {
+                    const px = centroids[t*3], py = centroids[t*3+1], pz = centroids[t*3+2];
+                    const cx = Math.floor(px / CELL);
+                    const cy = Math.floor(py / CELL);
+                    const cz = Math.floor(pz / CELL);
+                    for (let dx = -1; dx <= 1; dx++)
+                    for (let dy = -1; dy <= 1; dy++)
+                    for (let dz = -1; dz <= 1; dz++) {
+                        const bucket = grid.get(cellKey(cx+dx, cy+dy, cz+dz));
+                        if (!bucket) continue;
+                        for (let i = 0; i < bucket.length; i++) {
+                            const u = bucket[i];
+                            if (u === t) continue;
+                            const ddx = centroids[u*3]   - px;
+                            const ddy = centroids[u*3+1] - py;
+                            const ddz = centroids[u*3+2] - pz;
+                            if (ddx*ddx + ddy*ddy + ddz*ddz < R2) union(t, u);
+                        }
+                    }
+                }
+
+                // Group triangles by root, then build a separate geometry
+                // per cluster. We re-pack vertices so each template is
+                // self-contained (its own POSITION + NORMAL buffers).
+                const clusters = new Map();
+                for (let t = 0; t < triCount; t++) {
+                    const r = find(t);
+                    let arr = clusters.get(r);
+                    if (!arr) { arr = []; clusters.set(r, arr); }
+                    arr.push(t);
+                }
+                // Sort by tri count descending and keep all clusters with
+                // >100 tris (filters out any stray noise; expected ≈3 clouds).
+                const clusterList = [...clusters.values()]
+                    .filter(arr => arr.length > 100)
+                    .sort((a, b) => b.length - a.length);
+                console.log('Cloud shapes extracted:', clusterList.length);
+                if (clusterList.length === 0) return;
+
+                const normalAttr = srcGeo.attributes.normal;
+                const normals = normalAttr ? normalAttr.array : null;
+
+                const templates = clusterList.map(triList => {
+                    // Re-pack: gather unique source verts used by these
+                    // tris, build a remap, then emit fresh geometry. Also
+                    // recenter X/Z and lift base to y=0 so placement is
+                    // just `(x, altitude, z)` with no per-template offset.
+                    const usedVerts = new Map();   // srcIdx → newIdx
+                    const newPositions = [];
+                    const newNormals = [];
+                    const newIndices = [];
+                    for (const t of triList) {
+                        for (let k = 0; k < 3; k++) {
+                            const srcIdx = indices[t*3 + k];
+                            let newIdx = usedVerts.get(srcIdx);
+                            if (newIdx === undefined) {
+                                newIdx = newPositions.length / 3;
+                                usedVerts.set(srcIdx, newIdx);
+                                newPositions.push(
+                                    positions[srcIdx*3],
+                                    positions[srcIdx*3+1],
+                                    positions[srcIdx*3+2]
+                                );
+                                if (normals) newNormals.push(
+                                    normals[srcIdx*3],
+                                    normals[srcIdx*3+1],
+                                    normals[srcIdx*3+2]
+                                );
+                            }
+                            newIndices.push(newIdx);
+                        }
+                    }
+                    const geo = new THREE.BufferGeometry();
+                    geo.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
+                    if (newNormals.length) geo.setAttribute('normal', new THREE.Float32BufferAttribute(newNormals, 3));
+                    else geo.computeVertexNormals();
+                    geo.setIndex(newIndices);
+                    geo.computeBoundingBox();
+                    const bb = geo.boundingBox;
+                    geo.translate(
+                        -(bb.min.x + bb.max.x) * 0.5,
+                        -bb.min.y,
+                        -(bb.min.z + bb.max.z) * 0.5
+                    );
+                    geo.computeBoundingBox();
+                    const h = geo.boundingBox.max.y;
+                    return { geometry: geo, height: h };
+                });
+
+                // Single shared material: bright white, full roughness so
+                // it stays matte (no specular highlights), no metalness.
+                // The scene's existing sunLight + hemiLight do all the
+                // tinting work — warm at sunset, blue at night, white
+                // at noon, completely automatic.
+                //
+                // Semi-transparent (opacity 0.85) so you can faintly see
+                // the sky/sun through clouds — reads as wispy vapor rather
+                // than solid styrofoam. depthWrite OFF prevents overlapping
+                // clouds from punching depth-buffer holes in each other,
+                // which would produce visible seams when one drifts behind
+                // another. depthTest stays ON so terrain/sun/moon still
+                // occlude clouds correctly.
+                const cloudMat = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    roughness: 1.0,
+                    metalness: 0.0,
+                    flatShading: false,
+                    transparent: true,
+                    opacity: 0.85,
+                    depthWrite: false,
+                });
+
+                // Spawn instances. Clouds aren't static — they drift on
+                // wind across the world AND have a fade-in / live / fade-out
+                // life cycle, then respawn at a random location. This reads
+                // like real cumulus condensing, drifting, and dissipating.
+                //
+                // Each cloud stores its own state in userData so the per-
+                // frame tick function (registered as window.cloudsTick and
+                // called from the main animate loop) can update them.
+                const CLOUD_COUNT = 30;
+                const ALT_MIN = 40000;
+                const ALT_MAX = 45000;
+                const SCALE_MIN = 15000;   // each unit of model height → world units
+                const SCALE_MAX = 20000;
+                const SPREAD = 300000;
+
+                // Wind direction (unit XZ) and speed in world units / sec.
+                // At 110 u/s a cloud crosses the 90k spread in ~14 minutes —
+                // noticeably moving while you watch the sky.
+                const WIND_DIR_X = 0.85;
+                const WIND_DIR_Z = 0.53;
+                const WIND_SPEED = 110;
+
+                // Lifecycle: each cloud lives ~LIFE_SECONDS, with FADE_FRAC
+                // of that spent ramping in (start) and out (end). Start
+                // each cloud at a random point in its life so they don't
+                // all bloom and die in sync. With LIFE=240s and FADE=0.30,
+                // the bloom and dissipation phases each take ~72 seconds —
+                // slow enough that you can watch a cloud actually form.
+                const LIFE_SECONDS = 240;
+                const FADE_FRAC    = 0.30;   // 30% in, 40% full, 30% out
+
+                const clouds = [];
+                let placed = 0;
+                for (let i = 0; i < CLOUD_COUNT; i++) {
+                    const tpl = templates[Math.floor(rnd() * templates.length)];
+                    const cloud = new THREE.Mesh(tpl.geometry, cloudMat);
+                    const targetH = SCALE_MIN + rnd() * (SCALE_MAX - SCALE_MIN);
+                    const fullScale = targetH / tpl.height;
+                    cloud.position.set(
+                        (rnd() - 0.5) * SPREAD,
+                        ALT_MIN + rnd() * (ALT_MAX - ALT_MIN),
+                        (rnd() - 0.5) * SPREAD
+                    );
+                    cloud.rotation.y = rnd() * Math.PI * 2;
+                    cloud.scale.setScalar(0.001);   // start invisible; tick will scale up
+                    cloud.castShadow = false;
+                    cloud.receiveShadow = false;
+                    cloud.frustumCulled = true;
+                    // Per-cloud state for the tick function. fullScale is
+                    // the peak size; lifeAge starts random so clouds are
+                    // staggered through their lifecycles at world load.
+                    cloud.userData = {
+                        fullScale: fullScale,
+                        // Slight horizontal stretch baked into the scale
+                        // multipliers so the tick can just write
+                        // scale.x = baseScale * stretchX, etc.
+                        stretchX: 1.3,
+                        stretchY: 1.0,
+                        stretchZ: 1.3,
+                        lifeAge: rnd() * LIFE_SECONDS,
+                    };
+                    scene.add(cloud);
+                    clouds.push(cloud);
+                    placed++;
+                }
+                console.log('Clouds spawned:', placed);
+
+                // Half-extents of the wrap volume. When a cloud drifts
+                // past +HALF on either axis, snap it to -HALF so it
+                // re-enters from the opposite edge — looks like an
+                // endless sky.
+                const HALF = SPREAD * 0.5;
+
+                // Smoothstep helper for soft fade in/out instead of linear.
+                // Cubic eases at both ends so clouds bloom and dissipate
+                // gently rather than popping.
+                const smoothstep = (e0, e1, x) => {
+                    const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+                    return t * t * (3 - 2 * t);
+                };
+
+                // Per-frame update function. Called once per frame from
+                // the main animate loop. Drifts each cloud with wind and
+                // updates its lifecycle scale. Cheap — ~30 clouds × a
+                // handful of math ops per frame, no allocations.
+                window.cloudsTick = function(delta) {
+                    const wx = WIND_DIR_X * WIND_SPEED * delta;
+                    const wz = WIND_DIR_Z * WIND_SPEED * delta;
+                    for (let i = 0; i < clouds.length; i++) {
+                        const c = clouds[i];
+                        const ud = c.userData;
+
+                        // Wind drift + wrap. If the cloud crosses an edge,
+                        // snap it to the opposite side AND randomize the
+                        // perpendicular axis a bit so wrapping doesn't
+                        // produce visible rails of clouds.
+                        c.position.x += wx;
+                        c.position.z += wz;
+                        if (c.position.x >  HALF) { c.position.x = -HALF; c.position.z = (rnd()-0.5) * SPREAD; }
+                        if (c.position.x < -HALF) { c.position.x =  HALF; c.position.z = (rnd()-0.5) * SPREAD; }
+                        if (c.position.z >  HALF) { c.position.z = -HALF; c.position.x = (rnd()-0.5) * SPREAD; }
+                        if (c.position.z < -HALF) { c.position.z =  HALF; c.position.x = (rnd()-0.5) * SPREAD; }
+
+                        // Lifecycle. Age normalized to 0-1 over LIFE_SECONDS.
+                        // Fade ramps: 0 → 1 over first FADE_FRAC, hold at 1,
+                        // 1 → 0 over last FADE_FRAC. When age completes, the
+                        // cloud "dies" and respawns at a random spot with a
+                        // new height/rotation so the sky composition keeps
+                        // changing instead of repeating.
+                        ud.lifeAge += delta;
+                        if (ud.lifeAge >= LIFE_SECONDS) {
+                            ud.lifeAge = 0;
+                            c.position.set(
+                                (rnd() - 0.5) * SPREAD,
+                                ALT_MIN + rnd() * (ALT_MAX - ALT_MIN),
+                                (rnd() - 0.5) * SPREAD
+                            );
+                            c.rotation.y = rnd() * Math.PI * 2;
+                        }
+                        const t = ud.lifeAge / LIFE_SECONDS;
+                        const fadeIn  = smoothstep(0,            FADE_FRAC,     t);
+                        const fadeOut = smoothstep(1 - FADE_FRAC, 1.0,           t);
+                        const life = fadeIn * (1 - fadeOut);
+                        const s = ud.fullScale * life;
+                        c.scale.set(s * ud.stretchX, s * ud.stretchY, s * ud.stretchZ);
+                    }
+                };
+            }, undefined, e => console.warn('Clouds GLB not found:', e));
+        })();
+
+
 // --- 5 DISTANT CRAGGY MONOLITHS ---
        // --- 5 DISTANT CRAGGY MONOLITHS ---
         const pillarGeo = new THREE.IcosahedronGeometry(1, 0); 
@@ -1899,8 +2205,8 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(35000, 35000), sunMat);
         scene.add(sunMesh);
         const sunLight = new THREE.DirectionalLight(0xffccaa, 2.5); sunLight.castShadow = true; 
-        sunLight.shadow.mapSize.set(2048, 2048); sunLight.shadow.camera.left = -6000; sunLight.shadow.camera.right = 6000;
-        sunLight.shadow.camera.top = 6000; sunLight.shadow.camera.bottom = -6000;
+        sunLight.shadow.mapSize.set(1024, 1024); sunLight.shadow.camera.left = -3000; sunLight.shadow.camera.right = 3000;
+        sunLight.shadow.camera.top = 3000; sunLight.shadow.camera.bottom = -3000;
         sunLight.shadow.camera.near = 100; sunLight.shadow.camera.far = 80000; sunLight.shadow.bias = -0.0005;
         const hemiLight = new THREE.HemisphereLight(0x99aacc, 0xffb59d, 1.2);
         scene.add(sunLight, sunLight.target, hemiLight);
@@ -1976,7 +2282,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             ctx.restore();
             return new THREE.CanvasTexture(canvas);
         }
-        const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: createMoonTexture(), transparent: true }));
+        const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: createMoonTexture(), transparent: true, depthWrite: false }));
         moon.scale.set(4000, 4000, 1); scene.add(moon);
 
         // --- MOON HALO ---
@@ -2478,6 +2784,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
 
             skyMesh.position.copy(camera.position);
             hazeMesh.position.copy(camera.position);
+
+            // Drift clouds with wind + age them through their fade
+            // in/live/fade out lifecycle. The function is registered
+            // asynchronously after the GLB loads, hence the guard.
+            if (window.cloudsTick) window.cloudsTick(delta);
 
             renderer.render(scene, camera);
 
