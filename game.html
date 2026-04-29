@@ -890,93 +890,180 @@ if (isMobileDevice) {
             const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; return tex;
         }
         const rockMat = new THREE.MeshStandardMaterial({ map: createCraggyMossRockTexture(), roughness: 0.9 });
-// --- FLOATING ASCII PILLAR MATERIAL ---
-        function createAsciiPillarTexture() {
-            const tCanv = document.createElement('canvas');
-            const tCtx = tCanv.getContext('2d');
-            tCanv.width = 128; tCanv.height = 128;
-            tCtx.fillStyle = "black"; tCtx.fillRect(0,0,128,128);
-            tCtx.font = "bold 20px monospace"; tCtx.fillStyle = "white";
-            const chars = ['X','M','W','B','R','@','#','&','0','G','Q','!','?','+','*'];
-            for(let i=0; i<16; i++) {
-                tCtx.fillText(chars[i], (i%4)*32+8, Math.floor(i/4)*32+20);
-            }
-            const tex = new THREE.CanvasTexture(tCanv);
-            tex.magFilter = THREE.NearestFilter; // Keeps it pixelated to match your world
-            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-            return tex;
-        }
-
-const asciiPillarMat = new THREE.ShaderMaterial({
-            uniforms: { 
-                uTime: { value: 0 }, 
-                uMap: { value: createAsciiPillarTexture() }, 
-                uColor: { value: new THREE.Color(0x00ffaa) } 
-            },
-            vertexShader: `
-                varying vec2 vUv;
+// --- CRYSTAL MONOLITH MATERIAL ---
+        // The ASCII shader felt like a screen pasted to a rock; this one
+        // treats each pillar as a living crystal embedded in stone:
+        //   • deep obsidian base, slightly bluer toward the top
+        //   • organic glowing vein network that breathes
+        //   • internal vertical "aurora" energy flow
+        //   • three ascending energy rings phased apart so something is
+        //     always pulsing upward
+        //   • iridescent fresnel rim with a sharp ridge highlight
+        //   • slow color-cycle through a 3-color palette unique per tower
+        // Pattern coords are LOCAL position, not UV — icosahedron UVs are
+        // discontinuous across faces and would seam visibly. Local pos is
+        // continuous, so the vein network reads as one body of crystal.
+        //
+        // Each of the 5 parkour towers gets its OWN material instance with
+        // its own (uColorA, uColorB, uColorC) uniforms — that's how each
+        // tower ends up a different color while sharing one shader.
+        // `monolithMats` collects every per-tower instance so the animate
+        // loop can update uTime on all of them in one pass, and the spin
+        // logic identifies them via `userData.isMonolith` rather than
+        // material identity (which would no longer be unique).
+        const MONOLITH_VS = `
                 varying vec3 vNormal;
                 varying vec3 vViewDir;
-                void main() { 
-                    vUv = uv;
+                varying vec3 vLocalPos;
+                void main() {
+                    vLocalPos = position;
                     vNormal = normalize(normalMatrix * normal);
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
                     vViewDir = normalize(-mvPosition.xyz);
-                    gl_Position = projectionMatrix * mvPosition; 
-                }`,
-            fragmentShader: `
-                uniform float uTime; uniform sampler2D uMap; uniform vec3 uColor; 
-                varying vec2 vUv; varying vec3 vNormal; varying vec3 vViewDir;
+                    gl_Position = projectionMatrix * mvPosition;
+                }`;
+        const MONOLITH_FS = `
+                uniform float uTime;
+                uniform vec3 uColorA;
+                uniform vec3 uColorB;
+                uniform vec3 uColorC;
+                varying vec3 vNormal;
+                varying vec3 vViewDir;
+                varying vec3 vLocalPos;
 
-                float random(vec2 st) {
-                    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+                // 3D value noise — used because UVs on an icosahedron are
+                // discontinuous. Object-space coords give one seamless
+                // pattern over the whole shape.
+                float hash(vec3 p) {
+                    p = fract(p * vec3(443.897, 441.423, 437.195));
+                    p += dot(p, p.yzx + 19.19);
+                    return fract((p.x + p.y) * p.z);
+                }
+                float noise(vec3 p) {
+                    vec3 i = floor(p);
+                    vec3 f = fract(p);
+                    f = f * f * (3.0 - 2.0 * f);
+                    return mix(
+                        mix(mix(hash(i), hash(i+vec3(1,0,0)), f.x),
+                            mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+                        mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x),
+                            mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y),
+                        f.z
+                    );
+                }
+                float fbm(vec3 p) {
+                    float v = 0.0, a = 0.5;
+                    for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+                    return v;
                 }
 
                 void main() {
-                    // 1. FINE-GRAIN ASCII
-                    vec2 grid = vec2(35.0, 90.0);
-                    vec2 uv = vUv * grid;
-                    
-                    // Different column speeds for that "streaming data" look
-                    float colSpeed = random(vec2(floor(uv.x), 0.0)) * 1.2 + 0.4;
-                    uv.y += uTime * colSpeed;
+                    // Local-space height (0 base → 1 top) and angle around Y.
+                    float heightT = vLocalPos.y * 0.5 + 0.5;
+                    float angle = atan(vLocalPos.z, vLocalPos.x);
 
-                    float cellId = floor(uv.x) + floor(uv.y) * 7.0;
-                    float charShift = floor(uTime * 12.0 + sin(cellId));
-                    vec2 charUv = fract(uv);
-                    
-                    float xOff = mod(charShift, 4.0) * 0.25;
-                    float yOff = floor(mod(charShift * 0.25, 4.0)) * 0.25;
-                    charUv = charUv * 0.25 + vec2(xOff, yOff);
+                    // ── BASE: obsidian, cooler/darker toward the top ──
+                    vec3 baseColor = mix(
+                        vec3(0.025, 0.018, 0.045),
+                        vec3(0.012, 0.014, 0.035),
+                        heightT
+                    );
 
-                    vec4 asciiTex = texture2D(uMap, charUv);
+                    // ── INTERNAL CRYSTAL STRATA ──
+                    // Faint horizontal layering, made wavy by a sin-of-angle
+                    // term so it doesn't read as flat zebra stripes.
+                    float strata = sin(heightT * 70.0 + sin(angle * 3.0) * 0.6);
+                    strata = pow(max(0.0, strata), 6.0);
+                    baseColor += vec3(0.05, 0.06, 0.12) * strata * 0.6;
 
-                    // 2. STABLE SHADING
-                    // Dark obsidian base
-                    vec3 baseColor = uColor * 0.04;
-                    
-                    // Smooth breathing pulse (Breathing life into the stone)
-                    float pulse = sin(uTime * 0.5 + vUv.y * 2.0) * 0.5 + 0.5;
-                    vec3 pulseColor = uColor * pulse * 0.15;
+                    // ── GLOWING VEIN NETWORK ──
+                    // Two FBM layers, each thresholded to a NARROW band so we
+                    // get thin bright cracks instead of broad blobs. Combining
+                    // them gives an interconnected network like quartz veins.
+                    vec3 veinPos = vec3(angle * 1.4, heightT * 9.0, vLocalPos.x * 0.4);
+                    float fbm1 = fbm(veinPos * 1.1);
+                    float fbm2 = fbm(veinPos.zxy * 1.6 + 17.0);
+                    float veins = (smoothstep(0.46, 0.5, fbm1) - smoothstep(0.5, 0.55, fbm1)) * 1.2;
+                    veins = max(veins,
+                        (smoothstep(0.49, 0.53, fbm2) - smoothstep(0.53, 0.58, fbm2)) * 0.9);
+                    // Slow breath; phase varies with height so the pulse
+                    // travels rather than blinking the whole pillar at once.
+                    float veinPulse = 0.55 + 0.45 * sin(uTime * 0.7 - heightT * 4.0);
 
-                    // Fresnel/Edge glow (Catching light on craggy corners)
-                    float fresnel = pow(1.0 - max(0.0, dot(vNormal, vViewDir)), 3.0);
-                    vec3 rimLight = uColor * fresnel * 1.2;
+                    // ── COLOR DRIFT through the palette ──
+                    float cyc = uTime * 0.32 + heightT * 1.4;
+                    vec3 veinColor = mix(uColorA, uColorB, sin(cyc) * 0.5 + 0.5);
+                    veinColor = mix(veinColor, uColorC, sin(cyc * 0.7 + 1.5) * 0.3 + 0.3);
 
-                    // 3. ASCII LIGHTING
-                    // The letters themselves glow brightly
-                    vec3 letterGlow = uColor * asciiTex.r * 2.2;
+                    // ── INTERNAL ENERGY FLOW ──
+                    // Sharp peaks of sin(angle, height, time) → bright streaks
+                    // shooting upward INSIDE the crystal, like aurora trapped
+                    // in obsidian.
+                    float flowY = heightT - uTime * 0.13;
+                    float flow1 = pow(sin(angle * 7.0 + flowY * 28.0) * 0.5 + 0.5, 5.0);
+                    float flow2 = pow(sin(angle * 4.0 - flowY * 22.0 + 1.7) * 0.5 + 0.5, 7.0);
+                    float energyFlow = (flow1 * 0.6 + flow2 * 0.4) * 0.55;
 
-                    // 4. FINAL COMPOSITION
-                    vec3 finalColor = baseColor + pulseColor + rimLight + letterGlow;
+                    // ── ASCENDING ENERGY RINGS ──
+                    // Three rings, phases offset by 1/3, so something is
+                    // always traveling up. exp(-x²) gives a clean Gaussian
+                    // band rather than a hard line.
+                    float rPhase = heightT * 1.1 - uTime * 0.075;
+                    float r1 = exp(-pow((fract(rPhase)        - 0.5) * 16.0, 2.0));
+                    float r2 = exp(-pow((fract(rPhase + 0.33) - 0.5) * 16.0, 2.0)) * 0.7;
+                    float r3 = exp(-pow((fract(rPhase + 0.66) - 0.5) * 16.0, 2.0)) * 0.5;
+                    float rings = r1 + r2 + r3;
 
-                    gl_FragColor = vec4(finalColor, 0.98);
+                    // ── FRESNEL: rim glow + sharp ridge highlight ──
+                    float NdV = max(0.0, dot(vNormal, vViewDir));
+                    float fresnel = pow(1.0 - NdV, 2.5);
+                    float ridge   = pow(1.0 - NdV, 7.0);
+                    float irid = sin(fresnel * 6.0 + uTime * 0.4) * 0.5 + 0.5;
+                    vec3 rimColor = mix(uColorB, uColorA, irid);
+
+                    // ── COMPOSITE ──
+                    vec3 finalColor = baseColor;
+                    finalColor += veinColor * veins * veinPulse * 2.6;
+                    finalColor += mix(uColorA, uColorB, 0.5) * energyFlow * 0.45;
+                    finalColor += veinColor * rings * 0.7;
+                    finalColor += rimColor * fresnel * 0.55;
+                    finalColor += vec3(1.0, 0.95, 1.0) * ridge * 0.7;
+
+                    // Slight gamma lift so the colors read as rich rather than washed.
+                    finalColor = pow(finalColor, vec3(0.92));
+
+                    gl_FragColor = vec4(finalColor, 1.0);
                 }
-            `,
-            transparent: true,
-            depthWrite: true,
-            side: THREE.DoubleSide 
-        });
+            `;
+
+        // Tracks every per-tower material so the animate loop can update
+        // their uTime uniforms in a single pass. The tower-spin traverse
+        // identifies these meshes via `userData.isMonolith` (set on the
+        // mesh, not on the material) since material identity is no longer
+        // unique across the 5 towers.
+        const monolithMats = [];
+        function makeMonolithMat(colorA, colorB, colorC) {
+            const mat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime:   { value: 0 },
+                    uColorA: { value: new THREE.Color(colorA) },
+                    uColorB: { value: new THREE.Color(colorB) },
+                    uColorC: { value: new THREE.Color(colorC) },
+                },
+                vertexShader:   MONOLITH_VS,
+                fragmentShader: MONOLITH_FS,
+                side: THREE.DoubleSide
+            });
+            monolithMats.push(mat);
+            return mat;
+        }
+
+        // Kept as a named alias of the *first* monolith material so any
+        // earlier code that referenced `asciiPillarMat` still resolves
+        // (the variable name is from before the ASCII shader was retired).
+        // No mesh uses this directly anymore — each tower spawns its own
+        // material via makeMonolithMat below.
+        const asciiPillarMat = makeMonolithMat(0x6b3dff, 0x00d4ff, 0xff5588);
         const hengeRadius = 2000; 
         const hengeGroup = new THREE.Group();
         const pillarCount = 18; 
@@ -1996,11 +2083,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // frame tick function (registered as window.cloudsTick and
                 // called from the main animate loop) can update them.
                 const CLOUD_COUNT = 30;
-                const ALT_MIN = 40000;
-                const ALT_MAX = 45000;
-                const SCALE_MIN = 15000;   // each unit of model height → world units
-                const SCALE_MAX = 20000;
-                const SPREAD = 300000;
+                const ALT_MIN = 8500;
+                const ALT_MAX = 12000;
+                const SCALE_MIN = 1500;   // each unit of model height → world units
+                const SCALE_MAX = 3500;
+                const SPREAD = 90000;
 
                 // Wind direction (unit XZ) and speed in world units / sec.
                 // At 110 u/s a cloud crosses the 90k spread in ~14 minutes —
@@ -2118,54 +2205,601 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         })();
 
 
-// --- 5 DISTANT CRAGGY MONOLITHS ---
-       // --- 5 DISTANT CRAGGY MONOLITHS ---
-        const pillarGeo = new THREE.IcosahedronGeometry(1, 0); 
+// --- 5 DISTANT CRYSTAL MONOLITHS WITH FULL PARKOUR ---
+        // Each tower gets:
+        //   • its own color palette (3 colors fed to the monolith shader)
+        //   • a spiral parkour course that climbs from base to peak
+        //   • 7 platform types: entry, precision pad, bridge, long causeway,
+        //     hexagonal rest disc, twin-pad branching choice, cluster of
+        //     stepping stones, and a tall pinnacle. Variety driven by
+        //     priority-ordered checks on the platform index `k`.
+        //   • a circular reward cap above the peak
+        //
+        // Difficulty stays bounded by the existing jump physics: vertical
+        // gaps land near 150–200 units (single-jump arc is ~325). Wider
+        // platform types (twins, clusters) only ADD landing options — the
+        // primary spiral pad is always there, so a player who ignores the
+        // variety still has a clean path up.
+        const pillarGeo = new THREE.IcosahedronGeometry(1, 0);
+
+        // Five distinct palettes — one per tower, applied in spawn order.
+        // Each is a (deep accent, glow accent, highlight) triplet that the
+        // shader cycles through. Colors picked to read clearly against
+        // both day and night sky.
+        const MONOLITH_PALETTES = [
+            { a: 0x6b3dff, b: 0x00d4ff, c: 0xff5588 },  // mystic violet
+            { a: 0x22cc55, b: 0x00ffaa, c: 0xffcc44 },  // emerald grove
+            { a: 0xff3344, b: 0xff8822, c: 0xffdd55 },  // solar flare
+            { a: 0x4488ff, b: 0x88ddff, c: 0xeef4ff },  // glacial
+            { a: 0xff44aa, b: 0xcc66ff, c: 0xffaa88 },  // bloom
+        ];
 
         let pillarsSpawned = 0;
-       while(pillarsSpawned < 5) {
+        while (pillarsSpawned < 5) {
             const px = sX + (rnd() - 0.5) * 45000;
             const pz = sZ + (rnd() - 0.5) * 45000;
             const dist = Math.sqrt((px - sX)**2 + (pz - sZ)**2);
 
-            if (dist > 15000 && dist < 30000) { 
-                // Giant Pillar using ASCII Texture
-                const p = new THREE.Mesh(pillarGeo, asciiPillarMat);
+            if (dist > 15000 && dist < 30000) {
+                // ─── THE MONOLITH ───
+                // Per-tower material so each tower has unique colors. The
+                // material registers itself in `monolithMats` so the
+                // animate loop's uTime tick reaches it.
+                const palette = MONOLITH_PALETTES[pillarsSpawned % MONOLITH_PALETTES.length];
+                const towerMat = makeMonolithMat(palette.a, palette.b, palette.c);
+
+                const p = new THREE.Mesh(pillarGeo, towerMat);
                 const groundH = getElevation(px, pz);
                 const sW = 600 + rnd() * 400;
                 const sH = 3000 + rnd() * 2000;
-                
+
                 p.scale.set(sW, sH, sW);
-                p.position.set(px, groundH + (sH / 2) + 200, pz); 
+                p.position.set(px, groundH + (sH / 2) + 200, pz);
                 p.rotation.y = rnd() * Math.PI;
                 p.castShadow = true;
                 p.userData.rotSpeed = (rnd() - 0.5) * 0.2;
+                p.userData.isMonolith = true;   // animate-loop spin uses this flag
                 scene.add(p);
 
-                // Cylinder — icosahedron AABB inflates badly when rotated
-                obstacles.push({ type: 'cylinder', cx: px, cz: pz, r: sW * 0.82, minY: groundH, maxY: groundH + sH + 400 });
+                // Cylinder collision — icosahedron AABB inflates badly when rotated.
+                obstacles.push({
+                    type: 'cylinder',
+                    cx: px, cz: pz, r: sW * 0.82,
+                    minY: groundH, maxY: groundH + 200 + sH * 1.351 + 100
+                });
 
-                // --- PARKOUR STEPS ---
-                const stepCount = 10 + Math.floor(rnd() * 5);
-                for(let k = 0; k < stepCount; k++) {
-                    const angle = k * 0.9;
-                    const hOffset = k * 200 + 200;
-                    const radius = (sW * 0.5) + 350 + (rnd() * 200);
-                    const stepX = px + Math.cos(angle) * radius;
-                    const stepZ = pz + Math.sin(angle) * radius;
-                    const stepY = groundH + hOffset;
-                    const stepSize = 250 + rnd() * 150;
-                    const step = new THREE.Mesh(new THREE.BoxGeometry(stepSize, 80, stepSize), rockMat);
-                    step.position.set(stepX, stepY, stepZ);
-                    step.rotation.y = rnd() * Math.PI;
-                    step.castShadow = true;
-                    scene.add(step);
-                    const half = stepSize / 2;
-                    obstacles.push({ type: 'box', box: new THREE.Box3(
-                        new THREE.Vector3(stepX - half, stepY - 40, stepZ - half),
-                        new THREE.Vector3(stepX + half, stepY + 40, stepZ + half)
-                    )});
+                // ─── PARKOUR COURSE — climbs past the tower top ───
+                const baseY  = groundH + 180;
+                // Real mesh top calculation. IcosahedronGeometry normalizes
+                // vertices to a unit sphere — the highest vertex y is 0.851
+                // (not 1.0). With position.y = groundH + sH/2 + 200 and
+                // scale.y = sH, the top vertex sits at:
+                //   groundH + sH/2 + 200 + 0.851 * sH = groundH + 200 + 1.351*sH
+                // Treating sH as the full height (the previous bug) put the
+                // "peak" 0.351*sH below the actual apex — for a 4000-unit
+                // tower, that's 1400 units of mesh that the spiral and cap
+                // were being placed *inside*. The 1.05 multiplier on 1.351
+                // adds a small safety margin since the tower spins, so any
+                // platform within a few units of the true apex would still
+                // intersect the rotating geometry occasionally.
+                const meshTopY = groundH + 200 + sH * 1.351 * 1.05;
+                const peakY    = meshTopY;                    // for naming consistency
+                // Extend the spiral 500 units ABOVE the real mesh top so
+                // the final platforms float in open air over the tower
+                // rather than ending halfway up its side.
+                const summitY = peakY + 500;
+                const totalH  = summitY - baseY;
+                const platformCount = Math.max(22, Math.floor(totalH / 175));
+                const spiralTurns = 2.4 + rnd() * 0.5;
+                // Critical fix: minR was sW*0.6+260, but an icosahedron's
+                // equator vertices sit at distance sW*0.894 from the axis,
+                // and the tower SLOWLY ROTATES — so vertex tips swept
+                // through the platforms over time, making them appear
+                // embedded in the tower walls. minR is now sW*1.0+240 so
+                // platforms are always comfortably outside the swept
+                // envelope of the rotating mesh.
+                const minR = sW * 1.0 + 240;
+                const maxR = sW * 1.0 + 720;
+                const startAngle = rnd() * Math.PI * 2;
+
+                // ── Helper: register a flat axis-aligned box obstacle.
+                // Used by every platform type for collision since the
+                // existing physics resolver handles `box` cleanly and the
+                // rotation we apply is Y-only / cosmetic.
+                const addBox = (cx, cy, cz, sx, sy, sz) => {
+                    const hx = sx / 2, hy = sy / 2, hz = sz / 2;
+                    obstacles.push({
+                        type: 'box',
+                        box: new THREE.Box3(
+                            new THREE.Vector3(cx - hx, cy - hy, cz - hz),
+                            new THREE.Vector3(cx + hx, cy + hy, cz + hz)
+                        )
+                    });
+                };
+
+                for (let k = 0; k < platformCount; k++) {
+                    const t = k / Math.max(1, platformCount - 1);
+                    const angle = startAngle + t * spiralTurns * Math.PI * 2;
+
+                    // Slight ease — denser near the bottom (warm-up section).
+                    const heightT = Math.pow(t, 0.92);
+                    const platY = baseY + heightT * totalH;
+
+                    // Radius oscillates so platforms aren't all at one
+                    // distance from the tower — the climb pushes you inward
+                    // and outward, not just around in a flat circle.
+                    const radiusWave = Math.sin(k * 0.62 + 0.3) * 0.5 + 0.5;
+                    const baseRadius = minR + radiusWave * (maxR - minR);
+                    // Once the spiral climbs above the tower's tip, contract
+                    // the radius so platforms funnel toward the central
+                    // axis where the cap sits. Below peakY the tower is
+                    // the spine the spiral wraps around; above peakY the
+                    // spiral is floating in open air, so it should converge
+                    // toward the goal rather than circling empty space.
+                    // Linear ramp over the last 500 units of climb (which
+                    // is exactly the above-tower portion we added in
+                    // totalH), shrinking radius to 30% at the very top.
+                    const aboveT = Math.max(0, Math.min(1, (platY - peakY) / 500));
+                    const radius = baseRadius * (1 - aboveT * 0.7);
+
+                    const platX = px + Math.cos(angle) * radius;
+                    const platZ = pz + Math.sin(angle) * radius;
+
+                    // ── Platform type selection (priority-ordered) ──
+                    // The first matching rule wins, so order matters. Special
+                    // types (pinnacle/cluster/twin/arch/staircase/arc/leap)
+                    // only fire mid-climb after the warm-up and before the
+                    // final approach so the beginning and end stay grippy.
+                    // Mods are different primes so the types don't all
+                    // collide on the same `k` index across the 5 towers.
+                    const inSpecialBand = k > 5 && k < platformCount - 3;
+                    let type;
+                    if (k === 0)                                 type = 'entry';
+                    else if (inSpecialBand && k % 13 === 7)      type = 'arch';
+                    else if (inSpecialBand && k % 11 === 6)      type = 'pinnacle';
+                    else if (inSpecialBand && k % 11 === 8)      type = 'staircase';
+                    else if (inSpecialBand && k % 9  === 4)      type = 'cluster';
+                    else if (inSpecialBand && k % 9  === 7)      type = 'arc';
+                    else if (inSpecialBand && k % 8  === 5)      type = 'twin';
+                    else if (inSpecialBand && k % 14 === 11)     type = 'leap';
+                    else if (k % 7 === 3)                        type = 'hex_rest';
+                    else if (k > 0 && k % 5 === 1)               type = 'causeway';
+                    else if (k > 0 && k % 4 === 0)               type = 'bridge';
+                    else                                          type = 'precision';
+
+                    if (type === 'entry') {
+                        // Big welcoming pad at the base. Square box.
+                        const sx = 580, ph = 100;
+                        const m = new THREE.Mesh(new THREE.BoxGeometry(sx, ph, sx), rockMat);
+                        m.position.set(platX, platY, platZ);
+                        m.castShadow = true; m.receiveShadow = true;
+                        scene.add(m);
+                        addBox(platX, platY, platZ, sx, ph, sx);
+
+                    } else if (type === 'hex_rest') {
+                        // Hexagonal stone disc — wider, signals "rest here".
+                        // CylinderGeometry(r, r, h, 6) gives a clean hex
+                        // and the cylinder collision matches it well enough
+                        // (slight inflation in the corners is harmless on a
+                        // pad you're meant to land on comfortably).
+                        const r = 240, ph = 80;
+                        const m = new THREE.Mesh(
+                            new THREE.CylinderGeometry(r, r * 0.95, ph, 6),
+                            rockMat
+                        );
+                        m.position.set(platX, platY, platZ);
+                        m.rotation.y = rnd() * Math.PI;
+                        m.castShadow = true; m.receiveShadow = true;
+                        scene.add(m);
+                        obstacles.push({
+                            type: 'cylinder',
+                            cx: platX, cz: platZ, r: r * 0.92,
+                            minY: platY - ph / 2, maxY: platY + ph / 2
+                        });
+
+                    } else if (type === 'bridge') {
+                        // Long rectangle, aligned with the spiral tangent so
+                        // the long axis points toward the next platform.
+                        const sx = 380, sz = 200, ph = 60;
+                        const yaw = angle + Math.PI / 2;
+                        const m = new THREE.Mesh(new THREE.BoxGeometry(sx, ph, sz), rockMat);
+                        m.position.set(platX, platY, platZ);
+                        m.rotation.y = yaw;
+                        m.castShadow = true; m.receiveShadow = true;
+                        scene.add(m);
+                        // OBB collision matches the visual rotation exactly.
+                        obstacles.push({
+                            type: 'obb',
+                            cx: platX, cy: platY, cz: platZ,
+                            hx: sx / 2, hy: ph / 2, hz: sz / 2,
+                            minY: platY - ph / 2, maxY: platY + ph / 2,
+                            cosT: Math.cos(yaw), sinT: Math.sin(yaw)
+                        });
+
+                    } else if (type === 'causeway') {
+                        // Wider and longer than a bridge — a deliberate
+                        // path segment that you can run across rather than
+                        // jump in one bound. Same rotation/OBB pattern.
+                        const sx = 520, sz = 260, ph = 65;
+                        const yaw = angle + Math.PI / 2;
+                        const m = new THREE.Mesh(new THREE.BoxGeometry(sx, ph, sz), rockMat);
+                        m.position.set(platX, platY, platZ);
+                        m.rotation.y = yaw;
+                        m.castShadow = true; m.receiveShadow = true;
+                        scene.add(m);
+                        obstacles.push({
+                            type: 'obb',
+                            cx: platX, cy: platY, cz: platZ,
+                            hx: sx / 2, hy: ph / 2, hz: sz / 2,
+                            minY: platY - ph / 2, maxY: platY + ph / 2,
+                            cosT: Math.cos(yaw), sinT: Math.sin(yaw)
+                        });
+
+                    } else if (type === 'twin') {
+                        // Two precision pads side-by-side, perpendicular to
+                        // the spiral tangent. Player picks left or right.
+                        // Both are placed so either choice is reachable from
+                        // the previous platform; the next platform is also
+                        // reachable from either, so it's a genuine fork.
+                        const padS = 170;
+                        const ph = 50;
+                        const sep = 200;
+                        const perpX = -Math.sin(angle);
+                        const perpZ =  Math.cos(angle);
+                        for (let s = -1; s <= 1; s += 2) {
+                            const cx = platX + perpX * sep * s;
+                            const cz = platZ + perpZ * sep * s;
+                            const m = new THREE.Mesh(
+                                new THREE.BoxGeometry(padS, ph, padS), rockMat);
+                            m.position.set(cx, platY, cz);
+                            m.rotation.y = angle;
+                            m.castShadow = true; m.receiveShadow = true;
+                            scene.add(m);
+                            // Y-rotation only → use OBB so the collision
+                            // box doesn't inflate with rotation.
+                            obstacles.push({
+                                type: 'obb',
+                                cx, cy: platY, cz,
+                                hx: padS / 2, hy: ph / 2, hz: padS / 2,
+                                minY: platY - ph / 2, maxY: platY + ph / 2,
+                                cosT: Math.cos(angle), sinT: Math.sin(angle)
+                            });
+                        }
+
+                    } else if (type === 'cluster') {
+                        // Three small stepping stones in a tight triangle
+                        // around (platX, platZ), each at a slightly
+                        // different height. Forces a quick 1-2-3 hop
+                        // rhythm. Heights stay within ±35 units so the
+                        // cluster as a whole reads at platY for the spiral
+                        // continuity.
+                        const stoneS = 140;
+                        const stoneH = 45;
+                        const ringR  = 170;
+                        for (let s = 0; s < 3; s++) {
+                            const sa = (s / 3) * Math.PI * 2 + rnd() * 0.4;
+                            const cx = platX + Math.cos(sa) * ringR;
+                            const cz = platZ + Math.sin(sa) * ringR;
+                            const cy = platY + (s - 1) * 28;
+                            const m = new THREE.Mesh(
+                                new THREE.BoxGeometry(stoneS, stoneH, stoneS), rockMat);
+                            m.position.set(cx, cy, cz);
+                            m.rotation.y = rnd() * Math.PI;
+                            m.castShadow = true; m.receiveShadow = true;
+                            scene.add(m);
+                            addBox(cx, cy, cz, stoneS, stoneH, stoneS);
+                        }
+
+                    } else if (type === 'pinnacle') {
+                        // Tall thin pillar with a wider disc on top —
+                        // landing target sits at platY (same as the spiral),
+                        // but the shaft visibly extends ~280 units below
+                        // the disc, giving the course vertical drama.
+                        const topR  = 130;
+                        const topH  = 50;
+                        const shaftR = 55;
+                        const shaftH = 280;
+                        const shaftCenterY = platY - topH / 2 - shaftH / 2;
+
+                        const shaft = new THREE.Mesh(
+                            new THREE.CylinderGeometry(shaftR, shaftR * 1.6, shaftH, 8),
+                            rockMat
+                        );
+                        shaft.position.set(platX, shaftCenterY, platZ);
+                        shaft.castShadow = true; shaft.receiveShadow = true;
+                        scene.add(shaft);
+
+                        const top = new THREE.Mesh(
+                            new THREE.CylinderGeometry(topR, topR * 0.9, topH, 12),
+                            rockMat
+                        );
+                        top.position.set(platX, platY, platZ);
+                        top.castShadow = true; top.receiveShadow = true;
+                        scene.add(top);
+
+                        // Two cylinder collisions: the disc (you land on
+                        // its top face) and the shaft (you can't walk
+                        // through it). minY/maxY chosen so disc takes
+                        // priority for the floor test when standing on it.
+                        obstacles.push({
+                            type: 'cylinder',
+                            cx: platX, cz: platZ, r: topR * 0.95,
+                            minY: platY - topH / 2, maxY: platY + topH / 2
+                        });
+                        obstacles.push({
+                            type: 'cylinder',
+                            cx: platX, cz: platZ, r: shaftR * 1.4,
+                            minY: shaftCenterY - shaftH / 2,
+                            maxY: shaftCenterY + shaftH / 2 - 5   // small gap below disc
+                        });
+
+                    } else if (type === 'staircase') {
+                        // Three small ascending steps heading radially
+                        // outward from the spiral position. The lowest
+                        // step is at platY (so the spiral path stays
+                        // continuous), and each next step rises ~55
+                        // units — manageable in one jump. A player who
+                        // climbs all three ends up ~110 above platY, a
+                        // small head-start on the next platform.
+                        const baseS = 130, ph = 40;
+                        const outX = Math.cos(angle), outZ = Math.sin(angle);
+                        for (let s = 0; s < 3; s++) {
+                            const sx2 = platX + outX * 130 * s;
+                            const sz2 = platZ + outZ * 130 * s;
+                            const sy2 = platY + s * 55;
+                            const m = new THREE.Mesh(
+                                new THREE.BoxGeometry(baseS, ph, baseS), rockMat);
+                            m.position.set(sx2, sy2, sz2);
+                            m.castShadow = true; m.receiveShadow = true;
+                            scene.add(m);
+                            addBox(sx2, sy2, sz2, baseS, ph, baseS);
+                        }
+
+                    } else if (type === 'arc') {
+                        // Four small pads arranged in a curved line,
+                        // bowing outward from the spiral. Reads as a
+                        // crescent bridge segment — you hop pad-to-pad
+                        // along the curve. The middle two are slightly
+                        // farther out than the ends, giving the arc its
+                        // shape.
+                        const padS = 120, ph = 35;
+                        const perpX = -Math.sin(angle), perpZ = Math.cos(angle);
+                        const archCount = 4;
+                        for (let s = 0; s < archCount; s++) {
+                            const t2 = (s / (archCount - 1)) - 0.5;     // -0.5..+0.5
+                            const along = t2 * 380;                     // span perp
+                            const bow = (1 - 4 * t2 * t2) * 90;          // outward bow
+                            const cx = platX + perpX * along + Math.cos(angle) * bow;
+                            const cz = platZ + perpZ * along + Math.sin(angle) * bow;
+                            const m = new THREE.Mesh(
+                                new THREE.BoxGeometry(padS, ph, padS), rockMat);
+                            m.position.set(cx, platY, cz);
+                            m.castShadow = true; m.receiveShadow = true;
+                            scene.add(m);
+                            addBox(cx, platY, cz, padS, ph, padS);
+                        }
+
+                    } else if (type === 'leap') {
+                        // A "leap of faith" pad — placed off-spiral and
+                        // a bit higher, requiring a longer single jump
+                        // (or a comfortable double-jump). The spiral
+                        // landing pad is ALSO placed at platY so a
+                        // player who skips the leap still has a clean
+                        // continuous climb. Optional challenge / shortcut.
+                        const ph = 50;
+                        const leapDist = 380;
+                        const lx = platX + Math.cos(angle - 0.5) * leapDist;
+                        const lz = platZ + Math.sin(angle - 0.5) * leapDist;
+                        const ly = platY + 80;
+                        const leapPad = new THREE.Mesh(
+                            new THREE.BoxGeometry(200, ph, 200), rockMat);
+                        leapPad.position.set(lx, ly, lz);
+                        leapPad.castShadow = true; leapPad.receiveShadow = true;
+                        scene.add(leapPad);
+                        addBox(lx, ly, lz, 200, ph, 200);
+
+                        // Standard precision pad on the spiral so the
+                        // course stays completable without taking the leap.
+                        const main = new THREE.Mesh(
+                            new THREE.BoxGeometry(160, ph, 160), rockMat);
+                        main.position.set(platX, platY, platZ);
+                        main.castShadow = true; main.receiveShadow = true;
+                        scene.add(main);
+                        addBox(platX, platY, platZ, 160, ph, 160);
+
+                    } else if (type === 'arch') {
+                        // Stonehenge-style trilithon spanning the spiral
+                        // path: two uprights flanking a standard landing
+                        // pad, with a horizontal lintel high overhead.
+                        // Adds architecture/scale to a course that's
+                        // otherwise individual pads. Lintel clearance is
+                        // chosen so a single jump from the pad doesn't
+                        // bonk it; double-jumping straight up will, which
+                        // is fine — that's not a path-forward motion.
+                        const padS = 220, ph = 50;
+                        const pad = new THREE.Mesh(
+                            new THREE.BoxGeometry(padS, ph, padS), rockMat);
+                        pad.position.set(platX, platY, platZ);
+                        pad.castShadow = true; pad.receiveShadow = true;
+                        scene.add(pad);
+                        addBox(platX, platY, platZ, padS, ph, padS);
+
+                        // Two uprights, perpendicular to the spiral tangent.
+                        const perpX = -Math.sin(angle), perpZ = Math.cos(angle);
+                        const uprightSep = 280;
+                        const uprightW = 60, uprightH = 500;
+                        for (let s = -1; s <= 1; s += 2) {
+                            const ux = platX + perpX * uprightSep * s;
+                            const uz = platZ + perpZ * uprightSep * s;
+                            const uy = platY + ph / 2 + uprightH / 2;
+                            const u = new THREE.Mesh(
+                                new THREE.BoxGeometry(uprightW, uprightH, uprightW),
+                                rockMat);
+                            u.position.set(ux, uy, uz);
+                            u.castShadow = true; u.receiveShadow = true;
+                            scene.add(u);
+                            obstacles.push({
+                                type: 'cylinder',
+                                cx: ux, cz: uz, r: uprightW * 0.6,
+                                minY: uy - uprightH / 2, maxY: uy + uprightH / 2
+                            });
+                        }
+
+                        // Horizontal lintel spanning the two uprights.
+                        // BoxGeometry with the LONG axis as Z, then rotate
+                        // around Y so local +Z aligns with the
+                        // (perpX, perpZ) direction. yaw = -angle gives that
+                        // alignment for our (perpX = -sin(angle), perpZ = cos(angle))
+                        // perpendicular convention.
+                        const lintelLen = uprightSep * 2 + uprightW * 1.5;
+                        const lintelH = 60;
+                        const lintelY = platY + ph / 2 + uprightH + lintelH / 2;
+                        const lintelYaw = -angle;
+                        const lintel = new THREE.Mesh(
+                            new THREE.BoxGeometry(uprightW * 1.2, lintelH, lintelLen),
+                            rockMat);
+                        lintel.position.set(platX, lintelY, platZ);
+                        lintel.rotation.y = lintelYaw;
+                        lintel.castShadow = true; lintel.receiveShadow = true;
+                        scene.add(lintel);
+                        obstacles.push({
+                            type: 'obb',
+                            cx: platX, cy: lintelY, cz: platZ,
+                            hx: uprightW * 0.6, hy: lintelH / 2, hz: lintelLen / 2,
+                            minY: lintelY - lintelH / 2, maxY: lintelY + lintelH / 2,
+                            cosT: Math.cos(lintelYaw), sinT: Math.sin(lintelYaw)
+                        });
+
+                    } else {
+                        // type === 'precision' (default). Small square pad.
+                        const s = 160 + rnd() * 90, ph = 50;
+                        const m = new THREE.Mesh(
+                            new THREE.BoxGeometry(s, ph, s), rockMat);
+                        m.position.set(platX, platY, platZ);
+                        m.castShadow = true; m.receiveShadow = true;
+                        scene.add(m);
+                        addBox(platX, platY, platZ, s, ph, s);
+                    }
+
+                    // ── SIDE-BRANCH CHALLENGE ──
+                    // Off-spiral pad every ~6 platforms (after warm-up,
+                    // before the summit). Detour for the view, or use it
+                    // as a double-jump shortcut.
+                    if (k > 4 && k < platformCount - 3 && k % 6 === 2) {
+                        const branchAngle  = angle - Math.PI * 0.3;
+                        const branchRadius = radius + 220 + rnd() * 220;
+                        const bx = px + Math.cos(branchAngle) * branchRadius;
+                        const bz = pz + Math.sin(branchAngle) * branchRadius;
+                        const by = platY + 50 + rnd() * 90;
+                        const bSize = 140 + rnd() * 60;
+                        const branch = new THREE.Mesh(
+                            new THREE.BoxGeometry(bSize, 50, bSize), rockMat);
+                        branch.position.set(bx, by, bz);
+                        branch.castShadow = true;
+                        branch.receiveShadow = true;
+                        scene.add(branch);
+                        addBox(bx, by, bz, bSize, 50, bSize);
+                    }
                 }
+
+                // ─── REWARD SUMMIT: ornate temple at the peak ───
+                // Now that the spiral itself climbs to peakY + 500, the cap
+                // sits 200 above that — so the player's last jump goes from
+                // the topmost spiral platform UP onto the cap rather than
+                // sideways onto a disc embedded in the spiral. Cap is
+                // visibly above EVERYTHING: the tower tip, the spiral, all
+                // of it. The crystal then floats above the cap as before.
+                const capY = peakY + 700;
+                const capR = 500;
+
+                // 1. Main disc
+                const cap = new THREE.Mesh(
+                    new THREE.CylinderGeometry(capR, capR * 0.95, 90, 24),
+                    rockMat
+                );
+                cap.position.set(px, capY, pz);
+                cap.castShadow = true;
+                cap.receiveShadow = true;
+                scene.add(cap);
+                obstacles.push({
+                    type: 'cylinder',
+                    cx: px, cz: pz,
+                    r: capR,
+                    minY: capY - 45,
+                    maxY: capY + 45
+                });
+
+                // 2. Raised stone ring around the outer edge. Torus laid
+                // flat (rotated 90° around X). Sits proud of the disc top.
+                const ring = new THREE.Mesh(
+                    new THREE.TorusGeometry(capR * 0.94, 28, 8, 36),
+                    rockMat
+                );
+                ring.position.set(px, capY + 55, pz);
+                ring.rotation.x = Math.PI / 2;
+                ring.castShadow = true;
+                ring.receiveShadow = true;
+                scene.add(ring);
+
+                // 3. Six obelisks around the perimeter. Tall slim stones
+                // with cylinder collision so the player can't walk through
+                // them when wandering the cap.
+                const obeliskCount = 6;
+                const obH = 220;
+                const obW = 70;
+                const obR = capR * 0.78;
+                const obeliskTwist = rnd() * Math.PI * 2;   // common rotation offset
+                for (let o = 0; o < obeliskCount; o++) {
+                    const oa = obeliskTwist + (o / obeliskCount) * Math.PI * 2;
+                    const ox = px + Math.cos(oa) * obR;
+                    const oz = pz + Math.sin(oa) * obR;
+                    const obelisk = new THREE.Mesh(
+                        new THREE.BoxGeometry(obW, obH, obW),
+                        rockMat
+                    );
+                    obelisk.position.set(ox, capY + 45 + obH / 2, oz);
+                    obelisk.rotation.y = oa + Math.PI / 4;   // diamond-on facing
+                    obelisk.castShadow = true;
+                    obelisk.receiveShadow = true;
+                    scene.add(obelisk);
+                    obstacles.push({
+                        type: 'cylinder',
+                        cx: ox, cz: oz,
+                        r: obW * 0.7,
+                        minY: capY + 45,
+                        maxY: capY + 45 + obH
+                    });
+                }
+
+                // 4. Floating crystal — unit-radius icosahedron scaled up
+                // via mesh.scale, so the shader's vLocalPos stays in [-1, 1]
+                // and the vein/ring patterns map cleanly (matching the
+                // tower below). Spins on Y, drifts on X, and bobs vertically.
+                //
+                // Lifted to capY + 720 with scale 130 so the entire mesh
+                // sits ABOVE the player's peak jump arc (single-jump head
+                // reaches ~capY + 530 from the cap surface). At the old
+                // height of capY + 320 the crystal extended down to
+                // capY + 160 — well below player head height — so just
+                // walking on the cap put the camera inside the crystal,
+                // and any jump took the camera straight through the mesh.
+                // The new height also clears the obelisk tops at
+                // capY + 265 by ~325 units, removing the geometry-piercing
+                // overlap that read as visual clutter.
+                //
+                // The animate-loop traversal handles the per-frame motion;
+                // userData fields configure speed/seed per crystal so they
+                // don't all bob in unison across the 5 towers.
+                const crystalGeo = new THREE.IcosahedronGeometry(1, 1);
+                const crystal = new THREE.Mesh(crystalGeo, towerMat);
+                crystal.scale.setScalar(130);
+                crystal.position.set(px, capY + 720, pz);
+                crystal.castShadow = true;
+                crystal.userData.isMonolithCrystal = true;
+                crystal.userData.crystalBaseY = capY + 720;
+                crystal.userData.bobSeed = rnd() * Math.PI * 2;
+                crystal.userData.spinSpeed = 0.5 + rnd() * 0.4;
+                scene.add(crystal);
 
                 pillarsSpawned++;
             }
@@ -2219,20 +2853,22 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             const cx = size / 2, cy = size / 2;
             const r = size * 0.36;            // leaves room for halo outside disc
 
-            // Soft outer halo
+            // Soft outer halo — slightly brighter so it reads at night
             const halo = ctx.createRadialGradient(cx, cy, r * 0.95, cx, cy, size * 0.5);
-            halo.addColorStop(0.0, 'rgba(220, 230, 255, 0.35)');
-            halo.addColorStop(0.35, 'rgba(190, 205, 240, 0.12)');
-            halo.addColorStop(1.0, 'rgba(180, 200, 235, 0)');
+            halo.addColorStop(0.0, 'rgba(235, 245, 255, 0.55)');
+            halo.addColorStop(0.35, 'rgba(210, 225, 250, 0.22)');
+            halo.addColorStop(1.0, 'rgba(190, 210, 240, 0)');
             ctx.fillStyle = halo;
             ctx.fillRect(0, 0, size, size);
 
-            // Main disc with gentle limb darkening + off-centre highlight
+            // Main disc with gentle limb darkening + off-centre highlight.
+            // Lifted brightness across all stops so the disc reads
+            // distinctly at night even when sky is dark.
             const disc = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.25, r * 0.05, cx, cy, r);
-            disc.addColorStop(0.00, '#fefdf5');
-            disc.addColorStop(0.55, '#ebe8dc');
-            disc.addColorStop(0.88, '#c8c3b2');
-            disc.addColorStop(1.00, '#a8a395');
+            disc.addColorStop(0.00, '#ffffff');
+            disc.addColorStop(0.55, '#f6f1e2');
+            disc.addColorStop(0.88, '#d6cfb8');
+            disc.addColorStop(1.00, '#b8b09e');
             ctx.fillStyle = disc;
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -2283,7 +2919,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             return new THREE.CanvasTexture(canvas);
         }
         const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: createMoonTexture(), transparent: true, depthWrite: false }));
-        moon.scale.set(4000, 4000, 1); scene.add(moon);
+        moon.scale.set(5500, 5500, 1); scene.add(moon);
 
         // --- MOON HALO ---
         // A larger additive-blend sprite behind the moon. During the day
@@ -2297,11 +2933,13 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             const ctx = c.getContext('2d');
             const cx = size / 2, cy = size / 2;
             const g = ctx.createRadialGradient(cx, cy, size * 0.05, cx, cy, size * 0.5);
-            // Tight bright core fading through cool white to deep blue-violet
-            g.addColorStop(0.00, 'rgba(255, 250, 235, 0.95)');
-            g.addColorStop(0.12, 'rgba(220, 232, 255, 0.55)');
-            g.addColorStop(0.30, 'rgba(170, 195, 250, 0.22)');
-            g.addColorStop(0.60, 'rgba(110, 145, 220, 0.07)');
+            // Tight bright core fading through cool white to deep blue-violet.
+            // Boosted alphas across the inner stops so the additive blend
+            // pushes a noticeable glow into the surrounding sky at night.
+            g.addColorStop(0.00, 'rgba(255, 252, 240, 1.00)');
+            g.addColorStop(0.10, 'rgba(240, 245, 255, 0.85)');
+            g.addColorStop(0.28, 'rgba(190, 215, 255, 0.40)');
+            g.addColorStop(0.55, 'rgba(130, 165, 235, 0.14)');
             g.addColorStop(1.00, 'rgba(80, 110, 190, 0)');
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, size, size);
@@ -2314,7 +2952,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             depthWrite: false,
             opacity: 0
         }));
-        moonHalo.scale.set(13000, 13000, 1);
+        moonHalo.scale.set(18000, 18000, 1);
         scene.add(moonHalo);
 
         const USER_HEIGHT = 160; camera.position.set(sX, maxH + USER_HEIGHT, sZ);
@@ -2462,11 +3100,15 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             skyTop:     new THREE.Color(0x0a0f25),
             skyMid:     new THREE.Color(0x1b2148),
             skyBottom:  new THREE.Color(0x2d3366),
-            sunCol:     new THREE.Color(0x5566aa),   // "moonlight"
-            sunInt:     0.55,
-            hemiSky:    new THREE.Color(0x4a5a88),
-            hemiGround: new THREE.Color(0x14121c),
-            hemiInt:    0.55,
+            // "Moonlight": cool-blue directional, paired with the
+            // animate-loop fix that re-aims the directional light at the
+            // moon when the sun is below the horizon. Together these make
+            // the world feel lit by the moon rather than pitch black.
+            sunCol:     new THREE.Color(0x88a0d8),
+            sunInt:     0.66,
+            hemiSky:    new THREE.Color(0x7a90c0),
+            hemiGround: new THREE.Color(0x202028),
+            hemiInt:    0.50,
             fogCol:     new THREE.Color(0x1a2048),
             hazeCol:    new THREE.Color(0x2a3a66),
             sunGlow:    new THREE.Color(0x667799),
@@ -2579,7 +3221,12 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             // Halo rides on top of the moon's opacity curve, but a bit
             // steeper — it should almost fully fade out even in dusk/dawn
             // golden hour, then pop at full night.
-            moonHalo.material.opacity = _palOut.moonOp * _palOut.moonOp * 0.9;
+            // Halo rides on top of the moon's opacity curve, but a bit
+            // steeper — fully fades out at dusk/dawn, then *strongly*
+            // pops at full night. The 1.6 multiplier gets clamped to 1.0
+            // by Three.js, so the halo reaches max alpha early in the
+            // night phase and stays there.
+            moonHalo.material.opacity = Math.min(1, _palOut.moonOp * _palOut.moonOp * 1.6);
 
             // Lantern: at night it's genuinely your light source. The knot
             // itself stays the original subtle brightness — over-cooking
@@ -2611,7 +3258,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
 
             // Update Shader Times
             moteMat.uniforms.uTime.value = time;
-            if (asciiPillarMat) asciiPillarMat.uniforms.uTime.value = time;
+            // Fan uTime to every per-tower monolith material (each tower
+            // has its own instance with unique color uniforms).
+            for (let i = 0; i < monolithMats.length; i++) {
+                monolithMats[i].uniforms.uTime.value = time;
+            }
 
             // Advance day/night cycle (sun direction, sky, lights, fog, haze)
             updateTimeOfDay(time);
@@ -2767,7 +3418,19 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 sunMesh.lookAt(camera.position);
                 moon.position.set(camera.position.x - (SUN_DIR.x * sDist), camera.position.y - (SUN_DIR.y * sDist), camera.position.z - (SUN_DIR.z * sDist));
                 moonHalo.position.copy(moon.position);
-                sunLight.position.copy(sunMesh.position);
+                // Aim the directional light at whichever of sun/moon is
+                // currently above the horizon. Without this swap, "moonlight"
+                // at night was a directional light coming from BELOW the
+                // ground (since the directional light just tracked the sun)
+                // — which contributed essentially nothing to the lit side
+                // of objects, making night feel pitch black even with the
+                // night-palette intensity boost. Now the light actually
+                // comes from above all night long.
+                if (SUN_DIR.y >= 0) {
+                    sunLight.position.copy(sunMesh.position);
+                } else {
+                    sunLight.position.copy(moon.position);
+                }
                 sunLight.target.position.set(camera.position.x, 0, camera.position.z);
             }
 
@@ -2793,10 +3456,21 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             renderer.render(scene, camera);
 
             scene.traverse(obj => {
-    if(obj.isMesh && obj.material === asciiPillarMat) {
-        obj.rotation.y += delta * (obj.userData.rotSpeed || 0.05);
-    }
-});
+                if (!obj.isMesh) return;
+                if (obj.userData.isMonolith) {
+                    // The five towers themselves — slow Y-spin.
+                    obj.rotation.y += delta * (obj.userData.rotSpeed || 0.05);
+                } else if (obj.userData.isMonolithCrystal) {
+                    // Floating reward crystals on each tower top. Per-crystal
+                    // bob seed and spin speed (set at spawn) keep the 5
+                    // crystals out of phase with each other.
+                    obj.rotation.y += delta * obj.userData.spinSpeed;
+                    obj.rotation.x += delta * obj.userData.spinSpeed * 0.4;
+                    obj.position.y =
+                        obj.userData.crystalBaseY +
+                        Math.sin(time * 1.1 + obj.userData.bobSeed) * 35;
+                }
+            });
         }
 
       
