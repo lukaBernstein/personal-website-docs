@@ -71,6 +71,521 @@
             text-align: center;
             z-index: 100;
         }
+
+        /* ═══════════════════════════════════════════════════════════
+           CHARACTER MENU — Stylized RPG Pause Screen
+           ═══════════════════════════════════════════════════════════ */
+        @keyframes cm-shimmer {
+            0%,100% { box-shadow: 0 0 0 1px rgba(201,162,39,.18), 0 0 50px rgba(201,162,39,.07), inset 0 0 80px rgba(0,0,0,.6); }
+            50%      { box-shadow: 0 0 0 1px rgba(201,162,39,.32), 0 0 80px rgba(201,162,39,.16), inset 0 0 80px rgba(0,0,0,.6); }
+        }
+        @keyframes cm-slot-pulse {
+            0%,100% { opacity: .35; }
+            50%      { opacity: .6; }
+        }
+        @keyframes cm-fadein {
+            from { opacity:0; transform: translateY(8px); }
+            to   { opacity:1; transform: translateY(0); }
+        }
+
+        #character-menu {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 40%, rgba(8,8,28,.94) 0%, rgba(0,0,0,.98) 100%);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', Courier, monospace;
+            color: #e0d5c0;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease-out;
+        }
+        #character-menu.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* ── Panel shell ── */
+        #character-menu .cm-panel {
+            position: relative;
+            width: min(720px, 96vw);
+            max-height: 92vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: linear-gradient(155deg, #0d0d1c 0%, #080810 55%, #0a0a12 100%);
+            border: 1px solid #c9a227;
+            padding: 36px 34px 26px;
+            animation: cm-shimmer 4s ease-in-out infinite;
+        }
+        #character-menu.open .cm-panel {
+            animation: cm-fadein .28s ease-out both, cm-shimmer 4s ease-in-out .3s infinite;
+        }
+
+        /* ── Corner ornaments ── */
+        .cm-corner {
+            position: absolute;
+            width: 20px; height: 20px;
+            border-color: #c9a227;
+            border-style: solid;
+            pointer-events: none;
+        }
+        .cm-corner.tl { top:8px;    left:8px;  border-width: 2px 0 0 2px; }
+        .cm-corner.tr { top:8px;   right:8px;  border-width: 2px 2px 0 0; }
+        .cm-corner.bl { bottom:8px; left:8px;  border-width: 0 0 2px 2px; }
+        .cm-corner.br { bottom:8px;right:8px;  border-width: 0 2px 2px 0; }
+
+        /* ── Header ── */
+        .cm-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 28px;
+            letter-spacing: 9px;
+            font-size: 14px;
+            color: #c9a227;
+            text-shadow: 0 0 24px rgba(201,162,39,.55);
+            white-space: nowrap;
+        }
+        .cm-header-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgba(201,162,39,.5) 50%, transparent);
+        }
+
+        /* ── Two-column main layout ── */
+        .cm-main {
+            display: flex;
+            gap: 26px;
+            margin-bottom: 26px;
+            align-items: flex-start;
+        }
+
+        /* ── Portrait column ── */
+        .cm-portrait-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            flex-shrink: 0;
+        }
+        .cm-portrait-frame {
+            position: relative;
+            padding: 5px;
+            background: linear-gradient(135deg, #141008 0%, #0a0a18 100%);
+            border: 1px solid rgba(201,162,39,.45);
+            box-shadow: 0 0 28px rgba(201,162,39,.1), inset 0 0 24px rgba(0,0,0,.7);
+        }
+        /* inner corner ticks on portrait */
+        .cm-portrait-frame::before,
+        .cm-portrait-frame::after {
+            content: '';
+            position: absolute;
+            width: 10px; height: 10px;
+            border-color: #c9a227;
+            border-style: solid;
+            opacity: .6;
+        }
+        .cm-portrait-frame::before { top:2px;    left:2px;  border-width:1px 0 0 1px; }
+        .cm-portrait-frame::after  { bottom:2px; right:2px; border-width:0 1px 1px 0; }
+
+        #character-menu #cm-portrait {
+            width: 188px;
+            height: 232px;
+            display: block;
+            background: #01010a;
+        }
+        .cm-portrait-label {
+            text-align: center;
+            font-size: 10px;
+            letter-spacing: 6px;
+            color: #c9a227;
+            padding: 7px 0 2px;
+            opacity: .75;
+        }
+
+        /* HP / SP bars */
+        .cm-bars {
+            width: 198px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+        .cm-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 9px;
+            letter-spacing: 2px;
+        }
+        .cm-bar-label { color:#c9a227; width:18px; opacity:.85; }
+        .cm-bar-track {
+            flex:1;
+            height: 5px;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.1);
+            overflow: hidden;
+        }
+        .cm-bar-fill { height:100%; transition: width .35s ease; }
+        .cm-bar-fill.hp {
+            background: linear-gradient(to right, #8c1a1a, #e03535);
+            box-shadow: 0 0 8px rgba(224,53,53,.6);
+        }
+        .cm-bar-fill.sp {
+            background: linear-gradient(to right, #1540a0, #3a8aff);
+            box-shadow: 0 0 8px rgba(58,138,255,.5);
+        }
+        .cm-bar-val { font-size:9px; opacity:.5; min-width:54px; text-align:right; }
+
+        /* ── Stats column ── */
+        .cm-stats-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .cm-stat-block {
+            border: 1px solid rgba(201,162,39,.18);
+            padding: 13px 16px;
+            background: rgba(201,162,39,.025);
+            position: relative;
+        }
+        .cm-stat-block::before {
+            content: '';
+            position: absolute;
+            top:0; left:0; right:0;
+            height:1px;
+            background: linear-gradient(to right, transparent, rgba(201,162,39,.35) 50%, transparent);
+        }
+        .cm-stat-title {
+            font-size: 9px;
+            letter-spacing: 5px;
+            color: #c9a227;
+            opacity: .65;
+            margin-bottom: 11px;
+            padding-bottom: 7px;
+            border-bottom: 1px solid rgba(201,162,39,.18);
+        }
+        .cm-stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+            letter-spacing: 2px;
+        }
+        .cm-stat-row:last-child { border-bottom: none; }
+        .cm-stat-row span:first-child { opacity:.45; font-size:10px; }
+        .cm-stat-row span:last-child  { color:#e0d5c0; }
+
+        /* ── Power-up item slots ── */
+        .cm-items-section {
+            border-top: 1px solid rgba(201,162,39,.2);
+            padding-top: 22px;
+            margin-bottom: 4px;
+        }
+        .cm-items-title {
+            font-size: 10px;
+            letter-spacing: 6px;
+            color: #c9a227;
+            opacity: .6;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+        .cm-item-slots {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+        }
+        .cm-item-slot {
+            width: 74px;
+            height: 74px;
+            border: 1px solid rgba(201,162,39,.35);
+            background: linear-gradient(135deg, #0c0c1a 0%, #080810 100%);
+            position: relative;
+            cursor: pointer;
+            transition: border-color .2s, box-shadow .2s, background .2s;
+            flex-shrink: 0;
+        }
+        .cm-item-slot:hover {
+            border-color: #c9a227;
+            background: linear-gradient(135deg, #131306, #0d0d08);
+            box-shadow: 0 0 20px rgba(201,162,39,.22), inset 0 0 18px rgba(201,162,39,.06);
+        }
+        /* corner ticks on each slot */
+        .cm-item-slot::before, .cm-item-slot::after {
+            content: '';
+            position: absolute;
+            width: 9px; height: 9px;
+            border-color: #c9a227;
+            border-style: solid;
+            opacity: .45;
+            transition: opacity .2s;
+        }
+        .cm-item-slot::before { top:3px;    left:3px;  border-width:1px 0 0 1px; }
+        .cm-item-slot::after  { bottom:3px; right:3px; border-width:0 1px 1px 0; }
+        .cm-item-slot:hover::before,
+        .cm-item-slot:hover::after { opacity:.9; }
+
+        .cm-slot-inner {
+            width:100%; height:100%;
+            display:flex; align-items:center; justify-content:center;
+            position:relative;
+        }
+        .cm-slot-icon {
+            font-size: 26px;
+            opacity: .18;
+            animation: cm-slot-pulse 3.5s ease-in-out infinite;
+        }
+        .cm-slot-num {
+            position: absolute;
+            bottom: 4px; right: 7px;
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: #c9a227;
+            opacity: .4;
+        }
+
+        /* ── Footer ── */
+        .cm-footer {
+            text-align: center;
+            font-size: 10px;
+            letter-spacing: 5px;
+            color: #c9a227;
+            opacity: .3;
+            margin-top: 22px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           SETTINGS MENU
+           ═══════════════════════════════════════════════════════════ */
+        @keyframes sm-fadein {
+            from { opacity:0; transform: scale(.97); }
+            to   { opacity:1; transform: scale(1); }
+        }
+
+        #settings-menu {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 40%, rgba(10,5,25,.95) 0%, rgba(0,0,0,.98) 100%);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 210;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', Courier, monospace;
+            color: #e0d5c0;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease-out;
+        }
+        #settings-menu.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #settings-menu .sm-panel {
+            position: relative;
+            width: min(560px, 94vw);
+            max-height: 92vh;
+            overflow-y: auto;
+            background: linear-gradient(155deg, #0e0b1c 0%, #08080f 55%, #0b0a14 100%);
+            border: 1px solid #8a6aff;
+            padding: 34px 34px 26px;
+            box-shadow:
+                0 0 0 1px rgba(138,106,255,.18),
+                0 0 60px rgba(138,106,255,.1),
+                inset 0 0 80px rgba(0,0,0,.6);
+            animation: cm-shimmer 4s ease-in-out infinite;
+        }
+        #settings-menu.open .sm-panel {
+            animation: sm-fadein .26s ease-out both, sm-shimmer 4s ease-in-out .28s infinite;
+        }
+        @keyframes sm-shimmer {
+            0%,100% { box-shadow: 0 0 0 1px rgba(138,106,255,.18), 0 0 60px rgba(138,106,255,.1), inset 0 0 80px rgba(0,0,0,.6); }
+            50%      { box-shadow: 0 0 0 1px rgba(138,106,255,.3),  0 0 90px rgba(138,106,255,.2), inset 0 0 80px rgba(0,0,0,.6); }
+        }
+
+        /* Corner ornaments — purple tint */
+        #settings-menu .sm-corner {
+            position: absolute;
+            width: 20px; height: 20px;
+            border-color: #8a6aff;
+            border-style: solid;
+        }
+        #settings-menu .sm-corner.tl { top:8px;    left:8px;  border-width:2px 0 0 2px; }
+        #settings-menu .sm-corner.tr { top:8px;   right:8px;  border-width:2px 2px 0 0; }
+        #settings-menu .sm-corner.bl { bottom:8px; left:8px;  border-width:0 0 2px 2px; }
+        #settings-menu .sm-corner.br { bottom:8px;right:8px;  border-width:0 2px 2px 0; }
+
+        /* Header */
+        .sm-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 30px;
+            letter-spacing: 9px;
+            font-size: 14px;
+            color: #8a6aff;
+            text-shadow: 0 0 24px rgba(138,106,255,.6);
+            white-space: nowrap;
+        }
+        .sm-header-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgba(138,106,255,.5) 50%, transparent);
+        }
+
+        /* Section blocks */
+        .sm-section {
+            border: 1px solid rgba(138,106,255,.18);
+            background: rgba(138,106,255,.025);
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .sm-section::before {
+            content: '';
+            position: absolute;
+            top:0; left:0; right:0;
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgba(138,106,255,.4) 50%, transparent);
+        }
+        .sm-section-title {
+            font-size: 9px;
+            letter-spacing: 5px;
+            color: #8a6aff;
+            opacity: .7;
+            margin-bottom: 14px;
+            padding-bottom: 7px;
+            border-bottom: 1px solid rgba(138,106,255,.18);
+        }
+
+        /* Setting rows */
+        .sm-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+            gap: 16px;
+        }
+        .sm-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .sm-row-label {
+            font-size: 11px;
+            letter-spacing: 3px;
+            opacity: .7;
+            flex-shrink: 0;
+        }
+        .sm-row-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sm-val {
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: #8a6aff;
+            min-width: 36px;
+            text-align: right;
+            opacity: .9;
+        }
+
+        /* Sliders */
+        .sm-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 160px;
+            height: 3px;
+            background: rgba(255,255,255,.1);
+            border: none;
+            outline: none;
+            border-radius: 0;
+            cursor: pointer;
+        }
+        .sm-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            background: #8a6aff;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(138,106,255,.7);
+        }
+        .sm-slider::-moz-range-thumb {
+            width: 14px; height: 14px;
+            background: #8a6aff;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(138,106,255,.7);
+        }
+        .sm-slider::-webkit-slider-runnable-track {
+            height: 3px;
+            background: linear-gradient(to right, rgba(138,106,255,.7) var(--pct,50%), rgba(255,255,255,.1) var(--pct,50%));
+        }
+
+        /* Toggle buttons (quality, fullscreen) */
+        .sm-btn-group {
+            display: flex;
+            gap: 6px;
+        }
+        .sm-btn {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: rgba(138,106,255,.6);
+            background: rgba(138,106,255,.06);
+            border: 1px solid rgba(138,106,255,.25);
+            padding: 5px 12px;
+            cursor: pointer;
+            transition: all .15s;
+            text-transform: uppercase;
+        }
+        .sm-btn:hover { border-color: #8a6aff; color: #8a6aff; background: rgba(138,106,255,.12); }
+        .sm-btn.active {
+            background: rgba(138,106,255,.22);
+            border-color: #8a6aff;
+            color: #c4b4ff;
+            box-shadow: 0 0 12px rgba(138,106,255,.3);
+        }
+
+        /* Resume button */
+        .sm-resume {
+            display: block;
+            width: 100%;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            letter-spacing: 6px;
+            color: #8a6aff;
+            background: rgba(138,106,255,.07);
+            border: 1px solid rgba(138,106,255,.35);
+            padding: 12px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all .18s;
+            text-transform: uppercase;
+            text-align: center;
+        }
+        .sm-resume:hover {
+            background: rgba(138,106,255,.16);
+            border-color: #8a6aff;
+            box-shadow: 0 0 20px rgba(138,106,255,.2);
+            color: #c4b4ff;
+        }
+
+        .sm-footer {
+            text-align: center;
+            font-size: 10px;
+            letter-spacing: 5px;
+            color: #8a6aff;
+            opacity: .3;
+            margin-top: 18px;
+        }
     </style>
 </head>
 <body>
@@ -85,13 +600,306 @@
         <canvas id="ascii-canvas"></canvas>
     </div>
 
-    <div id="ui">WASD TO MOVE | SPACE TO JUMP</div>
+    <div id="ui">WASD TO MOVE | SPACE TO JUMP | TAB FOR CHARACTER</div>
+
+    <!-- Click spark canvas — sits above all menus, pointer-events:none -->
+    <canvas id="spark-canvas" style="
+        position:fixed; inset:0;
+        width:100%; height:100%;
+        pointer-events:none;
+        z-index:999;
+    "></canvas>
+         content — wire real values into the .cm-row right-side spans
+         once you have stat/inventory state. -->
+    <div id="character-menu">
+        <div class="cm-panel">
+
+            <!-- Corner ornaments -->
+            <div class="cm-corner tl"></div>
+            <div class="cm-corner tr"></div>
+            <div class="cm-corner bl"></div>
+            <div class="cm-corner br"></div>
+
+            <!-- Header -->
+            <div class="cm-header">
+                <div class="cm-header-line"></div>
+                ◈ &nbsp; CHARACTER &nbsp; ◈
+                <div class="cm-header-line"></div>
+            </div>
+
+            <!-- Main: portrait left · stats right -->
+            <div class="cm-main">
+
+                <!-- Portrait column -->
+                <div class="cm-portrait-col">
+                    <div class="cm-portrait-frame">
+                        <canvas id="cm-portrait" width="220" height="260"></canvas>
+                        <div class="cm-portrait-label">K N I G H T</div>
+                    </div>
+                    <!-- HP / Stamina bars -->
+                    <div class="cm-bars">
+                        <div class="cm-bar-row">
+                            <span class="cm-bar-label">HP</span>
+                            <div class="cm-bar-track"><div class="cm-bar-fill hp" style="width:100%"></div></div>
+                            <span class="cm-bar-val">100 / 100</span>
+                        </div>
+                        <div class="cm-bar-row">
+                            <span class="cm-bar-label">SP</span>
+                            <div class="cm-bar-track"><div class="cm-bar-fill sp" style="width:100%"></div></div>
+                            <span class="cm-bar-val">100 / 100</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats column -->
+                <div class="cm-stats-col">
+                    <div class="cm-stat-block">
+                        <div class="cm-stat-title">S T A T S</div>
+                        <div class="cm-stat-row"><span>LEVEL</span><span>1</span></div>
+                        <div class="cm-stat-row"><span>XP</span><span>0 / 100</span></div>
+                        <div class="cm-stat-row"><span>ATK</span><span>12</span></div>
+                        <div class="cm-stat-row"><span>DEF</span><span>8</span></div>
+                        <div class="cm-stat-row"><span>SPD</span><span>10</span></div>
+                    </div>
+                    <div class="cm-stat-block">
+                        <div class="cm-stat-title">E Q U I P M E N T</div>
+                        <div class="cm-stat-row"><span>HEAD</span><span>—</span></div>
+                        <div class="cm-stat-row"><span>BODY</span><span>—</span></div>
+                        <div class="cm-stat-row"><span>WEAPON</span><span>—</span></div>
+                        <div class="cm-stat-row"><span>OFFHAND</span><span>—</span></div>
+                    </div>
+                </div>
+
+            </div><!-- /.cm-main -->
+
+            <!-- Power-up item slots -->
+            <div class="cm-items-section">
+                <div class="cm-items-title">◦ &nbsp; P O W E R - U P S &nbsp; ◦</div>
+                <div class="cm-item-slots">
+                    <div class="cm-item-slot">
+                        <div class="cm-slot-inner">
+                            <span class="cm-slot-icon">✦</span>
+                            <span class="cm-slot-num">1</span>
+                        </div>
+                    </div>
+                    <div class="cm-item-slot">
+                        <div class="cm-slot-inner">
+                            <span class="cm-slot-icon">✦</span>
+                            <span class="cm-slot-num">2</span>
+                        </div>
+                    </div>
+                    <div class="cm-item-slot">
+                        <div class="cm-slot-inner">
+                            <span class="cm-slot-icon">✦</span>
+                            <span class="cm-slot-num">3</span>
+                        </div>
+                    </div>
+                    <div class="cm-item-slot">
+                        <div class="cm-slot-inner">
+                            <span class="cm-slot-icon">✦</span>
+                            <span class="cm-slot-num">4</span>
+                        </div>
+                    </div>
+                    <div class="cm-item-slot">
+                        <div class="cm-slot-inner">
+                            <span class="cm-slot-icon">✦</span>
+                            <span class="cm-slot-num">5</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cm-footer">[ TAB ] &nbsp;·&nbsp; [ ESC ] &nbsp; CLOSE</div>
+
+        </div><!-- /.cm-panel -->
+    </div><!-- /#character-menu -->
+
+    <!-- Settings menu (Esc opens, Esc/button closes) -->
+    <div id="settings-menu">
+        <div class="sm-panel">
+
+            <div class="sm-corner tl"></div>
+            <div class="sm-corner tr"></div>
+            <div class="sm-corner bl"></div>
+            <div class="sm-corner br"></div>
+
+            <div class="sm-header">
+                <div class="sm-header-line"></div>
+                ⬡ &nbsp; S E T T I N G S &nbsp; ⬡
+                <div class="sm-header-line"></div>
+            </div>
+
+            <!-- AUDIO -->
+            <div class="sm-section">
+                <div class="sm-section-title">A U D I O</div>
+                <div class="sm-row">
+                    <span class="sm-row-label">MUSIC VOLUME</span>
+                    <div class="sm-row-control">
+                        <input type="range" class="sm-slider" id="sm-music-vol" min="0" max="100" value="30">
+                        <span class="sm-val" id="sm-music-vol-val">30%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="sm-section">
+                <div class="sm-section-title">C O N T R O L S</div>
+                <div class="sm-row">
+                    <span class="sm-row-label">MOUSE SENSITIVITY</span>
+                    <div class="sm-row-control">
+                        <input type="range" class="sm-slider" id="sm-sensitivity" min="1" max="10" value="5" step="1">
+                        <span class="sm-val" id="sm-sensitivity-val">5</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GRAPHICS -->
+            <div class="sm-section">
+                <div class="sm-section-title">G R A P H I C S</div>
+                <div class="sm-row">
+                    <span class="sm-row-label">FIELD OF VIEW</span>
+                    <div class="sm-row-control">
+                        <input type="range" class="sm-slider" id="sm-fov" min="50" max="110" value="60" step="5">
+                        <span class="sm-val" id="sm-fov-val">60°</span>
+                    </div>
+                </div>
+                <div class="sm-row">
+                    <span class="sm-row-label">RENDER QUALITY</span>
+                    <div class="sm-row-control sm-btn-group" id="sm-quality-group">
+                        <button class="sm-btn" data-q="low">LOW</button>
+                        <button class="sm-btn active" data-q="med">MED</button>
+                        <button class="sm-btn" data-q="high">HIGH</button>
+                    </div>
+                </div>
+                <div class="sm-row">
+                    <span class="sm-row-label">FULLSCREEN</span>
+                    <div class="sm-row-control sm-btn-group">
+                        <button class="sm-btn" id="sm-fullscreen-btn">ENTER</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="sm-resume" id="sm-resume-btn">▶ &nbsp; RESUME GAME</button>
+            <div class="sm-footer">[ ESC ] CLOSE</div>
+
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         CLICK SPARK ENGINE
+         Faithful port of the ReactBits ClickSpark effect.
+         Fires on clicks inside #character-menu or #settings-menu.
+         Gold sparks for character menu, purple for settings.
+         ═══════════════════════════════════════════════════════════ -->
+    <script>
+    (function() {
+        const sparkCanvas = document.getElementById('spark-canvas');
+        const sCtx = sparkCanvas.getContext('2d');
+
+        // Resize the spark canvas to always match viewport
+        function resizeSparkCanvas() {
+            sparkCanvas.width  = window.innerWidth;
+            sparkCanvas.height = window.innerHeight;
+        }
+        resizeSparkCanvas();
+        window.addEventListener('resize', resizeSparkCanvas);
+
+        // Active spark bursts — each burst is one click
+        const bursts = [];
+
+        // Config
+        const SPARK_COUNT   = 10;   // spokes per burst
+        const SPARK_SIZE    = 2.2;  // line thickness
+        const SPARK_LENGTH  = 20;   // max spoke length (px)
+        const BURST_DURATION = 500; // ms until fully faded
+
+        function spawnBurst(x, y, color) {
+            const sparks = [];
+            for (let i = 0; i < SPARK_COUNT; i++) {
+                const angle = (2 * Math.PI / SPARK_COUNT) * i;
+                sparks.push({ angle, length: SPARK_LENGTH * (0.6 + Math.random() * 0.4) });
+            }
+            bursts.push({ x, y, color, sparks, startTime: performance.now() });
+            if (!_sparkRafRunning) _sparkLoop();
+        }
+
+        let _sparkRafRunning = false;
+        function _sparkLoop() {
+            _sparkRafRunning = true;
+            sCtx.clearRect(0, 0, sparkCanvas.width, sparkCanvas.height);
+
+            const now = performance.now();
+            let anyAlive = false;
+
+            for (let b = bursts.length - 1; b >= 0; b--) {
+                const burst = bursts[b];
+                const elapsed = now - burst.startTime;
+                if (elapsed >= BURST_DURATION) { bursts.splice(b, 1); continue; }
+
+                // t: 0 → 1 over the burst lifetime
+                const t = elapsed / BURST_DURATION;
+                // ease out: sparks fly fast then slow
+                const eased = 1 - Math.pow(1 - t, 3);
+                const alpha = 1 - t;
+
+                sCtx.save();
+                sCtx.globalAlpha = alpha;
+                sCtx.strokeStyle = burst.color;
+                sCtx.lineWidth   = SPARK_SIZE * (1 - t * 0.5); // thin slightly as they fade
+                sCtx.lineCap     = 'round';
+
+                for (const spark of burst.sparks) {
+                    // Inner gap + outward travel
+                    const gap   = 8  + eased * 14;
+                    const reach = gap + eased * spark.length;
+
+                    const cos = Math.cos(spark.angle);
+                    const sin = Math.sin(spark.angle);
+
+                    sCtx.beginPath();
+                    sCtx.moveTo(burst.x + cos * gap,   burst.y + sin * gap);
+                    sCtx.lineTo(burst.x + cos * reach,  burst.y + sin * reach);
+                    sCtx.stroke();
+                }
+
+                sCtx.restore();
+                anyAlive = true;
+            }
+
+            if (anyAlive) {
+                requestAnimationFrame(_sparkLoop);
+            } else {
+                sCtx.clearRect(0, 0, sparkCanvas.width, sparkCanvas.height);
+                _sparkRafRunning = false;
+            }
+        }
+
+        // Listen for clicks on both menus
+        function menuClickHandler(color) {
+            return function(e) {
+                spawnBurst(e.clientX, e.clientY, color);
+            };
+        }
+
+        // Wait for DOM ready, then attach
+        document.addEventListener('DOMContentLoaded', function() {
+            const charMenu = document.getElementById('character-menu');
+            const settMenu = document.getElementById('settings-menu');
+            if (charMenu) charMenu.addEventListener('click', menuClickHandler('#c9a227')); // gold
+            if (settMenu) settMenu.addEventListener('click', menuClickHandler('#8a6aff')); // purple
+        });
+
+        // Also expose so module script can call it if needed
+        window.spawnClickSpark = spawnBurst;
+    })();
+    </script>
 
     <script type="importmap">
         {
             "imports": {
                 "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@0.7.5/build/index.module.js"
             }
         }
     </script>
@@ -782,6 +1590,16 @@ if (isMobileDevice) {
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast, MeshBVH } from 'three-mesh-bvh';
+
+        // Patch three so .geometry.computeBoundsTree() / disposeBoundsTree()
+        // are available, and Mesh.raycast uses the BVH when one is built.
+        // This is the magic that makes per-triangle collision fast: raycasts
+        // against accelerated meshes go through a binary tree of triangle
+        // groups instead of testing every triangle.
+        THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+        THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+        THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
         
 
@@ -802,10 +1620,31 @@ if (isMobileDevice) {
 
         function getElevation(x, z) {
             let elevation = 0;
+            // ── BASE WAVES (broad rolling hills, valleys) ──
             let baseWave = Math.sin(x * 0.00015) * Math.cos(z * 0.00015);
             elevation += Math.sign(baseWave) * Math.pow(Math.abs(baseWave), 0.7) * 1400;
             elevation += Math.sin(x * 0.0006) * Math.cos(z * 0.0006) * 400;
             elevation += Math.sin(x * 0.0015) * Math.cos(z * 0.0015) * 60;
+            // ── MEDIUM-SCALE UNDULATION (lumpy hillside character) ──
+            // Five overlapping waves at varied angles (ridges at ~121°, ~16°,
+            // ~47°, ~150°, plus a finer detail layer). No single layer
+            // dominates direction, so the result reads as irregular bumps
+            // rather than diagonal stripes. This is what gives distant
+            // hillsides their lumpy 3D character — a hill seen from 2km away
+            // shows visible undulation instead of a smooth painted curve.
+            //
+            // Frequencies kept ≤ 0.008 so x*freq stays in a range where JS
+            // Math.sin and GLSL sin agree to sub-pixel precision (matters
+            // because the meadow grass shader samples this same function;
+            // out-of-sync = grass floats / sinks).
+            //
+            // Total added amplitude ±110u (~1.1m). MUST stay in sync with
+            // getElevationGLSL() in the meadow grass shader.
+            elevation += Math.sin(x * 0.0035 + z * 0.0021)  * 35;
+            elevation += Math.sin(x * 0.0012 - z * 0.0043)  * 30;
+            elevation += Math.sin(-x * 0.0030 + z * 0.0028) * 22;
+            elevation += Math.sin(x * 0.0050 - z * 0.0030)  * 15;
+            elevation += Math.sin(x * 0.0080 + z * 0.0055)  * 8;
             return elevation;
         }
 
@@ -834,7 +1673,7 @@ if (isMobileDevice) {
         });
         const skyMesh = new THREE.Mesh(skyGeo, skyMat);
         scene.add(skyMesh);
-        scene.fog = new THREE.FogExp2(0xffb59d, 0.00004);
+        scene.fog = new THREE.FogExp2(0xffb59d, 0.00007);
 
         const starGeo = new THREE.BufferGeometry();
         const starPositions = new Float32Array(5000 * 3);
@@ -865,18 +1704,702 @@ if (isMobileDevice) {
             }
         }
 
+        // ── PROCEDURAL GRASS TEXTURE ──
+        // 256×256 (was 64×64). Layered: blotchy green base with low-freq variation,
+        // scattered grass blades (1px and 1×2px verticals), bright highlight tips,
+        // soil flecks, gray pebbles, and tiny wildflower clusters. The texture is
+        // stylised pixel-art (NearestFilter, no smoothing) so it stays consistent
+        // with the game's retro look.
         function createPixelGrassTexture() {
-            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
-            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#3a4a2a'; ctx.fillRect(0,0,64,64);
-            const colors = ['#5a6d3a', '#6b8045', '#4a5a30', '#2d3a1d'];
-            for (let i = 0; i < 600; i++) { ctx.fillStyle = colors[Math.floor(rnd()*4)]; ctx.fillRect(Math.floor(rnd()*64), Math.floor(rnd()*64), 1, 1); }
-            const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(600, 600); return tex;
+            const SZ = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = SZ; canvas.height = SZ;
+            const ctx = canvas.getContext('2d');
+
+            // ── 1. DEEP MEADOW BASE ──
+            // Five-tone DARK meadow-green palette (was olive-meadow, now
+            // closer to forest-edge moss). G clearly dominant over R; B kept
+            // very low so it reads as deep grass rather than sage. Drives
+            // the overall mood — everything else is variation on top.
+            const baseTones = ['#3d5a26', '#2c4019', '#48683c', '#1f2c12', '#4f6e36'];
+            // Two-octave variation pattern: original sin pattern (small-scale
+            // blotches) plus a SECOND lower-frequency pattern that creates
+            // broader light/dark zones across the texture. Result: when this
+            // tiles in the world the eye picks up gentle "slope of light"
+            // variation under all the small features, not just uniform noise.
+            for (let y = 0; y < SZ; y++) {
+                for (let x = 0; x < SZ; x++) {
+                    const lf = Math.sin(x * 0.025 + y * 0.018) *
+                               Math.cos(x * 0.015 - y * 0.030) * 0.5 + 0.5;
+                    const lf2 = Math.sin(x * 0.012 + y * 0.009) *
+                                Math.cos(x * 0.008 - y * 0.014) * 0.5 + 0.5;
+                    const blotch = lf * 0.42 + lf2 * 0.32 + rnd() * 0.26;
+                    const idx = Math.min(
+                        baseTones.length - 1,
+                        Math.floor(blotch * baseTones.length)
+                    );
+                    ctx.fillStyle = baseTones[idx];
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+
+            // ── 1.5  MOSSY DARK BLOBS ──
+            // Big irregular near-black-green ellipses scattered as broad
+            // shadow zones — "this is the mossy bit, this is open meadow".
+            // Stippled (random pixel coverage falling off toward edges) so
+            // edges feather organically rather than reading as a solid
+            // ellipse. Wraps with `& (SZ - 1)` (= mod 256) so blobs can
+            // straddle the canvas edge without visible seams when tiled.
+            const mossDark = ['#1c2810', '#243418', '#1a2410', '#152008'];
+            for (let i = 0; i < 14; i++) {
+                ctx.fillStyle = mossDark[Math.floor(rnd() * mossDark.length)];
+                const cx = rnd() * SZ;
+                const cy = rnd() * SZ;
+                const rx = 16 + rnd() * 22;
+                const ry = 16 + rnd() * 22;
+                for (let py = -ry; py < ry; py++) {
+                    for (let px = -rx; px < rx; px++) {
+                        const r2 = (px * px) / (rx * rx) + (py * py) / (ry * ry);
+                        if (r2 > 1.0) continue;
+                        // Falls off: dense at centre, sparse at edge.
+                        if (rnd() < (1 - r2) * 0.55 + 0.12) {
+                            const x = ((cx + px) | 0) & (SZ - 1);
+                            const y = ((cy + py) | 0) & (SZ - 1);
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                    }
+                }
+            }
+
+            // ── 2. SHADED CLUMP DABS ──
+            // 2-5 px irregular dabs of medium-deep green — pockets where
+            // the grass clumps thicker. Slightly bigger than before (was 2-4)
+            // so they read as tufts rather than noise.
+            const patch = ['#324820', '#3e5828', '#243418', '#46603a', '#1d2810'];
+            for (let i = 0; i < 480; i++) {
+                ctx.fillStyle = patch[Math.floor(rnd() * patch.length)];
+                const x = Math.floor(rnd() * SZ);
+                const y = Math.floor(rnd() * SZ);
+                const w = 2 + Math.floor(rnd() * 4);
+                const h = 2 + Math.floor(rnd() * 4);
+                ctx.fillRect(x, y, w, h);
+            }
+
+            // ── 3. DARK STALK SHADOWS ──
+            // 3200 dark vertical strokes (1×2 / 1×3 / 1×4 px) — read as
+            // blade silhouettes from above. Pulled darker overall to suit
+            // the new deeper base; count nudged up since each one is now
+            // working harder against the darker background.
+            const darkstroke = ['#2a3e1c', '#36502a', '#1f2e14', '#3e5826', '#28381a', '#46603a', '#2a4020'];
+            for (let i = 0; i < 3200; i++) {
+                ctx.fillStyle = darkstroke[Math.floor(rnd() * darkstroke.length)];
+                const x = Math.floor(rnd() * SZ);
+                const y = Math.floor(rnd() * SZ);
+                const r = rnd();
+                if (r > 0.78)      ctx.fillRect(x, y, 1, 4);
+                else if (r > 0.50) ctx.fillRect(x, y, 1, 3);
+                else                ctx.fillRect(x, y, 1, 2);
+            }
+
+            // ── 4. MID-TONE BLADES ──
+            // 1px specks and short verticals in mid-meadow green — standing
+            // grass blades viewed from above. Was much brighter ("light
+            // strokes") but with the darker base those popped too white;
+            // this palette sits a notch above the base so they read as
+            // distinct blades without screaming.
+            const drystroke = ['#6c8642', '#587038', '#7a9650', '#4e6630', '#446028', '#7a8e5a', '#5a7034'];
+            for (let i = 0; i < 6500; i++) {
+                ctx.fillStyle = drystroke[Math.floor(rnd() * drystroke.length)];
+                const x = Math.floor(rnd() * SZ);
+                const y = Math.floor(rnd() * SZ);
+                const r = rnd();
+                if (r > 0.78)      ctx.fillRect(x, y, 1, 3);
+                else if (r > 0.55) ctx.fillRect(x, y, 1, 2);
+                else                ctx.fillRect(x, y, 1, 1);
+            }
+
+            // ── 5. SUN-LIT HIGHLIGHTS ──
+            // Substantially dimmer + greener than before (was bright lime
+            // tips). With the new dark base these still read as the
+            // brightest pixels in the texture, but olive-green rather than
+            // yellow-green so they don't fight the deeper mood.
+            const bright = ['#92ac68', '#8aa05c', '#7e9852', '#a0b876'];
+            for (let i = 0; i < 600; i++) {
+                ctx.fillStyle = bright[Math.floor(rnd() * bright.length)];
+                ctx.fillRect(Math.floor(rnd() * SZ), Math.floor(rnd() * SZ), 1, 1);
+            }
+
+            // ── 6. CLOVER / WIDE-LEAF CLUMPS ──  (NEW)
+            // ~90 small + and L shaped 3-5 pixel clusters in a slightly
+            // bluer-greener tone than the rest of the field. Reads as
+            // clover or low broadleaf plants dotted through the grass —
+            // gives the eye small recognisable "things" to land on rather
+            // than uniform stroke-noise.
+            const cloverGreens = ['#5a7234', '#688446', '#406028', '#7c984e', '#3a5824'];
+            for (let i = 0; i < 95; i++) {
+                ctx.fillStyle = cloverGreens[Math.floor(rnd() * cloverGreens.length)];
+                const x = 1 + Math.floor(rnd() * (SZ - 2));
+                const y = 1 + Math.floor(rnd() * (SZ - 2));
+                ctx.fillRect(x, y, 1, 1);
+                // 3-leaf cross with stochastic neighbours — never the same
+                // shape twice but always reads as "cluster of leaves".
+                if (rnd() > 0.30) ctx.fillRect(x + 1, y,     1, 1);
+                if (rnd() > 0.30) ctx.fillRect(x,     y + 1, 1, 1);
+                if (rnd() > 0.55) ctx.fillRect(x - 1, y,     1, 1);
+                if (rnd() > 0.55) ctx.fillRect(x,     y - 1, 1, 1);
+                if (rnd() > 0.80) ctx.fillRect(x + 1, y + 1, 1, 1);
+            }
+
+            // ── 7. FALLEN LEAVES ──  (NEW)
+            // ~110 small autumn-tone flecks — muted brown-orange 1×1 / 2×1
+            // pixels. Adds warm colour notes in a sea of greens (the only
+            // thing breaking the green dominance besides soil and twigs).
+            // Density chosen so leaves are findable but not "leaf carpet".
+            const leaves = ['#7a4a26', '#8c5a30', '#5e3a1c', '#a06d3a', '#6a3e20'];
+            for (let i = 0; i < 110; i++) {
+                ctx.fillStyle = leaves[Math.floor(rnd() * leaves.length)];
+                const x = Math.floor(rnd() * (SZ - 2));
+                const y = Math.floor(rnd() * SZ);
+                if (rnd() > 0.55) ctx.fillRect(x, y, 2, 1);
+                else               ctx.fillRect(x, y, 1, 1);
+            }
+
+            // ── 8. TWIGS ──  (NEW)
+            // ~60 short horizontal dark-brown 2-4px strokes scattered like
+            // fallen sticks. Same family as the leaves but darker + linear,
+            // so the eye reads them as wood not leaves.
+            const twigs = ['#3a2810', '#4a3618', '#26180a', '#5a4220'];
+            for (let i = 0; i < 60; i++) {
+                ctx.fillStyle = twigs[Math.floor(rnd() * twigs.length)];
+                const x = Math.floor(rnd() * (SZ - 4));
+                const y = Math.floor(rnd() * SZ);
+                const len = 2 + Math.floor(rnd() * 3);
+                ctx.fillRect(x, y, len, 1);
+            }
+
+            // ── 9. SOIL SHOWING THROUGH ──
+            // Reduced count (was 560 → 380) and pulled cooler. Paths now
+            // carry the major dirt presence; ground soil is just bits of
+            // earth between roots, not a competing texture.
+            const soil = ['#5a3f24', '#7a5a35', '#42301a', '#6a4f2c', '#3a2814'];
+            for (let i = 0; i < 380; i++) {
+                ctx.fillStyle = soil[Math.floor(rnd() * soil.length)];
+                const x = Math.floor(rnd() * SZ);
+                const y = Math.floor(rnd() * SZ);
+                if (rnd() > 0.80) ctx.fillRect(x, y, 2, 1);
+                else               ctx.fillRect(x, y, 1, 1);
+            }
+
+            // ── 10. PEBBLES ──
+            // Sparse warm-grey 1-2 px stones; kept the same as before since
+            // they harmonised fine.
+            const stone = ['#857968', '#705e4a', '#9a8e7a', '#5a4e40'];
+            for (let i = 0; i < 130; i++) {
+                ctx.fillStyle = stone[Math.floor(rnd() * stone.length)];
+                const x = Math.floor(rnd() * SZ);
+                const y = Math.floor(rnd() * SZ);
+                ctx.fillRect(x, y, 1 + (rnd() > 0.7 ? 1 : 0), 1);
+            }
+
+            // ── 11. TINY MUSHROOMS ──  (NEW)
+            // ~35 rare cream/buff 1px dots, sometimes with a 1px stem
+            // pixel just below — reads as little mushroom caps poking up
+            // from moss when you look closely. Sparse intentionally; too
+            // many = polka-dot field.
+            for (let i = 0; i < 35; i++) {
+                ctx.fillStyle = rnd() > 0.5 ? '#d8c8a8' : '#bcae8c';
+                const x = Math.floor(rnd() * (SZ - 1));
+                const y = 1 + Math.floor(rnd() * (SZ - 2));
+                ctx.fillRect(x, y, 1, 1);
+                if (rnd() > 0.6) {
+                    ctx.fillStyle = '#806a48';   // stem pixel
+                    ctx.fillRect(x, y + 1, 1, 1);
+                }
+            }
+
+            // ── 12. SEEDHEADS / DEW DROPS ──
+            // Was 240 yellow-cream wheat seedheads (gave an unwanted
+            // hayfield feel). Now 130 pale-GREEN specks instead — same
+            // role as bright accent points but matching the deeper mood.
+            for (let i = 0; i < 130; i++) {
+                ctx.fillStyle = rnd() > 0.5 ? '#b4c890' : '#a0b478';
+                const x = Math.floor(rnd() * (SZ - 1));
+                const y = Math.floor(rnd() * (SZ - 1));
+                ctx.fillRect(x, y, 1, 1);
+                if (rnd() > 0.6) ctx.fillRect(x + 1, y, 1, 1);
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestMipMapLinearFilter; // sharp up close, mipped at distance
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(600, 600);
+            return tex;
         }
-        const groundGeo = new THREE.PlaneGeometry(120000, 120000, 200, 200);
+
+        // ── PROCEDURAL DIRT/SOIL TEXTURE ──
+        // Used by the ground shader for slopes (steep terrain shows soil through
+        // the grass). Same pixel-art language as the grass, just brown.
+        function createPixelDirtTexture() {
+            const SZ = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = SZ; canvas.height = SZ;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#5a4429';
+            ctx.fillRect(0, 0, SZ, SZ);
+
+            const dirt = ['#6e5430', '#48341e', '#7d5f37', '#3d2c17', '#664a2a', '#574023', '#82603a'];
+            for (let i = 0; i < 9000; i++) {
+                ctx.fillStyle = dirt[Math.floor(rnd() * dirt.length)];
+                ctx.fillRect(Math.floor(rnd() * SZ), Math.floor(rnd() * SZ), 1, 1);
+            }
+            const pebble = ['#857967', '#9c8e78', '#6b5e4b', '#a89c83'];
+            for (let i = 0; i < 320; i++) {
+                ctx.fillStyle = pebble[Math.floor(rnd() * pebble.length)];
+                const w = rnd() > 0.65 ? 2 : 1;
+                ctx.fillRect(Math.floor(rnd() * SZ), Math.floor(rnd() * SZ), w, w);
+            }
+            // A few stray grass roots peeking through.
+            for (let i = 0; i < 90; i++) {
+                ctx.fillStyle = rnd() > 0.5 ? '#3a4626' : '#4a5a30';
+                ctx.fillRect(Math.floor(rnd() * SZ), Math.floor(rnd() * SZ), 1, 1);
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestMipMapLinearFilter;
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(600, 600);
+            return tex;
+        }
+
+        // ── PROCEDURAL COBBLESTONE TEXTURE ──
+        // Used for path sections within the "civilised" radius around each
+        // monolith. Same pixel-art language as grass/dirt: irregular rounded
+        // stones packed into dark mortar, top-edge highlight on each stone
+        // to suggest 3D rounding, mossy tufts in the cracks so it harmonises
+        // with the meadow rather than reading as a sterile floor.
+        // Three stone palettes get mixed across the field so no two adjacent
+        // stones are the same tone — sells the "hand-laid" look at distance.
+        function createPixelCobbleTexture() {
+            const SZ = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = SZ; canvas.height = SZ;
+            const ctx = canvas.getContext('2d');
+
+            // Dark mortar background — stones get rendered on top of this.
+            ctx.fillStyle = '#3a3024';
+            ctx.fillRect(0, 0, SZ, SZ);
+
+            // Per-palette: [highlight, mid, shadow, deep-fleck]
+            const stonePalettes = [
+                ['#8a7f72', '#7a7268', '#5e564c', '#454039'],  // cool grey
+                ['#988a72', '#857a66', '#665a48', '#4a3f30'],  // warm tan
+                ['#9c8e7c', '#7d736b', '#5b524a', '#3e3631'],  // mid grey
+            ];
+
+            // Place stones with rejection sampling — chunky enough to read
+            // at distance (22-40 px wide), varied enough not to look tiled.
+            // The 0.42 spacing factor allows light overlap so the mortar
+            // gaps are thin/organic rather than wide regular gridlines.
+            const stones = [];
+            let attempts = 0;
+            while (stones.length < 75 && attempts < 1500) {
+                attempts++;
+                const w  = 22 + Math.floor(rnd() * 18);
+                const h  = 18 + Math.floor(rnd() * 14);
+                const x  = Math.floor(rnd() * (SZ - w));
+                const y  = Math.floor(rnd() * (SZ - h));
+                const cx = x + w * 0.5, cy = y + h * 0.5;
+                let overlap = false;
+                for (const s of stones) {
+                    if (Math.abs(s.cx - cx) < (s.w + w) * 0.42 &&
+                        Math.abs(s.cy - cy) < (s.h + h) * 0.42) {
+                        overlap = true; break;
+                    }
+                }
+                if (overlap) continue;
+                stones.push({
+                    x, y, w, h, cx, cy,
+                    pal: stonePalettes[Math.floor(rnd() * stonePalettes.length)]
+                });
+            }
+
+            // Render each stone as an elliptical mask filled with speckled
+            // colour. Top half biased toward highlight palette, bottom toward
+            // shadow — gives a fake AO/rounding without needing real lighting.
+            for (const s of stones) {
+                const pal = s.pal;
+                for (let py = 0; py < s.h; py++) {
+                    for (let px = 0; px < s.w; px++) {
+                        const dx = px - s.w * 0.5;
+                        const dy = py - s.h * 0.5;
+                        const r2 = (dx * dx) / ((s.w * 0.5) ** 2) +
+                                   (dy * dy) / ((s.h * 0.5) ** 2);
+                        if (r2 > 1.0) continue;     // outside ellipse → mortar
+                        const heightT = 1.0 - py / s.h;   // 1=top, 0=bottom
+                        const v = rnd();
+                        let col;
+                        if      (v > 0.92)                       col = pal[3];
+                        else if (v > 0.7)                        col = pal[2];
+                        else if (heightT > 0.65 && v > 0.45)     col = pal[0];
+                        else                                      col = pal[1];
+                        ctx.fillStyle = col;
+                        ctx.fillRect(s.x + px, s.y + py, 1, 1);
+                    }
+                }
+                // Top-edge highlight stipple — sparser on row 2, denser on row 1.
+                ctx.fillStyle = pal[0];
+                for (let px = 2; px < s.w - 2; px++) {
+                    if (rnd() > 0.50) ctx.fillRect(s.x + px, s.y + 1, 1, 1);
+                    if (rnd() > 0.78) ctx.fillRect(s.x + px, s.y + 2, 1, 1);
+                }
+            }
+
+            // Mossy tufts in the cracks — keeps cobble integrated with meadow.
+            const moss = ['#3a4626', '#4a5a30', '#536b34', '#2e3a1c'];
+            for (let i = 0; i < 90; i++) {
+                ctx.fillStyle = moss[Math.floor(rnd() * moss.length)];
+                ctx.fillRect(Math.floor(rnd() * SZ), Math.floor(rnd() * SZ), 1, 1);
+            }
+            // Wheat/dust flecks blown in from the surrounding meadow.
+            for (let i = 0; i < 50; i++) {
+                ctx.fillStyle = rnd() > 0.5 ? '#8a7048' : '#a08858';
+                ctx.fillRect(Math.floor(rnd() * SZ), Math.floor(rnd() * SZ), 1, 1);
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestMipMapLinearFilter;
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(600, 600);
+            return tex;
+        }
+
+        // ── SHARED PATH / MONOLITH STATE ──
+        // Both the ground shader and the meadow grass shader sample the
+        // same path-mask + cobble-blend functions, so paths cut through
+        // both layers in lockstep: ground turns to dirt/cobble in the
+        // same pixels where blade height drops to zero. Storing the
+        // arrays here (not inside either shader's uniform block directly)
+        // means a single Vector instance backs the uniform in every
+        // material — when monoliths spawn we mutate these in place and
+        // every shader sees the new values automatically.
+        //
+        // paths     [4]  vec4(ax, az, bx, bz)  — line-segment endpoints
+        // monoliths [5]  vec2(x, z)            — cobble hotspots
+        // counts:        how many entries are actually populated.
+        // Far-away placeholder values keep the shader maths well-defined
+        // even when fewer than the array maximum are in use.
+        const WORLD_PATHS = {
+            paths:     Array.from({length: 4}, () =>
+                           new THREE.Vector4(1e7, 1e7, 1e7 + 1, 1e7)),
+            monoliths: Array.from({length: 5}, () =>
+                           new THREE.Vector2(1e7, 1e7)),
+            counts: { numPaths: 0, numMonoliths: 0 },
+            // Materials (or shader refs) that need their numPath/numMonolith
+            // uniforms bumped when WORLD_PATHS.counts changes. Each entry is
+            // either a `{ uniforms }` object (ShaderMaterial-style) or a
+            // function (for groundMat where we capture the shader ref later).
+            _consumers: [],
+        };
+        // Push a count-aware consumer; safe to call before/after counts update.
+        WORLD_PATHS.registerConsumer = function (getUniforms) {
+            this._consumers.push(getUniforms);
+            this.applyCountsTo(getUniforms());
+        };
+        WORLD_PATHS.applyCountsTo = function (uniforms) {
+            if (!uniforms) return;
+            if (uniforms.uNumPaths)     uniforms.uNumPaths.value     = this.counts.numPaths;
+            if (uniforms.uNumMonoliths) uniforms.uNumMonoliths.value = this.counts.numMonoliths;
+        };
+        WORLD_PATHS.activate = function () {
+            for (const get of this._consumers) this.applyCountsTo(get());
+        };
+
+        // 800×800 segments (was 200×200) over 120,000 units gives 150u (1.5m)
+        // segments — fine enough to render the new 800u-period heightmap layer
+        // without aliasing (>5 segments per smallest feature). 1.28M triangles
+        // total. Heavy but well within modern desktop GPU budget; the mesh is
+        // static after construction so vertex shader cost is the only ongoing
+        // expense, and a static 1M-tri terrain is what most modern games use.
+        // Drop to 600 on weaker hardware (still resolves the new heightmap).
+        const groundGeo = new THREE.PlaneGeometry(120000, 120000, 800, 800);
         const posAttr = groundGeo.attributes.position;
         for (let i = 0; i < posAttr.count; i++) { posAttr.setZ(i, getElevation(posAttr.getX(i), -posAttr.getY(i))); }
-        groundGeo.computeVertexNormals(); 
-        const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ map: createPixelGrassTexture(), roughness: 1.0 }));
+        groundGeo.computeVertexNormals();
+
+        // ── GROUND MATERIAL: MeshStandardMaterial + onBeforeCompile shader ──
+        // Why this approach: we want PBR lighting + shadow receiving + scene fog
+        // to all keep working (the directional sun, time-of-day cycle, monolith
+        // glow etc all rely on the standard pipeline). Subclassing or swapping
+        // to ShaderMaterial would mean re-implementing all of that. Instead we
+        // patch the existing standard shader with onBeforeCompile to:
+        //   • sample the grass at TWO scales+offsets and blend by low-freq noise,
+        //     killing the obvious 200-unit tile repeat;
+        //   • mix in a dirt texture on slopes (steeper = more soil showing);
+        //   • tint by world elevation (valleys richer green, peaks drier/warmer);
+        //   • add large-scale biome-patch color drift across the world.
+        const grassTex  = createPixelGrassTexture();
+        const dirtTex   = createPixelDirtTexture();
+        const cobbleTex = createPixelCobbleTexture();
+        const groundMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1.0 });
+
+        groundMat.onBeforeCompile = (shader) => {
+            shader.uniforms.uDirtTex      = { value: dirtTex };
+            shader.uniforms.uCobbleTex    = { value: cobbleTex };
+            // Path/monolith arrays — same Vector instances as WORLD_PATHS so
+            // mutating those entries automatically updates this uniform too.
+            shader.uniforms.uPaths        = { value: WORLD_PATHS.paths };
+            shader.uniforms.uMonoliths    = { value: WORLD_PATHS.monoliths };
+            shader.uniforms.uNumPaths     = { value: WORLD_PATHS.counts.numPaths };
+            shader.uniforms.uNumMonoliths = { value: WORLD_PATHS.counts.numMonoliths };
+            // Register so paths/monolith counts can be hot-updated after
+            // monolith spawn finishes (which happens later in script order).
+            WORLD_PATHS.registerConsumer(() => shader.uniforms);
+
+            // Vertex: pass world position and a slope value (0=flat, 1=cliff).
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <common>',
+                `#include <common>
+                 varying vec3 vWorldPosG;
+                 varying float vSlopeG;`
+            );
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                `#include <begin_vertex>
+                 vWorldPosG = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                 // objectNormal is set by <beginnormal_vertex> earlier in the chunk
+                 // order, so it's safe to use here. Transform to world space.
+                 vec3 wnG = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz);
+                 vSlopeG = 1.0 - clamp(wnG.y, 0.0, 1.0);`
+            );
+
+            // Fragment: add varyings + helpers up top, then replace the diffuse
+            // texture sample with our multi-layer ground sample.
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <common>',
+                `#include <common>
+                 #define MAX_PATHS 4
+                 #define MAX_MONOLITHS 5
+                 uniform sampler2D uDirtTex;
+                 uniform sampler2D uCobbleTex;
+                 uniform vec4  uPaths[MAX_PATHS];
+                 uniform vec2  uMonoliths[MAX_MONOLITHS];
+                 uniform int   uNumPaths;
+                 uniform int   uNumMonoliths;
+                 varying vec3  vWorldPosG;
+                 varying float vSlopeG;
+
+                 // Cheap value-noise for color patch / blend masks. Don't need
+                 // perfect quality — just something low-freq and continuous.
+                 // The meadow grass shader uses an IDENTICAL gndHash/gndNoise
+                 // so moisture and path-mask values agree pixel-for-pixel
+                 // between ground colour and blade height/visibility.
+                 float gndHash(vec2 p) {
+                     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+                 }
+                 float gndNoise(vec2 p) {
+                     vec2 i = floor(p);
+                     vec2 f = fract(p);
+                     vec2 u = f * f * (3.0 - 2.0 * f);
+                     return mix(
+                         mix(gndHash(i),               gndHash(i + vec2(1.0, 0.0)), u.x),
+                         mix(gndHash(i + vec2(0.0, 1.0)), gndHash(i + vec2(1.0, 1.0)), u.x),
+                         u.y
+                     );
+                 }
+
+                 // ── MOISTURE FIELD ──
+                 // 0 = parched/dry, 1 = lush/wet. Two-octave value noise:
+                 // a large biome-scale wave (~1250u) for big regions of
+                 // dry-vs-lush, plus a smaller variation (~360u) so the
+                 // boundaries aren't too uniform. Same function in the
+                 // grass shader, so blade height + colour and ground tint
+                 // agree across every pixel of the transition.
+                 float worldMoisture(vec2 p) {
+                     float n1 = gndNoise(p * 0.0008);             // ~1250u biome
+                     float n2 = gndNoise(p * 0.0028 + 41.7);     // ~360u local
+                     return clamp(n1 * 0.65 + n2 * 0.35, 0.0, 1.0);
+                 }
+
+                 // ── PATH MASK ──
+                 // 1.0 inside a path's "hot" centre, fading to 0 at edges.
+                 // Each path is a meandering line segment from .xy to .zw.
+                 // The sin meander breaks the dead-straight-Roman-road look,
+                 // and edge-noise nibbles the boundary so paths feel WORN
+                 // rather than stamped. Width is in world units, not UV — so
+                 // paths stay the same physical width regardless of texture
+                 // tiling.
+                 float worldPathMask(vec2 p) {
+                     float bestMask = 0.0;
+                     for (int i = 0; i < MAX_PATHS; i++) {
+                         if (i >= uNumPaths) break;
+                         vec2  a   = uPaths[i].xy;
+                         vec2  b   = uPaths[i].zw;
+                         vec2  ab  = b - a;
+                         float L2  = max(dot(ab, ab), 1.0);
+                         float L   = sqrt(L2);
+                         float t   = clamp(dot(p - a, ab) / L2, 0.0, 1.0);
+                         // Meander perpendicular to the segment (two waves of
+                         // different frequency for organic curving).
+                         vec2  perp    = vec2(-ab.y, ab.x) / L;
+                         float m1      = sin(t * L * 0.0014) * 220.0;
+                         float m2      = sin(t * L * 0.0034 + 1.7) * 60.0;
+                         vec2  closest = a + ab * t + perp * (m1 + m2);
+                         float d       = distance(p, closest);
+                         // Worn-edge noise: nibble the boundary by ±36 units
+                         // so the path edge has the texture of an old trail
+                         // rather than a clean stencil cut.
+                         float edgeN = (gndNoise(p * 0.012) - 0.5) * 36.0;
+                         // Path "core" = full strength up to 90u from centre,
+                         // fading out to 0 by 170u. That's a ~340u wide path
+                         // total, ≈3.4m — about right for a worn meadow trail.
+                         float m = 1.0 - smoothstep(90.0 + edgeN, 170.0 + edgeN, d);
+                         bestMask = max(bestMask, m);
+                     }
+                     return bestMask;
+                 }
+
+                 // ── COBBLE BLEND ──
+                 // 1 near a monolith, 0 in the open meadow. Cobble starts
+                 // appearing within 1400u of any monolith and is full by 700u.
+                 // So path sections approaching a tower transition smoothly
+                 // from worn dirt → cobblestone as you near civilisation.
+                 float worldCobbleBlend(vec2 p) {
+                     float best = 0.0;
+                     for (int i = 0; i < MAX_MONOLITHS; i++) {
+                         if (i >= uNumMonoliths) break;
+                         float d = distance(p, uMonoliths[i]);
+                         best = max(best, 1.0 - smoothstep(700.0, 1400.0, d));
+                     }
+                     return best;
+                 }`
+            );
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `
+                 // ── DUAL-SCALE GRASS SAMPLE (de-tile) ──
+                 // Same texture sampled at two scales+offsets, blended by a
+                 // low-freq noise mask. The eye stops perceiving the tile grid
+                 // because no two adjacent regions share the same scale phase.
+                 vec4 grassA = texture2D(map, vMapUv);
+                 vec4 grassB = texture2D(map, vMapUv * 0.41 + vec2(0.137, 0.524));
+                 float blendN = gndNoise(vWorldPosG.xz * 0.0006);
+                 vec4 grass   = mix(grassA, grassB, smoothstep(0.30, 0.70, blendN));
+
+                 // ── DIRT ON SLOPES ──
+                 // Sample dirt at a slightly different rate so it never aligns
+                 // with the grass tiles. Smoothstep gives a soft transition
+                 // between grass and exposed soil on hillsides. Pushed the
+                 // start later (0.18→0.28) so flatter areas keep their wheat
+                 // and dirt only shows on genuinely steep terrain.
+                 vec4 dirt    = texture2D(uDirtTex, vMapUv * 0.65);
+                 float dirtMix = smoothstep(0.28, 0.62, vSlopeG);
+                 vec4 sampled = mix(grass, dirt, dirtMix);
+
+                 // ── HEIGHT TINT ──
+                 // Valley pulled slightly green (G > R) to match the new
+                 // lush grass. Peak slightly cooler. Both kept gentle so
+                 // they nudge rather than dominate.
+                 float h01 = clamp((vWorldPosG.y + 1200.0) / 2400.0, 0.0, 1.0);
+                 vec3 valleyTint = vec3(0.95, 1.05, 0.85);
+                 vec3 peakTint   = vec3(0.90, 1.00, 0.88);
+                 sampled.rgb *= mix(valleyTint, peakTint, h01);
+
+                 // ── BIOME PATCHES ──
+                 // Two octaves of slow noise drift the color across the world
+                 // so different regions feel subtly different — but instead of
+                 // green-vs-warm, we drift wheat-vs-wheat: shaded dry grass on
+                 // one side, sun-bleached wheat on the other.
+                 float patch1 = gndNoise(vWorldPosG.xz * 0.000035);
+                 float patch2 = gndNoise(vWorldPosG.xz * 0.00012 + 17.0);
+                 vec3 patchTint = mix(
+                     vec3(0.94, 0.98, 0.92),
+                     vec3(1.08, 1.02, 0.86),
+                     patch1
+                 );
+                 patchTint *= mix(vec3(0.94), vec3(1.05), patch2);
+                 sampled.rgb *= patchTint;
+
+                 // ── DISTANT GRASS CLUMP ILLUSION ──
+                 // Four octaves of noise + smoothstep sharpening create rich,
+                 // multi-scale variation in brightness AND hue across the
+                 // ground. This is what sells distant terrain as "covered in
+                 // grass clumps" instead of looking like a smooth painted
+                 // plane past the player's local grass patch.
+                 //
+                 // Octaves (player 160 units ≈ 1.6m → 1 unit ≈ 1cm):
+                 //   ~660u (~6.6m)  — broad hillside zones (lush vs dry strips)
+                 //   ~165u (~1.6m)  — large clumps (groups of tufts)
+                 //   ~50u  (~50cm)  — medium clumps (individual tufts)
+                 //   ~17u  (~17cm)  — fine speckle (blade-scale detail)
+                 // Weighted to favor LOW frequencies (0.30 + 0.30 + 0.25 +
+                 // 0.15) so the visible variation survives at long viewing
+                 // distance — high octaves average out via mipmapping/screen
+                 // coverage but the low octaves still show up as patches.
+                 //
+                 // smoothstep sharpens what would otherwise be smooth blobby
+                 // gradients (raw value noise) into clumps with more defined
+                 // edges — looks like grass patches, not soft fog.
+                 //
+                 // Hue+brightness shift: dark clumps pull cool/green (shaded
+                 // grass) and bright clumps pull warm/gold (sunlit grass).
+                 // Reads as 3D grass texture catching different light, not
+                 // a 2D filter pass. At close range the meadow blades cover
+                 // most of this — only seen in gaps. In the mid-distance
+                 // ring (past where blades have shrunk away, before fog
+                 // takes over) this clump pattern is the primary visual
+                 // texture and is what stops the world looking flat.
+                 float n0 = gndNoise(vWorldPosG.xz * 0.0015);   // ~660u zones
+                 float n1 = gndNoise(vWorldPosG.xz * 0.006);    // ~165u patches
+                 float n2 = gndNoise(vWorldPosG.xz * 0.020);    // ~50u  clumps
+                 float n3 = gndNoise(vWorldPosG.xz * 0.060);    // ~17u  speckle
+                 float clump = n0 * 0.30 + n1 * 0.30 + n2 * 0.25 + n3 * 0.15;
+                 clump = smoothstep(0.20, 0.80, clump);
+
+                 vec3 darkClump   = vec3(0.78, 0.86, 0.70);     // shaded grass — pulled green (G > R)
+                 vec3 brightClump = vec3(1.02, 1.08, 0.92);     // sunlit grass — pulled green (G > R)
+                 sampled.rgb *= mix(darkClump, brightClump, clump);
+
+                 // ── MOISTURE-DRIVEN HUE ──
+                 // The big "dry vs lush" gradient that drives the meadow's
+                 // mood. With the new darker green base, a strong WARM dry
+                 // tint would pop yellow and clash; instead dry now means
+                 // OLIVE/desaturated (slightly drier-looking same green)
+                 // while lush means saturated cool meadow green. Both keep
+                 // the field reading as one cohesive deep meadow rather
+                 // than two different biomes glued together.
+                 float moisture = worldMoisture(vWorldPosG.xz);
+                 vec3 dryTint  = vec3(1.02, 0.94, 0.74);   // olive/parched (was straw-yellow)
+                 vec3 lushTint = vec3(0.82, 1.10, 0.78);   // saturated meadow
+                 sampled.rgb *= mix(dryTint, lushTint, moisture);
+
+                 // ── PATH OVERLAY ──
+                 // Last layer, applied after all the grass tinting: where the
+                 // path mask is non-zero, blend in dirt or cobble texture.
+                 // Cobble dominates near monoliths (worldCobbleBlend → 1),
+                 // dirt dominates between (→ 0). Soft edges via smoothstep
+                 // in worldPathMask + this final lerp mean the path "wears
+                 // in" rather than stamping a hard edge.
+                 float pathMask = worldPathMask(vWorldPosG.xz);
+                 if (pathMask > 0.001) {
+                     vec4 dirtPath   = texture2D(uDirtTex,   vMapUv * 0.65);
+                     vec4 cobblePath = texture2D(uCobbleTex, vMapUv * 0.45);
+                     float cob = worldCobbleBlend(vWorldPosG.xz);
+                     vec4 pathTex = mix(dirtPath, cobblePath, cob);
+                     // Path inherits a touch of the moisture tint so it
+                     // doesn't pop out as a different colour temperature.
+                     pathTex.rgb *= mix(vec3(1.05, 1.0, 0.92), vec3(0.95, 0.98, 0.95), moisture);
+                     sampled = mix(sampled, pathTex, pathMask);
+                 }
+
+                 diffuseColor *= sampled;
+                `
+            );
+        };
+
+        const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
 
         function createCraggyMossRockTexture() {
@@ -1162,69 +2685,288 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 obstacles.push({ type: 'box', box: new THREE.Box3().setFromObject(plat) });
             }
 
-            const towerX = courseOriginX + 3480;
-            const towerZ = courseOriginZ;
-            const towerBase = getElevation(towerX, towerZ);
-            const tower = new THREE.Mesh(new THREE.BoxGeometry(200, 2400, 200), rockMat);
-            tower.position.set(towerX, towerBase + 1200 + 1860, towerZ - 300);
-            tower.castShadow = true;
-            scene.add(tower);
-            tower.updateMatrixWorld(true);
-            obstacles.push({ type: 'box', box: new THREE.Box3().setFromObject(tower) });
+            // Placeholder reward tower removed — the GLB parkour tower
+            // (loaded asynchronously below) sits in the same spot and is
+            // the real climbing destination.
+        })();
 
+        // ============================================================
+        // GLB PARKOUR TOWER — diorama-style, climbable from any side.
+        // ============================================================
+        // Loaded async (it's ~900KB), so collision boxes get pushed into
+        // `obstacles` after the rest of the world is already standing.
+        // Player can ALWAYS approach the base on foot; the parkour course
+        // ramp is a fast-track up to the mid-tier, not the only way in.
+        (function spawnGLBParkourTower() {
+            // Pushed well east of spawn (was sX + 6280). Now visible as
+            // a distant beacon from the henge rather than crowding it.
+            const towerX = sX + 12000;
+            const towerZ = sZ - 2000;
+
+            // Source GLB is in metres (Blender export). 400x = monumental
+            // skyline-tower scale (~12k units tall total).
+            const SCALE = 400;
+
+            // Whitelist of mesh-name prefixes that should be SOLID (full
+            // BVH triangle collision). Everything else (vines, cables,
+            // antennas, rebar, ladder rungs, figures, window frames,
+            // tiny ground rubble, decorative paintwork) stays visual-only.
+            //
+            // Each solid mesh gets its actual GEOMETRY used as the
+            // collider via three-mesh-bvh — no more giant AABB walls,
+            // no more "where am I being blocked from". Walking on a tier
+            // slab is exactly walking on the slab's top triangles.
+            const SOLID_PATTERNS = [
+                /^Plinth_/,
+                /^Tier_\d/,    /^Slab_\d/,
+                /^Spire_(Lower|Upper)$/,
+                /^TopPlatform$/,
+                /^Beam_\d/,    /^Balcony_\d/,
+                /^Bridge1_plank/, /^Bridge2_plank/,
+                /^FloatBrick_/, /^FloatBeam_/,
+                /^FloatPlat_/,
+                /^BrickPallet_/, /^LumberStack_/,
+                /^CraneCab$/,  /^CraneCounterweight$/,
+                /^CraneTrolley$/, /^CraneCargo$/,
+                /^TopCrane_Cargo$/, /^FCrane_brick$/,
+            ];
+
+            const loader = new GLTFLoader();
+            loader.load('assets/ClaudeParkourTower.glb', gltf => {
+                const root = gltf.scene;
+                root.scale.setScalar(SCALE);
+                // Place at provisional Y=0 so the bbox we sample reflects
+                // only model+scale offset; we set the real Y below after
+                // sampling terrain across the footprint.
+                root.position.set(towerX, 0, towerZ);
+                root.rotation.y = Math.PI;
+                scene.add(root);
+                root.updateMatrixWorld(true);
+
+                // Sink the base into terrain, NOT just to center elevation.
+                // The tower has a ~10k-unit-wide footprint; if I place it
+                // at single-point elevation, any slope across that area
+                // leaves the base half-floating. Sample terrain on a grid,
+                // take the LOWEST point, then bury the lowest mesh
+                // SINK_DEPTH below that. With SINK_DEPTH=400 the plinth
+                // edges nestle into the ground but don't disappear.
+                const bbox = new THREE.Box3().setFromObject(root);
+                let minTerrain = Infinity;
+                const N = 5;
+                for (let i = 0; i <= N; i++) {
+                    for (let j = 0; j <= N; j++) {
+                        const sx = THREE.MathUtils.lerp(bbox.min.x, bbox.max.x, i / N);
+                        const sz = THREE.MathUtils.lerp(bbox.min.z, bbox.max.z, j / N);
+                        const e = getElevation(sx, sz);
+                        if (e < minTerrain) minTerrain = e;
+                    }
+                }
+                const SINK_DEPTH = 400;
+                root.position.y = (minTerrain - SINK_DEPTH) - bbox.min.y;
+                root.updateMatrixWorld(true);
+
+                let solidCount = 0, totalMeshes = 0;
+                root.traverse(obj => {
+                    if (!obj.isMesh) return;
+                    obj.castShadow = true;
+                    obj.receiveShadow = true;
+                    totalMeshes++;
+
+                    const name = obj.name || '';
+                    if (!SOLID_PATTERNS.some(rx => rx.test(name))) return;
+
+                    addBVHCollider(obj);
+                    solidCount++;
+                });
+
+                console.log(`Parkour tower #1 loaded: ${solidCount}/${totalMeshes} meshes have BVH collision`);
+            }, undefined, err => {
+                console.error('Failed to load ClaudeParkourTower.glb:', err);
+            });
+        })();
+
+        // ============================================================
+        // GLB PARKOUR TOWER #2 — pendulums, timed platforms, ledges.
+        // ============================================================
+        // Placed on the opposite side of spawn from tower #1 so both are
+        // visible from the henge. This one is a more "active" parkour
+        // build with hazards (pendulum spikes) and animated platforms.
+        // The GLB itself has no animation tracks, so for now everything
+        // is static — pendulum spikes don't actually swing yet.
+        (function spawnGLBParkourTower2() {
+            // Pushed further NW of spawn (was sX-5500, sZ+2200).
+            // Asymmetric placement vs tower #1 keeps the skyline varied.
+            const towerX = sX - 11000;
+            const towerZ = sZ + 5000;
+
+            // Scale 280 = ~30% smaller than the previous 400. Tower top
+            // ends up around 12.5k units high, footprint ~7.5k × 8k.
+            const SCALE = 280;
+
+            // SOLID list can now include non-box shapes (spiral ramp,
+            // tilted planks, hanging blocks) because BVH collision uses
+            // the actual mesh triangles — no AABB approximation. The
+            // SpiralRamp specifically: with AABBs it created an invisible
+            // box covering the whole tower; with BVH the player walks
+            // up the actual ramp surface.
+            const SOLID_PATTERNS = [
+                /^Tier_/,
+                /^Step_/,
+                /^Ledge_/,
+                /^Stone_/,
+                /^Plank_/,                          // tilted ramps — fine now
+                /^Hanging_/,                        // tilted blocks — fine now
+                /^SpiralRamp$/,                     // the big climbable spiral
+                /^UnfinishedTop$/,
+                /^TimedPlatform_(Mover|Rotator)/,
+            ];
+
+            const loader = new GLTFLoader();
+            loader.load('assets/Tower2.glb', gltf => {
+                const root = gltf.scene;
+                root.scale.setScalar(SCALE);
+                root.position.set(towerX, 0, towerZ);
+                scene.add(root);
+                root.updateMatrixWorld(true);
+
+                // Same terrain-sample-and-sink as tower #1. SINK_DEPTH
+                // is a touch smaller here because tower #2's plinth/Stone
+                // base is shorter — too much sink would bury the climbing
+                // entry points.
+                const bbox = new THREE.Box3().setFromObject(root);
+                let minTerrain = Infinity;
+                const N = 5;
+                for (let i = 0; i <= N; i++) {
+                    for (let j = 0; j <= N; j++) {
+                        const sx = THREE.MathUtils.lerp(bbox.min.x, bbox.max.x, i / N);
+                        const sz = THREE.MathUtils.lerp(bbox.min.z, bbox.max.z, j / N);
+                        const e = getElevation(sx, sz);
+                        if (e < minTerrain) minTerrain = e;
+                    }
+                }
+                const SINK_DEPTH = 250;
+                root.position.y = (minTerrain - SINK_DEPTH) - bbox.min.y;
+                root.updateMatrixWorld(true);
+
+                let solidCount = 0, totalMeshes = 0;
+                root.traverse(obj => {
+                    if (!obj.isMesh) return;
+                    obj.castShadow = true;
+                    obj.receiveShadow = true;
+                    totalMeshes++;
+
+                    const name = obj.name || '';
+                    if (!SOLID_PATTERNS.some(rx => rx.test(name))) return;
+
+                    addBVHCollider(obj);
+                    solidCount++;
+                });
+
+                console.log(`Parkour tower #2 loaded: ${solidCount}/${totalMeshes} meshes have BVH collision`);
+            }, undefined, err => {
+                console.error('Failed to load Tower2.glb:', err);
+            });
         })();
 
 
 
         // ── TREES ──
-        // Trunk Y: -6.735 (base) to 12.743 (top). Total height = 19.478 local units.
-        // Lift = 6.735 * scale puts trunk base exactly on groundY.
-        (function spawnTrees() {
+        // Three single-mesh GLBs (Acacia, Cypress, Olive), each loaded once
+        // and rendered as a single InstancedMesh. The forest as a whole
+        // costs THREE draw calls regardless of how many trees we spawn.
+        // Compared to the old scene-clone approach this is ~1700 draw calls
+        // saved (950 giants + 340 pines + ~7 sub-meshes × 500 broadleaf).
+        //
+        // Each new tree is a single mesh with ONE material (opaque, baked
+        // baseColor texture). No alpha-tested foliage cards, no transparency
+        // sorting — they slot straight into the standard pipeline with
+        // shadows on. We bake the world matrix into the geometry, recenter
+        // so the trunk base sits at y=0 in X/Z, then build the InstancedMesh.
+        function spawnInstancedTree(opts) {
             const loader = new GLTFLoader();
-            loader.load('assets/giant_low_poly_tree.glb', gltf => {
-                const template = gltf.scene;
-                template.traverse(n => {
-                    if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
+            loader.load(opts.url, gltf => {
+                gltf.scene.updateMatrixWorld(true);
+                let geometry = null;
+                let material = null;
+                const overallBB = new THREE.Box3();
+                gltf.scene.traverse(n => {
+                    if (n.isMesh) {
+                        const geo = n.geometry.clone();
+                        geo.applyMatrix4(n.matrixWorld);
+                        geo.computeBoundingBox();
+                        overallBB.union(geo.boundingBox);
+                        // These GLBs ship a single mesh; if a future asset
+                        // has multiple, only the first one is captured here.
+                        if (!geometry) {
+                            geometry = geo;
+                            material = n.material;
+                        }
+                    }
                 });
+                if (!geometry) { console.warn('No mesh in', opts.url); return; }
 
-                const TREE_H = 19.478;
-                const BASE_Y = 6.735;   // abs of trunk min Y — lift amount per scale unit
-                const TRUNK_R = 1.5;
+                // Center on X/Z and ground at y=0 so a single instance
+                // matrix can place the tree at terrain height directly.
+                const offX = -(overallBB.min.x + overallBB.max.x) * 0.5;
+                const offY = -overallBB.min.y;
+                const offZ = -(overallBB.min.z + overallBB.max.z) * 0.5;
+                geometry.translate(offX, offY, offZ);
+                const height = Math.max(overallBB.max.y - overallBB.min.y, 0.0001);
 
-                let spawned = 0;
-                for (let i = 0; i < 3000 && spawned < 950; i++) {
-                    const vx = (rnd()-0.5)*108000;
-                    const vz = (rnd()-0.5)*108000;
-                    if (Math.sqrt((vx-sX)**2+(vz-sZ)**2) < 2600) continue;
+                // Build instance placements + register trunk collisions
+                const dummy = new THREE.Object3D();
+                const mats = [];
+                let attempts = 0;
+                while (mats.length < opts.count && attempts < opts.maxAttempts) {
+                    attempts++;
+                    const tx = (rnd() - 0.5) * 108000;
+                    const tz = (rnd() - 0.5) * 108000;
+                    if (Math.sqrt((tx - sX)**2 + (tz - sZ)**2) < 2600) continue;
 
-                    const gy = getElevation(vx, vz);
-                    const ry = rnd() * Math.PI * 2;
+                    const gy = getElevation(tx, tz);
+                    const worldH = opts.minH + rnd() * (opts.maxH - opts.minH);
+                    const sc = worldH / height;
 
-                    // World height 800–2000 units — large and visible from a distance
-                    const worldH = 800 + rnd() * 1200;
-                    const sc = worldH / TREE_H;
-
-                    const m = template.clone();
-                    m.scale.setScalar(sc);
-                    m.rotation.y = ry;
-                    // Place so trunk base sits on terrain
-                    // Model origin is at ground level — no lift needed.
-                    // Sink slightly so roots embed naturally in terrain.
-                    m.position.set(vx, gy - sc * 0.5, vz);
-                    scene.add(m);
+                    // Slight sink so the base reads as embedded in terrain
+                    dummy.position.set(tx, gy - worldH * 0.012, tz);
+                    dummy.rotation.set(0, rnd() * Math.PI * 2, 0);
+                    dummy.scale.setScalar(sc);
+                    dummy.updateMatrix();
+                    mats.push(dummy.matrix.clone());
 
                     obstacles.push({
                         type: 'cylinder',
-                        cx: vx, cz: vz,
-                        r: TRUNK_R * sc,
+                        cx: tx, cz: tz,
+                        r: worldH * opts.trunkR,
                         minY: gy,
                         maxY: gy + worldH
                     });
-                    spawned++;
                 }
-                console.log('Trees spawned:', spawned);
-            }, undefined, e => console.warn('Tree GLB not found:', e));
-        })();
+
+                const im = new THREE.InstancedMesh(geometry, material, mats.length);
+                im.castShadow = true;
+                im.receiveShadow = true;
+                // Frustum culling on InstancedMesh tests the *origin* bbox,
+                // not the world-space placements, so it would cull the whole
+                // forest the moment the camera looked away from world origin.
+                im.frustumCulled = false;
+                for (let i = 0; i < mats.length; i++) im.setMatrixAt(i, mats[i]);
+                im.instanceMatrix.needsUpdate = true;
+                scene.add(im);
+                console.log(opts.label, 'spawned:', mats.length);
+            }, undefined, e => console.warn(opts.label, 'GLB not found:', e));
+        }
+
+        // ── ACACIA (the dominant forest tree — replaces giant_low_poly_tree) ──
+        // Tall, broad-canopied savanna tree. Heaviest spawn count of the three;
+        // these are the trees you see from a distance across the world.
+        spawnInstancedTree({
+            url: 'assets/Acacia.glb',
+            count: 950, maxAttempts: 3000,
+            minH: 800, maxH: 2000,        // matches old giant tree height range
+            trunkR: 0.018,                 // slim trunk relative to wide canopy
+            label: 'Acacia trees'
+        });
 
 
         // ── TREE TRUNKS (stumpy fallen-log pieces scattered around the forest) ──
@@ -1304,143 +3046,29 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         })();
 
 
-        // ── PINE TREES ──
-        // pine_tree_low_poly.glb has the same Sketchfab Z-up → Y-up rotation
-        // as the grass pack, plus 3 child meshes (trunk + two foliage tiers)
-        // positioned with large translations baked into their per-mesh matrices.
-        // We clone the whole scene (not individual geometries) so those
-        // translations keep the three parts stacked correctly, and wrap it in
-        // a Group so placement uses the tree base as origin.
-        (function spawnPineTrees() {
-            const loader = new GLTFLoader();
-            loader.load('assets/pine_tree_low_poly.glb', gltf => {
-                const raw = gltf.scene;
-                raw.traverse(n => {
-                    if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
-                });
-
-                // Measure world-space bounds AFTER all parent transforms resolve,
-                // then shift the raw scene so its base sits at y=0 and it's
-                // centred in X/Z around origin.
-                const bb = new THREE.Box3().setFromObject(raw);
-                const height = bb.max.y - bb.min.y;
-                raw.position.set(
-                    -(bb.min.x + bb.max.x) * 0.5,
-                    -bb.min.y,
-                    -(bb.min.z + bb.max.z) * 0.5
-                );
-                const template = new THREE.Group();
-                template.add(raw);
-
-                let placed = 0;
-                for (let i = 0; i < 2000 && placed < 340; i++) {
-                    const tx = (rnd() - 0.5) * 108000;
-                    const tz = (rnd() - 0.5) * 108000;
-                    if (Math.sqrt((tx - sX)**2 + (tz - sZ)**2) < 2600) continue;
-
-                    const gy = getElevation(tx, tz);
-                    const worldH = 500 + rnd() * 600;           // 500–1100 units tall
-                    const sc = worldH / height;
-
-                    const m = template.clone(true);
-                    m.scale.setScalar(sc);
-                    m.rotation.y = rnd() * Math.PI * 2;
-                    // Small sink so the base is below ground rather than floating
-                    m.position.set(tx, gy - worldH * 0.012, tz);
-                    scene.add(m);
-
-                    // Trunk collision cylinder — narrow so players can walk
-                    // between branches but not through the stem.
-                    obstacles.push({
-                        type: 'cylinder',
-                        cx: tx, cz: tz,
-                        r: worldH * 0.025,
-                        minY: gy,
-                        maxY: gy + worldH
-                    });
-                    placed++;
-                }
-                console.log('Pine trees spawned:', placed);
-            }, undefined, e => console.warn('Pine GLB not found:', e));
-        })();
+        // ── CYPRESS (replaces pine_tree_low_poly) ──
+        // Tall, narrow conical conifer — same role as pine in the silhouette
+        // (vertical accent on ridgelines, breaks up the broad acacia canopy).
+        spawnInstancedTree({
+            url: 'assets/Cypress.glb',
+            count: 340, maxAttempts: 2000,
+            minH: 500, maxH: 1100,         // matches old pine height range
+            trunkR: 0.025,                  // narrow trunk, like pine
+            label: 'Cypress trees'
+        });
 
 
-        // ── BROADLEAF TREES (tree2) ──
-        // 8 sub-meshes (1 trunk-plane + 7 foliage icospheres at baked-in
-        // rotations/scales). Scene-cloning this 200+ times would be ~1600
-        // draw calls. Instead: bake each sub-mesh's world matrix into its
-        // cloned geometry, then make one InstancedMesh per sub-mesh. All
-        // trees of this type render in 8 draw calls regardless of count.
-        // Sketchfab also ships a leftover Camera node in this GLB; it's
-        // ignored automatically since it isn't a Mesh.
-        (function spawnTree2() {
-            const loader = new GLTFLoader();
-            loader.load('assets/low_poly_tree2.glb', gltf => {
-                gltf.scene.updateMatrixWorld(true);
-                const subs = [];
-                const overallBB = new THREE.Box3();
-                gltf.scene.traverse(n => {
-                    if (n.isMesh) {
-                        const geo = n.geometry.clone();
-                        geo.applyMatrix4(n.matrixWorld);
-                        geo.computeBoundingBox();
-                        overallBB.union(geo.boundingBox);
-                        subs.push({ geometry: geo, material: n.material });
-                    }
-                });
-                if (subs.length === 0) { console.warn('No tree2 meshes'); return; }
-
-                // Shift all sub-geometries so tree base sits at y=0 and it's
-                // centred in X/Z — now a single instance matrix per tree
-                // handles world placement and all 8 parts follow together.
-                const offX = -(overallBB.min.x + overallBB.max.x) * 0.5;
-                const offY = -overallBB.min.y;
-                const offZ = -(overallBB.min.z + overallBB.max.z) * 0.5;
-                for (const s of subs) s.geometry.translate(offX, offY, offZ);
-                const height = overallBB.max.y - overallBB.min.y;
-
-                // Build instance placements + register trunk collisions
-                const dummy = new THREE.Object3D();
-                const mats = [];
-                let attempts = 0;
-                while (mats.length < 500 && attempts < 2500) {
-                    attempts++;
-                    const tx = (rnd() - 0.5) * 108000;
-                    const tz = (rnd() - 0.5) * 108000;
-                    if (Math.sqrt((tx - sX)**2 + (tz - sZ)**2) < 2600) continue;
-
-                    const gy = getElevation(tx, tz);
-                    const worldH = 450 + rnd() * 650;              // 450–1100
-                    const sc = worldH / height;
-
-                    dummy.position.set(tx, gy - worldH * 0.012, tz);
-                    dummy.rotation.set(0, rnd() * Math.PI * 2, 0);
-                    dummy.scale.setScalar(sc);
-                    dummy.updateMatrix();
-                    mats.push(dummy.matrix.clone());
-
-                    obstacles.push({
-                        type: 'cylinder',
-                        cx: tx, cz: tz,
-                        r: worldH * 0.03,
-                        minY: gy,
-                        maxY: gy + worldH
-                    });
-                }
-
-                // One InstancedMesh per sub-mesh, sharing instance matrices
-                for (const s of subs) {
-                    const im = new THREE.InstancedMesh(s.geometry, s.material, mats.length);
-                    im.castShadow = true;
-                    im.receiveShadow = true;
-                    im.frustumCulled = false;
-                    for (let i = 0; i < mats.length; i++) im.setMatrixAt(i, mats[i]);
-                    im.instanceMatrix.needsUpdate = true;
-                    scene.add(im);
-                }
-                console.log('Broadleaf trees spawned:', mats.length, 'across', subs.length, 'sub-meshes');
-            }, undefined, e => console.warn('Tree2 GLB not found:', e));
-        })();
+        // ── OLIVE (replaces low_poly_tree2 broadleaf) ──
+        // Shorter, gnarled broadleaf — keeps the broad-canopied feel of the
+        // old tree2 but at lower stature so it reads as a different layer
+        // of the forest from the towering acacias.
+        spawnInstancedTree({
+            url: 'assets/Olive_tree.glb',
+            count: 500, maxAttempts: 2500,
+            minH: 350, maxH: 700,           // shorter than old tree2 (450–1100)
+            trunkR: 0.035,                   // gnarled, slightly thicker trunk
+            label: 'Olive trees'
+        });
 
 
         // ── FLOWERS ──
@@ -1517,93 +3145,761 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         })();
 
 
-        // ── GRASS TUFTS ──
-        // low_poly_grass_pack.glb: 4 tuft variants under RootNode (Circle.018/.015/.012/.005).
-        // Raw heights ≈ 2.7 / 7.0 / 11.1 / 8.3 units. Models' min.y is ~-1.6, so tufts
-        // embed naturally if we sit the origin on the terrain (no lift needed).
-        // Uses InstancedMesh per template — cloning ~15k individual meshes would
-        // tank framerate; instancing draws each template in a single call.
-        (function spawnGrass() {
-            const loader = new GLTFLoader();
-            loader.load('assets/low_poly_grass_pack.glb', gltf => {
-                // Parent nodes in Sketchfab-exported FBX glTFs carry a Z-up → Y-up
-                // rotation AND a per-mesh scale/rotation. Cloning just the geometry
-                // (like rocks do) skips all that and leaves tufts sideways. Fix:
-                // bake each mesh's full world matrix into its cloned geometry, then
-                // re-center in X/Z with the base at y=0 so placement code is simple.
-                gltf.scene.updateMatrixWorld(true);
-                const templates = [];
-                gltf.scene.traverse(n => {
-                    if (n.isMesh) {
-                        const geo = n.geometry.clone();
-                        geo.applyMatrix4(n.matrixWorld);
-                        geo.computeBoundingBox();
-                        const bb = geo.boundingBox;
-                        geo.translate(
-                            -(bb.min.x + bb.max.x) * 0.5,   // centre X on origin
-                            -bb.min.y,                       // base sits at y=0
-                            -(bb.min.z + bb.max.z) * 0.5    // centre Z on origin
-                        );
-                        const h = bb.max.y - bb.min.y;
-                        templates.push({ geometry: geo, material: n.material, height: h });
+
+        // ── MEADOW GRASS FIELD (camera-following infinite grass) ──
+        // The technique: maintain a fixed grid of N×N grass instances around
+        // the player. The vertex shader computes each blade's WORLD position
+        // every frame from (cameraCellSnap + instanceGridOffset + perCellJitter).
+        // Because the snap is quantized to cell size, walking less than one cell
+        // doesn't change any blade's world position — they stay rooted. When the
+        // player crosses a cell boundary, the snap jumps by one cell-width and so
+        // does every blade, but visually the field is uniform so you can't tell.
+        // Result: it FEELS like the entire 120k-unit world is covered in grass,
+        // but at any given moment only ~10k tufts exist in one draw call.
+        //
+        // Cost is constant regardless of where the player is. No CPU work per
+        // frame except updating a couple of uniforms. Same trick used in
+        // Witcher 3, Ghost of Tsushima, RDR2, etc.
+        (function spawnMeadows() {
+            // ── 1. ALPHA-TESTED GRASS BLADE TEXTURE ──
+            // Parameterized so the inner field and outer ring can use textures
+            // with different density. The outer ring uses a bigger canvas with
+            // many more blades packed in — each outer sprite "represents" a
+            // grass clump rather than a tuft, so far-distance grass reads as
+            // dense coverage without needing more instances.
+            //
+            // opts:
+            //   width  — canvas pixel width  (also tuft texture width)
+            //   height — canvas pixel height (also tuft texture height; 2:1
+            //            aspect to match cross-quad geometry that's twice as
+            //            tall as wide)
+            //   blades — number of stems to pack into the canvas. More blades
+            //            on a same-size canvas = denser-looking tuft.
+            function createGrassBladeTexture(opts) {
+                const W = opts.width;
+                const H = opts.height;
+                const NUM_BLADES = opts.blades;
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, W, H);
+
+                // Stem heights as a fraction of canvas height — keeps the
+                // 70-117/128 ≈ 55-91% range from the original at any size,
+                // so blades fill most of the canvas with seedhead room above.
+                const minStemH = Math.floor(H * 0.55);
+                const maxStemH = Math.floor(H * 0.91);
+                // Curve magnitude scales with width so blades arc proportionally.
+                const curveMag = W * 0.125;
+                // Seedhead jitter ranges scaled to canvas size.
+                const featSpreadX = W * 0.08;
+                const featSpreadY = Math.max(7, Math.floor(H * 0.055));
+
+                for (let b = 0; b < NUM_BLADES; b++) {
+                    const baseX  = 5 + Math.floor(rnd() * (W - 10));
+                    const bladeH = minStemH + Math.floor(rnd() * (maxStemH - minStemH));
+                    const curve  = (rnd() - 0.5) * curveMag;
+
+                    // ── LUSH GRASS PALETTE ──
+                    // Push G clearly above R for a saturated meadow green
+                    // rather than the olive-tan we had. Base sits at a
+                    // medium green (G > R by ~30 points), tip at a lush
+                    // spring-grass yellow-green. B kept low throughout so
+                    // it reads as fresh grass, not blue-tinted.
+                    const baseR = 105 + Math.floor(rnd() * 30);    // 105–135
+                    const baseG = 140 + Math.floor(rnd() * 30);    // 140–170
+                    const baseB = 70  + Math.floor(rnd() * 25);    //  70– 95
+                    const tipR  = 170 + Math.floor(rnd() * 30);    // 170–200
+                    const tipG  = 205 + Math.floor(rnd() * 25);    // 205–230
+                    const tipB  = 115 + Math.floor(rnd() * 25);    // 115–140
+
+                    // Stem from base (bottom) to tip
+                    for (let py = 0; py < bladeH; py++) {
+                        const t = py / (bladeH - 1);
+                        const lateral = curve * Math.sin(t * Math.PI * 0.7);
+                        const x = Math.round(baseX + lateral);
+                        const y = (H - 1) - py;
+                        const w = t > 0.78 ? 1 : 2;
+                        const r = Math.round(baseR + (tipR - baseR) * t);
+                        const g = Math.round(baseG + (tipG - baseG) * t);
+                        const bl = Math.round(baseB + (tipB - baseB) * t);
+                        ctx.fillStyle = `rgb(${r},${g},${bl})`;
+                        ctx.fillRect(x, y, w, 1);
                     }
+
+                    // Seedhead feather above the stem tip
+                    const headCenterX = Math.round(baseX + curve * Math.sin(Math.PI * 0.7));
+                    const headTopY    = (H - 1) - (bladeH - 1);
+                    const headR1 = Math.min(255, tipR + 12);
+                    const headG1 = Math.min(255, tipG + 12);
+                    const headB1 = Math.min(255, tipB + 22);
+                    const headR2 = Math.min(255, tipR + 28);
+                    const headG2 = Math.min(255, tipG + 28);
+                    const headB2 = Math.min(255, tipB + 42);
+                    const headColor1 = `rgb(${headR1},${headG1},${headB1})`;
+                    const headColor2 = `rgb(${headR2},${headG2},${headB2})`;
+                    const numFeath = 5 + Math.floor(rnd() * 5);
+                    for (let f = 0; f < numFeath; f++) {
+                        ctx.fillStyle = rnd() > 0.5 ? headColor1 : headColor2;
+                        const fx = headCenterX + Math.floor((rnd() - 0.5) * featSpreadX);
+                        const fy = headTopY + Math.floor(rnd() * featSpreadY) - 2;
+                        if (fx >= 0 && fx < W && fy >= 0 && fy < H) {
+                            ctx.fillRect(fx, fy, 1, 1);
+                        }
+                    }
+                }
+
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.magFilter = THREE.NearestFilter;
+                tex.minFilter = THREE.NearestMipMapLinearFilter;
+                tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.generateMipmaps = true;
+                return tex;
+            }
+
+            // ── 2. CROSS-QUAD TUFT GEOMETRY ──
+            // Two perpendicular quads (X-shape from above). Each quad: 4 verts,
+            // 2 tris. Per instance: 8 verts, 4 tris. Looks 3D from any angle.
+            function createTuftGeometry(width, height) {
+                const w = width * 0.5;
+                const h = height;
+                // Cap quad footprint, slightly wider than vertical quads so
+                // it provides extra coverage above the tuft. Placed at 0.85h
+                // (just below blade tips) so seedheads/specks of the blade
+                // texture still poke above it from horizontal angles.
+                const capW = w * 1.4;
+                const capY = h * 0.85;
+                const positions = new Float32Array([
+                    // Quad A: vertical, lies in XY plane (faces +/- Z)
+                    -w, 0, 0,    w, 0, 0,    w, h, 0,   -w, h, 0,
+                    // Quad B: vertical, lies in YZ plane (faces +/- X)
+                     0, 0,-w,    0, 0, w,    0, h, w,    0, h,-w,
+                    // Quad C: HORIZONTAL CAP at top, in XZ plane (faces +/- Y).
+                    // This is the key piece: when the camera looks straight
+                    // down, both vertical quads are edge-on and effectively
+                    // invisible — without this cap, the grass appears to
+                    // disappear from a top-down view. The cap is sampled
+                    // with a separate "grass tops" texture in the shader.
+                    -capW, capY, -capW,    capW, capY, -capW,
+                     capW, capY,  capW,   -capW, capY,  capW,
+                ]);
+                const uvs = new Float32Array([
+                    0, 0,  1, 0,  1, 1,  0, 1,
+                    0, 0,  1, 0,  1, 1,  0, 1,
+                    0, 0,  1, 0,  1, 1,  0, 1,
+                ]);
+                // 0 = vertical blade quad (use uTex with vertical AO),
+                // 1 = horizontal cap quad (use uCapTex, no vertical AO).
+                const isCap = new Float32Array([
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    1, 1, 1, 1,
+                ]);
+                const indices = new Uint16Array([
+                    0, 1, 2,  0, 2, 3,
+                    4, 5, 6,  4, 6, 7,
+                    // Cap rendered with both winding orders so it's visible
+                    // from above AND below — saves switching to DoubleSide
+                    // material (which would also affect vertical quads).
+                    8, 9, 10,  8, 10, 11,
+                    8, 10, 9,  8, 11, 10,
+                ]);
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geo.setAttribute('uv',       new THREE.BufferAttribute(uvs, 2));
+                geo.setAttribute('aIsCap',   new THREE.BufferAttribute(isCap, 1));
+                geo.setIndex(new THREE.BufferAttribute(indices, 1));
+                return geo;
+            }
+
+            // ── 1b. GRASS-FROM-ABOVE CAP TEXTURE ──
+            // Used by the horizontal cap quad. Shows clusters of grass tips
+            // viewed straight down — green base specks with brighter
+            // yellow-green seedhead highlights, on a transparent background.
+            //
+            // Coverage tuned to ~35-45% — enough to hide the bare ground
+            // when looking straight down, but with enough transparency that
+            // gaps between tufts feel organic rather than carpet-like.
+            //
+            // opts:
+            //   width, height — canvas dimensions
+            //   tips          — number of grass-tip clusters to draw
+            function createGrassCapTexture(opts) {
+                const W = opts.width;
+                const H = opts.height;
+                const NUM_TIPS = opts.tips;
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, W, H); // transparent background
+
+                const cx = W * 0.5, cy = H * 0.5;
+                const maxR = Math.min(W, H) * 0.48;
+
+                // Grass tip specks — biased toward center (Math.pow(rnd, 1.4)
+                // gives more samples near 0 → more samples near center).
+                for (let i = 0; i < NUM_TIPS; i++) {
+                    const r     = Math.pow(rnd(), 1.4) * maxR;
+                    const theta = rnd() * Math.PI * 2;
+                    const x = Math.floor(cx + Math.cos(theta) * r);
+                    const y = Math.floor(cy + Math.sin(theta) * r);
+                    if (x < 0 || x >= W || y < 0 || y >= H) continue;
+
+                    // Match blade colour palette: G > R for green look.
+                    // 70% chance of mid-blade green, 30% chance of bright tip.
+                    const isTip = rnd() > 0.7;
+                    const cR = isTip ? 170 + Math.floor(rnd() * 30)
+                                     : 105 + Math.floor(rnd() * 30);
+                    const cG = isTip ? 205 + Math.floor(rnd() * 25)
+                                     : 140 + Math.floor(rnd() * 30);
+                    const cB = isTip ? 115 + Math.floor(rnd() * 25)
+                                     :  70 + Math.floor(rnd() * 25);
+                    ctx.fillStyle = `rgb(${cR},${cG},${cB})`;
+
+                    // Most tips are single pixels; some are 2px clusters
+                    // ("multiple blades clumped at a viewpoint").
+                    const r2 = rnd();
+                    if (r2 > 0.8) {
+                        ctx.fillRect(x, y, 2, 1);
+                    } else if (r2 > 0.6) {
+                        ctx.fillRect(x, y, 1, 2);
+                    } else {
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+
+                    // Sometimes add a neighbouring speck for cluster feel.
+                    if (rnd() > 0.55) {
+                        const dx = Math.floor((rnd() - 0.5) * 4);
+                        const dy = Math.floor((rnd() - 0.5) * 4);
+                        const nx = x + dx, ny = y + dy;
+                        if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+                            ctx.fillRect(nx, ny, 1, 1);
+                        }
+                    }
+                }
+
+                // Sparse bright seedhead highlights — sun-catching tip pixels.
+                const numBright = Math.floor(NUM_TIPS * 0.18);
+                const brightTones = ['#bcd58e', '#a8c47e', '#aec985', '#d4e2a4'];
+                for (let i = 0; i < numBright; i++) {
+                    const r     = Math.pow(rnd(), 1.5) * maxR;
+                    const theta = rnd() * Math.PI * 2;
+                    const x = Math.floor(cx + Math.cos(theta) * r);
+                    const y = Math.floor(cy + Math.sin(theta) * r);
+                    if (x < 0 || x >= W || y < 0 || y >= H) continue;
+                    ctx.fillStyle = brightTones[Math.floor(rnd() * brightTones.length)];
+                    ctx.fillRect(x, y, 1, 1);
+                }
+
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.magFilter = THREE.NearestFilter;
+                tex.minFilter = THREE.NearestMipMapLinearFilter;
+                tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.generateMipmaps = true;
+                return tex;
+            }
+
+            // ── SHARED RESOURCES ──
+            // Two blade textures + two cap textures (one each per field).
+            // The cap textures fix the "grass disappears when viewed from
+            // above" problem — vertical cross-quads are edge-on at top-down
+            // angles, so we need a horizontal piece of geometry per tuft.
+            const innerBladeTex = createGrassBladeTexture({ width: 64, height: 128, blades: 12 });
+            const outerBladeTex = createGrassBladeTexture({ width: 96, height: 192, blades: 28 });
+            const innerCapTex   = createGrassCapTexture({ width: 64, height: 64, tips: 600 });
+            const outerCapTex   = createGrassCapTexture({ width: 96, height: 96, tips: 1400 });
+            const fieldMaterials = [];
+
+            // ── 3. FIELD BUILDER ──
+            // Builds one camera-following grass field with the given config
+            // and adds it to the scene. Same vertex+fragment shader pattern,
+            // but config values are baked in via template literals so each
+            // field compiles its own optimized shader.
+            //
+            // The shader supports a "donut" fade: an inner exclusion radius
+            // where blades fade in from invisible to full size. The inner
+            // field passes a negative inner-fade-start so it's always visible
+            // from the camera outward. The outer ring uses it to be invisible
+            // inside the inner field's coverage region — without this the two
+            // fields would overlap visually and the outer's bigger tufts would
+            // poke through the dense inner field at close range.
+            //
+            // cfg properties:
+            //   FIELD, CELL_SIZE  — grid dimensions (instance count = FIELD²)
+            //   tuftW, tuftH      — base tuft size (before per-cell heightVar)
+            //   hMin, hMax        — per-cell height multiplier range
+            //   bladeTex          — vertical-blade texture (cross-quads)
+            //   capTex            — top-down "grass tops" texture for the
+            //                       horizontal cap quad (fixes top-down view)
+            //   fadeOutStart/End  — outer fade as fraction of half-radius
+            //   fadeInStart/End   — donut inner fade-in, in WORLD units
+            //                       (negative start → no donut, always visible)
+            //   name              — debug log
+            function buildField(cfg) {
+                const { FIELD, CELL_SIZE, tuftW, tuftH, hMin, hMax,
+                        bladeTex, capTex,
+                        fadeOutStart, fadeOutEnd,
+                        fadeInStart, fadeInEnd, name } = cfg;
+                const INSTANCES = FIELD * FIELD;
+
+                const baseGeo = createTuftGeometry(tuftW, tuftH);
+                const geo = new THREE.InstancedBufferGeometry();
+                geo.index = baseGeo.index;
+                geo.attributes.position = baseGeo.attributes.position;
+                geo.attributes.uv       = baseGeo.attributes.uv;
+                geo.attributes.aIsCap   = baseGeo.attributes.aIsCap;
+                geo.instanceCount = INSTANCES;
+
+                // Per-instance attribute: which cell of the field this blade
+                // owns. Stored as int-like floats in [-FIELD/2, FIELD/2). The
+                // shader adds this to the camera's snapped cell coord.
+                const cellCoords = new Float32Array(INSTANCES * 2);
+                const halfF = FIELD / 2;
+                let i = 0;
+                for (let gz = 0; gz < FIELD; gz++) {
+                    for (let gx = 0; gx < FIELD; gx++) {
+                        cellCoords[i++] = gx - halfF;
+                        cellCoords[i++] = gz - halfF;
+                    }
+                }
+                geo.setAttribute('iCell', new THREE.InstancedBufferAttribute(cellCoords, 2));
+                geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1e9);
+
+                // Format JS number as a GLSL float literal — always include a
+                // decimal so GLSL's parser doesn't choke trying to read it as int.
+                const f = (n) => n.toFixed(4);
+
+                const grassMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uTex:        { value: bladeTex },
+                        uCapTex:     { value: capTex },
+                        uTime:       { value: 0 },
+                        uCamera:     { value: new THREE.Vector3() },
+                        uCellSize:   { value: CELL_SIZE },
+                        uDayLight:   { value: 1.0 },
+                        // SUN_DIR is mutated in-place by updateTimeOfDay each
+                        // frame — passing by reference means the shader sees
+                        // the updated direction without us copying every tick.
+                        uSunDir:     { value: SUN_DIR },
+                        uFogColor:   { value: scene.fog.color.clone() },
+                        uFogDensity: { value: scene.fog.density },
+                        // Shared with the ground material — same Vector
+                        // instances, so when WORLD_PATHS mutates an entry
+                        // the ground turns to dirt AND blades disappear in
+                        // the same pixel. uNumPaths is updated by
+                        // WORLD_PATHS.activate() once monoliths exist.
+                        uPaths:        { value: WORLD_PATHS.paths },
+                        uNumPaths:     { value: WORLD_PATHS.counts.numPaths },
+                    },
+                    vertexShader: `
+                        #define MAX_PATHS 4
+                        attribute vec2 iCell;
+                        attribute float aIsCap;
+                        uniform float uTime;
+                        uniform float uCellSize;
+                        uniform vec3  uCamera;
+                        uniform vec3  uSunDir;
+                        uniform vec4  uPaths[MAX_PATHS];
+                        uniform int   uNumPaths;
+
+                        varying vec2  vUv;
+                        varying float vFade;
+                        varying float vFogDepth;
+                        varying vec3  vWorldPos;
+                        varying float vTerrLight;
+                        varying float vIsCap;
+                        varying float vMoisture;
+
+                        // 2D hashes for per-cell jitter, scale, rotation.
+                        float hash21(vec2 p) {
+                            p = fract(p * vec2(123.34, 456.21));
+                            p += dot(p, p + 45.32);
+                            return fract(p.x * p.y);
+                        }
+                        vec2 hash22(vec2 p) {
+                            return vec2(hash21(p), hash21(p + vec2(17.13, 31.71)));
+                        }
+
+                        // ── IDENTICAL gndHash/gndNoise as the GROUND shader ──
+                        // The path mask and moisture field MUST match the
+                        // ground bit-for-bit — different noise = visible
+                        // mismatch where blades stick out past the dirt
+                        // path edge, or lush green ground shows through
+                        // dry-yellow blades.
+                        float gndHash(vec2 p) {
+                            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+                        }
+                        float gndNoise(vec2 p) {
+                            vec2 i = floor(p);
+                            vec2 f = fract(p);
+                            vec2 u = f * f * (3.0 - 2.0 * f);
+                            return mix(
+                                mix(gndHash(i),                  gndHash(i + vec2(1.0, 0.0)), u.x),
+                                mix(gndHash(i + vec2(0.0, 1.0)), gndHash(i + vec2(1.0, 1.0)), u.x),
+                                u.y
+                            );
+                        }
+                        float worldMoisture(vec2 p) {
+                            float n1 = gndNoise(p * 0.0008);
+                            float n2 = gndNoise(p * 0.0028 + 41.7);
+                            return clamp(n1 * 0.65 + n2 * 0.35, 0.0, 1.0);
+                        }
+                        // Same parameters as the ground shader's worldPathMask.
+                        // Used here to suppress blade height where the player
+                        // is on a path — geomFade is multiplied by (1-mask),
+                        // so blades shrink to zero exactly along the dirt/cobble.
+                        float worldPathMask(vec2 p) {
+                            float bestMask = 0.0;
+                            for (int i = 0; i < MAX_PATHS; i++) {
+                                if (i >= uNumPaths) break;
+                                vec2  a   = uPaths[i].xy;
+                                vec2  b   = uPaths[i].zw;
+                                vec2  ab  = b - a;
+                                float L2  = max(dot(ab, ab), 1.0);
+                                float L   = sqrt(L2);
+                                float t   = clamp(dot(p - a, ab) / L2, 0.0, 1.0);
+                                vec2  perp    = vec2(-ab.y, ab.x) / L;
+                                float m1      = sin(t * L * 0.0014) * 220.0;
+                                float m2      = sin(t * L * 0.0034 + 1.7) * 60.0;
+                                vec2  closest = a + ab * t + perp * (m1 + m2);
+                                float d       = distance(p, closest);
+                                float edgeN = (gndNoise(p * 0.012) - 0.5) * 36.0;
+                                float m = 1.0 - smoothstep(90.0 + edgeN, 170.0 + edgeN, d);
+                                bestMask = max(bestMask, m);
+                            }
+                            return bestMask;
+                        }
+
+                        // Same heightmap as JS getElevation() — MUST stay
+                        // in sync or grass floats / sinks into the ground.
+                        // Frequencies ≤ 0.008 so float precision matches the
+                        // JS Math.sin output. Any change here needs the same
+                        // change in JS getElevation().
+                        float getElevationGLSL(float x, float z) {
+                            float baseWave = sin(x * 0.00015) * cos(z * 0.00015);
+                            float e = sign(baseWave) * pow(abs(baseWave), 0.7) * 1400.0;
+                            e += sin(x * 0.0006)  * cos(z * 0.0006)  * 400.0;
+                            e += sin(x * 0.0015)  * cos(z * 0.0015)  * 60.0;
+                            // Medium-scale undulation: 5 varied-angle waves.
+                            e += sin(x * 0.0035 + z * 0.0021)  * 35.0;
+                            e += sin(x * 0.0012 - z * 0.0043)  * 30.0;
+                            e += sin(-x * 0.0030 + z * 0.0028) * 22.0;
+                            e += sin(x * 0.0050 - z * 0.0030)  * 15.0;
+                            e += sin(x * 0.0080 + z * 0.0055)  * 8.0;
+                            return e;
+                        }
+
+                        void main() {
+                            // STEP 1 — snap camera to cell grid (so blades stay
+                            // rooted as you walk less than one cell-width).
+                            vec2 camCell   = floor(uCamera.xz / uCellSize);
+
+                            // STEP 2 — this instance's WORLD cell.
+                            vec2 worldCell = camCell + iCell;
+
+                            // STEP 3 — per-cell jitter, height, rotation seeds,
+                            // all keyed to worldCell so they're stable in
+                            // world space.
+                            vec2  j         = (hash22(worldCell + 0.5) - 0.5) * uCellSize * 0.85;
+                            vec2  worldXZ   = worldCell * uCellSize + uCellSize * 0.5 + j;
+                            float seed      = hash21(worldCell + 11.1);
+
+                            // ── MOISTURE & PATH for this tuft ──
+                            // Sample the same fields the ground shader uses.
+                            // Moisture stretches blade-height range (lush
+                            // patches grow taller, dry patches grow short
+                            // and sparse). Path mask multiplies geomFade
+                            // below so blades shrink to nothing exactly
+                            // where the ground turns to dirt/cobble.
+                            float cellMoisture = worldMoisture(worldXZ);
+                            float cellPathMask = worldPathMask(worldXZ);
+                            vMoisture = cellMoisture;
+
+                            // Per-cell height jitter, then biased by moisture:
+                            // dry → 45% of original, lush → 125%. So an
+                            // existing 0.75-1.55 (inner field) range becomes
+                            // ~0.34-1.94, with the entire shape of the field
+                            // following the moisture map.
+                            float heightVar = mix(${f(hMin)}, ${f(hMax)}, seed);
+                            heightVar *= mix(0.45, 1.25, cellMoisture);
+                            float rotation  = hash21(worldCell + 23.7) * 6.2832;
+
+                            // STEP 4 — DUAL-EDGE GEOMETRIC FADE.
+                            //  outerFade: 1 in center, 0 past field's outer
+                            //  boundary. Blades shrink to nothing at the edge,
+                            //  no color shift — the boundary becomes invisible.
+                            //  innerFade: 0 inside an exclusion radius, 1 outside.
+                            //  Inner field passes a negative fadeInStart so this
+                            //  is always 1 (no donut). Outer ring uses it to be
+                            //  invisible inside the inner field's coverage.
+                            float distToCam = distance(worldXZ, uCamera.xz);
+                            float fr        = uCellSize * float(${FIELD}) * 0.5;
+                            float outerFade = 1.0 - smoothstep(fr * ${f(fadeOutStart)}, fr * ${f(fadeOutEnd)}, distToCam);
+                            float innerFade = smoothstep(${f(fadeInStart)}, ${f(fadeInEnd)}, distToCam);
+                            float geomFade  = outerFade * innerFade;
+
+                            // ── PATH SUPPRESSION ──
+                            // Multiply through geomFade so blades on/near a
+                            // path shrink rather than vanishing instantly —
+                            // matches the soft path-mask edge on the ground
+                            // so there's no visible step. smoothstep here
+                            // means full path strength only kills blades
+                            // when the path mask is over ~0.4 (the path
+                            // "core" rather than its faded edge), so the
+                            // path edge has tufts thinning out gradually.
+                            geomFade *= 1.0 - smoothstep(0.35, 0.9, cellPathMask);
+
+                            float scaleY    = heightVar * geomFade;
+
+                            // STEP 5 — terrain follow.
+                            float groundY = getElevationGLSL(worldXZ.x, worldXZ.y);
+
+                            // STEP 5b — TERRAIN NORMAL & SUN LIGHTING.
+                            // The ground material uses MeshStandardMaterial
+                            // with PBR lighting. Without matching lighting,
+                            // grass on lit slopes stayed at baseline while
+                            // ground brightened, creating a visible boundary.
+                            //
+                            // We estimate the terrain normal via finite
+                            // differences on the same heightmap and apply
+                            // N·L shading. RANGE IS DELIBERATELY NARROW
+                            // (0.62–1.05): the grass texture has tip pixels
+                            // up to RGB(225, 225, 150) and seedhead specks
+                            // even brighter — multiplying by anything much
+                            // above 1.05 saturates them to white. So this
+                            // multiplier mostly *darkens* dim slopes (down
+                            // to 0.62 in shadow) rather than brightening
+                            // lit ones. The mismatch with PBR-lit ground on
+                            // very bright slopes is reduced but not fully
+                            // solved; the alternative (matching HDR ground)
+                            // would require rebaking the texture darker.
+                            float h = 50.0;
+                            float eE = getElevationGLSL(worldXZ.x + h, worldXZ.y);
+                            float eN = getElevationGLSL(worldXZ.x, worldXZ.y + h);
+                            vec3 terrN = normalize(vec3(groundY - eE, h, groundY - eN));
+                            float ndotL = max(0.0, dot(terrN, uSunDir));
+                            vTerrLight = 0.62 + 0.43 * ndotL;
+
+                            // STEP 6 — local-space transform: scale, tilt
+                            // (cap only), rotate, wind sway on top verts only.
+                            vec3 p = position;
+                            p.y *= scaleY;
+
+                            // Per-cap tilt: rotates the horizontal cap quad by
+                            // ±~12° around BOTH X and Z axes. Without this,
+                            // every cap in the field is perfectly horizontal
+                            // at the same proportional tuft-height — when
+                            // viewed from a low angle (e.g. a grass-covered
+                            // ridge), the edge-on profiles of all the caps
+                            // line up at the same screen-Y and produce
+                            // visible horizontal stripe artefacts. Tilting
+                            // each cap by a random angle means only some are
+                            // edge-on at any given camera direction, and the
+                            // edge-on ones land at varied screen positions —
+                            // the stripe pattern dissolves into organic noise.
+                            // Tilt is per-cell-stable (uses worldCell-based
+                            // hash) so caps don't wobble as the camera moves.
+                            if (aIsCap > 0.5) {
+                                // ±0.31 rad ≈ ±18°. Smaller (~12°) doesn't
+                                // fully break up edge-on alignment on slopes;
+                                // much larger (~25°+) starts to look like
+                                // the canopy is collapsing toward the ground.
+                                float capTiltX = (hash21(worldCell + 77.3) - 0.5) * 0.63;
+                                float capTiltZ = (hash21(worldCell + 88.7) - 0.5) * 0.63;
+                                // Rotate around X axis (Y, Z change).
+                                float cTx = cos(capTiltX), sTx = sin(capTiltX);
+                                float pyA = p.y * cTx - p.z * sTx;
+                                p.z      = p.y * sTx + p.z * cTx;
+                                p.y      = pyA;
+                                // Rotate around Z axis (X, Y change).
+                                float cTz = cos(capTiltZ), sTz = sin(capTiltZ);
+                                float pxA = p.x * cTz - p.y * sTz;
+                                p.y      = p.x * sTz + p.y * cTz;
+                                p.x      = pxA;
+                            }
+
+                            float c = cos(rotation), s = sin(rotation);
+                            p.xz = mat2(c, -s, s, c) * p.xz;
+
+                            // Wind: scaled by geomFade so shrunk blades sway
+                            // proportionally less (otherwise a shrunk tip
+                            // leaning 18 units would look broken). For the
+                            // cap quad, all 4 corners use the same windAmt
+                            // so the cap rigidly translates with the wind
+                            // (otherwise its 4 UV-different corners would
+                            // distort the cap into a parallelogram).
+                            float windAmt = aIsCap > 0.5 ? 0.7 : (uv.y * uv.y);
+                            float w1 = sin(uTime * 1.4 + worldXZ.x * 0.011 + worldXZ.y * 0.009);
+                            float w2 = sin(uTime * 0.7 + worldXZ.x * 0.004 - worldXZ.y * 0.006) * 0.5;
+                            p.x += windAmt * (w1 + w2) * 18.0 * geomFade;
+                            p.z += windAmt * sin(uTime * 0.9 + worldXZ.x * 0.013) * 11.0 * geomFade;
+
+                            // STEP 7 — assemble world position. Sink 4 units
+                            // so the base hides slightly under the terrain.
+                            vWorldPos = vec3(worldXZ.x + p.x, groundY + p.y - 4.0, worldXZ.y + p.z);
+                            vFade = geomFade;
+                            vIsCap = aIsCap;
+
+                            vec4 mvPos = viewMatrix * vec4(vWorldPos, 1.0);
+                            vFogDepth = -mvPos.z;
+                            gl_Position = projectionMatrix * mvPos;
+                            vUv = uv;
+                        }
+                    `,
+                    fragmentShader: `
+                        precision highp float;
+                        uniform sampler2D uTex;
+                        uniform sampler2D uCapTex;
+                        uniform float uDayLight;
+                        uniform vec3  uFogColor;
+                        uniform float uFogDensity;
+                        varying vec2  vUv;
+                        varying float vFade;
+                        varying float vFogDepth;
+                        varying float vTerrLight;
+                        varying float vIsCap;
+                        varying float vMoisture;
+
+                        void main() {
+                            // Cap quad uses a separate "grass tops" texture
+                            // (the horizontal piece visible from above);
+                            // vertical quads use the standard blade texture.
+                            vec4 c;
+                            if (vIsCap > 0.5) {
+                                c = texture2D(uCapTex, vUv);
+                            } else {
+                                c = texture2D(uTex, vUv);
+                            }
+                            // Alpha test — fast, no blending, plays nice with depth.
+                            if (c.a < 0.45) discard;
+                            // Skip fully-shrunk edge blades — saves fillrate.
+                            if (vFade < 0.02) discard;
+
+                            // Vertical AO only applies to the vertical blade
+                            // quads (where uv.y meaningfully maps to "base
+                            // → tip"). The cap is horizontal — uv.y on it
+                            // is just a 2D texture coord with no shading
+                            // meaning, so applying the AO there would just
+                            // darken arbitrary halves of the cap.
+                            if (vIsCap < 0.5) {
+                                // Within ~800 units: full AO (close blades
+                                // read as 3D). Past ~3000 units: no AO (far
+                                // blades stay bright and match ground tone).
+                                float aoStrength = 1.0 - smoothstep(800.0, 3000.0, vFogDepth);
+                                float aoBaseMul  = mix(1.0, 0.78, aoStrength);
+                                c.rgb *= mix(aoBaseMul, 1.0, vUv.y);
+                            }
+
+                            // ── MOISTURE-DRIVEN BLADE TINT ──
+                            // Mirrors the ground's moisture tints (olive-dry
+                            // ↔ saturated lush) so blade colour follows the
+                            // ground beneath. Slightly less aggressive on
+                            // the dry end than the ground because blades
+                            // are inherently brighter (catching light from
+                            // the side); pushing them too olive made them
+                            // look unhealthy rather than just drier.
+                            vec3 dryBlade  = vec3(1.04, 0.96, 0.74);
+                            vec3 lushBlade = vec3(0.86, 1.10, 0.80);
+                            c.rgb *= mix(dryBlade, lushBlade, vMoisture);
+
+                            // Day/night brightness, never fully black.
+                            c.rgb *= mix(0.25, 1.0, uDayLight);
+                            // Terrain N·L lighting — matches the ground's PBR
+                            // brightness response to the sun.
+                            c.rgb *= vTerrLight;
+
+                            // Scene fog only — field-edge fade is handled
+                            // geometrically (blades shrunk to nothing) in the
+                            // vertex shader.
+                            float fogF = 1.0 - exp(-uFogDensity * uFogDensity * vFogDepth * vFogDepth);
+                            c.rgb = mix(c.rgb, uFogColor, clamp(fogF, 0.0, 1.0));
+                            gl_FragColor = vec4(c.rgb, 1.0);
+                        }
+                    `,
+                    side: THREE.DoubleSide,
+                    transparent: false,
+                    depthWrite: true,
+                    alphaTest: 0.0,
                 });
-                if (templates.length === 0) { console.warn('No grass meshes'); return; }
 
-                function tooClose(vx, vz) {
-                    return Math.sqrt((vx-sX)**2 + (vz-sZ)**2) < 2600;
+                const meadow = new THREE.Mesh(geo, grassMat);
+                meadow.frustumCulled = false;
+                meadow.renderOrder   = 1;
+                scene.add(meadow);
+
+                fieldMaterials.push(grassMat);
+
+                // Hot-update uNumPaths when monoliths/paths arrive later.
+                WORLD_PATHS.registerConsumer(() => grassMat.uniforms);
+
+                console.log(name + ':', INSTANCES, 'inst,', INSTANCES * 4,
+                            'tris, cell', CELL_SIZE,
+                            'unit, half-radius', FIELD * CELL_SIZE * 0.5, 'units');
+            }
+
+            // ── INNER FIELD: DENSE, NEAR, FULL RADIUS ──
+            // FIELD = 240, CELL = 42  → ~5040 unit half-radius, 57.6k inst,
+            // ~230k tris. Wide fade-out (40%→100%) so the boundary is
+            // imperceptible. No donut hole — visible from camera outward.
+            buildField({
+                FIELD: 240, CELL_SIZE: 42,
+                tuftW: 56, tuftH: 105,
+                hMin: 0.75, hMax: 1.55,
+                bladeTex: innerBladeTex,
+                capTex:   innerCapTex,
+                fadeOutStart: 0.40, fadeOutEnd: 1.00,
+                fadeInStart: -1.0, fadeInEnd: 0.0,        // disabled (always 1)
+                name: 'Inner meadow'
+            });
+
+            // Inner field's half-radius — sized the donut hole below.
+            const INNER_HALF_R = 240 * 42 * 0.5;          // 5040
+
+            // ── OUTER RING: SPARSE INSTANCES, FAT SPRITES, FAR REACH ──
+            // FIELD = 260, CELL = 100 → ~13,000 unit half-radius, 67.6k inst,
+            // ~270k tris. Lives in a ring beyond the inner field. Donut
+            // fade-in matches the inner field's fade-out region exactly
+            // (2016→5040) so the handoff is seamless: as inner blades shrink
+            // to nothing, outer clumps grow into full size in the same range.
+            // Then full visibility ~5040–11050, fading out into heavy fog
+            // (~56% at 13k units) by the edge — fog naturally hides the
+            // outer boundary.
+            //
+            // The trick that makes this look like a continuous dense field
+            // rather than scattered tufts: each outer instance uses a DENSER
+            // texture (96×192 canvas with 28 blades vs inner's 64×128/12)
+            // AND bigger geometry (130×240 vs inner's 56×105). So each
+            // outer sprite "represents" a meaningful patch of grass — a
+            // clump rather than a tuft. From distance it reads as thick
+            // grass cover with no need for more instances.
+            //
+            // Height variance tightened (0.75→1.10 vs 0.75→1.55) since
+            // outer sprites are already large by default — extra variance
+            // would produce some absurdly tall outliers.
+            buildField({
+                FIELD: 260, CELL_SIZE: 100,
+                tuftW: 130, tuftH: 240,
+                hMin: 0.75, hMax: 1.10,
+                bladeTex: outerBladeTex,
+                capTex:   outerCapTex,
+                fadeOutStart: 0.85, fadeOutEnd: 1.00,
+                fadeInStart: INNER_HALF_R * 0.40, fadeInEnd: INNER_HALF_R,
+                name: 'Outer meadow ring'
+            });
+
+            // ── PER-FRAME UNIFORM UPDATES ──
+            // One tick updates all registered field materials.
+            window.meadowTick = function (time) {
+                const day = Math.max(0.15, Math.min(1.0, SUN_DIR.y * 1.5 + 0.4));
+                for (let k = 0; k < fieldMaterials.length; k++) {
+                    const m = fieldMaterials[k];
+                    m.uniforms.uTime.value     = time;
+                    m.uniforms.uCamera.value.copy(camera.position);
+                    m.uniforms.uDayLight.value = day;
+                    m.uniforms.uFogColor.value.copy(scene.fog.color);
+                    m.uniforms.uFogDensity.value = scene.fog.density;
                 }
-
-                // Accumulate target matrices per template, then build one InstancedMesh each
-                const buckets = templates.map(() => []);
-                const dummy = new THREE.Object3D();
-
-                const CLUSTER_COUNT = 5200;
-                for (let i = 0; i < CLUSTER_COUNT; i++) {
-                    const cx = (rnd()-0.5) * 108000;
-                    const cz = (rnd()-0.5) * 108000;
-                    if (tooClose(cx, cz)) continue;
-
-                    const tuftCount     = 8 + Math.floor(rnd() * 16);   // 8–23 tufts per patch
-                    const clusterRadius = 90 + rnd() * 260;             // patch size
-                    for (let j = 0; j < tuftCount; j++) {
-                        const a  = rnd() * Math.PI * 2;
-                        // Sqrt of rnd gives denser centers, natural dropoff toward edges
-                        const r  = Math.sqrt(rnd()) * clusterRadius;
-                        const gx = cx + Math.cos(a) * r;
-                        const gz = cz + Math.sin(a) * r;
-                        const gy = getElevation(gx, gz);
-
-                        const tIdx    = Math.floor(rnd() * templates.length);
-                        const targetH = 60 + rnd() * 90;                // 60–150 world units tall
-                        const sc      = targetH / templates[tIdx].height;
-
-                        // Sink ~3 units so roots are below terrain, no floating tufts
-                        dummy.position.set(gx, gy - 3, gz);
-                        dummy.rotation.set(0, rnd() * Math.PI * 2, 0);
-                        dummy.scale.setScalar(sc);
-                        dummy.updateMatrix();
-                        buckets[tIdx].push(dummy.matrix.clone());
-                    }
-                }
-
-                let total = 0;
-                for (let t = 0; t < templates.length; t++) {
-                    const bucket = buckets[t];
-                    if (bucket.length === 0) continue;
-                    const mat = templates[t].material.clone();
-                    mat.side = THREE.DoubleSide;   // grass cards need to render from both sides
-                    const im = new THREE.InstancedMesh(templates[t].geometry, mat, bucket.length);
-                    im.receiveShadow = true;
-                    im.castShadow = false;         // grass shadows would be expensive & noisy
-                    im.frustumCulled = false;       // instances span whole world; skip per-instance culling
-                    for (let i = 0; i < bucket.length; i++) im.setMatrixAt(i, bucket[i]);
-                    im.instanceMatrix.needsUpdate = true;
-                    scene.add(im);
-                    total += bucket.length;
-                }
-                console.log('Grass spawned:', total, 'tufts across', templates.length, 'variants');
-            }, undefined, e => console.warn('Grass GLB not found:', e));
+            };
         })();
 
 
@@ -2234,6 +4530,12 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             { a: 0xff44aa, b: 0xcc66ff, c: 0xffaa88 },  // bloom
         ];
 
+        // Monolith positions are captured here as they spawn, then handed
+        // off to WORLD_PATHS below so the path system knows where to draw
+        // cobble (within ~1400u of these points) and where the test paths
+        // should terminate.
+        const spawnedMonolithPositions = [];
+
         let pillarsSpawned = 0;
         while (pillarsSpawned < 5) {
             const px = sX + (rnd() - 0.5) * 45000;
@@ -2801,9 +5103,52 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 crystal.userData.spinSpeed = 0.5 + rnd() * 0.4;
                 scene.add(crystal);
 
+                // Remember this monolith's footprint position so the path
+                // system can put cobble around it.
+                spawnedMonolithPositions.push({ x: px, z: pz });
+
                 pillarsSpawned++;
             }
         }
+
+        // ── ACTIVATE PATHS ──
+        // Now that all 5 monoliths have positions, hand them to the path
+        // system. We're starting with TWO test paths only — spawn → first
+        // monolith and spawn → second monolith — so we can see how a worn
+        // dirt trail reads against the meadow before committing to the
+        // full network. Adding more paths later is just appending entries
+        // to the WORLD_PATHS.paths array (max 4 with current MAX_PATHS).
+        // To extend: bump #define MAX_PATHS in both shaders + grow the JS
+        // pre-allocation in WORLD_PATHS.
+        for (let i = 0; i < spawnedMonolithPositions.length && i < WORLD_PATHS.monoliths.length; i++) {
+            const m = spawnedMonolithPositions[i];
+            WORLD_PATHS.monoliths[i].set(m.x, m.z);
+        }
+        WORLD_PATHS.counts.numMonoliths = spawnedMonolithPositions.length;
+
+        // Two test paths, both starting at spawn (sX, sZ). Endpoints are
+        // pulled in slightly toward spawn so the path doesn't tunnel into
+        // the cobbled monolith plaza — instead it terminates at the edge
+        // of the cobble zone (~1300u from monolith centre). This avoids
+        // odd visuals where dirt path overlaps cobble base layer.
+        const stopShyOf = (m, distance) => {
+            const dx = m.x - sX, dz = m.z - sZ;
+            const len = Math.sqrt(dx * dx + dz * dz) || 1;
+            return { x: m.x - (dx / len) * distance, z: m.z - (dz / len) * distance };
+        };
+        if (spawnedMonolithPositions.length >= 1) {
+            const end0 = stopShyOf(spawnedMonolithPositions[0], 600);
+            WORLD_PATHS.paths[0].set(sX, sZ, end0.x, end0.z);
+        }
+        if (spawnedMonolithPositions.length >= 2) {
+            const end1 = stopShyOf(spawnedMonolithPositions[1], 600);
+            WORLD_PATHS.paths[1].set(sX, sZ, end1.x, end1.z);
+        }
+        WORLD_PATHS.counts.numPaths = Math.min(2, spawnedMonolithPositions.length);
+        WORLD_PATHS.activate();
+        console.log('Path system: activated',
+                    WORLD_PATHS.counts.numPaths, 'paths,',
+                    WORLD_PATHS.counts.numMonoliths, 'monoliths');
 
         const moteCount = 1500;
         const moteGeo = new THREE.BufferGeometry();
@@ -2963,10 +5308,334 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             controls.lock();
         };
 
-        // Keep this so the user can re-lock if they escape out later
+        // Keep this so the user can re-lock if they escape out later.
+        // Skip while the character menu is open — clicking on the menu
+        // shouldn't yank the cursor back into pointer-lock.
         document.addEventListener('click', () => { 
-            if(window.worldActive && !controls.isLocked) controls.lock(); 
+            if(window.worldActive && !controls.isLocked && !window.menuOpen && !window.settingsOpen) controls.lock(); 
         });
+
+        // --- FIRST-PERSON KNIGHT BODY ---
+        // The knight is parented to a wrapper Group that follows the
+        // camera each frame: position = camera.position with USER_HEIGHT
+        // subtracted (so feet are on the floor, not the eyes), and
+        // rotation.y matches the camera's yaw so the body turns when
+        // the player turns. Pitch is intentionally NOT applied — the
+        // body shouldn't tilt when looking up/down.
+        //
+        // The Head bone is collapsed to ~0 scale after load. The camera
+        // sits at head height, so without this you'd be rendering the
+        // backfaces of your own helmet right against the lens. Scaling
+        // the bone collapses the verts it influences to a point —
+        // cleaner than messing with mesh.visible or the source geometry.
+        const knightWrapper = new THREE.Group();
+        scene.add(knightWrapper);
+        let knightLoaded = false;
+        let knightMixer  = null;  // AnimationMixer for the FP body
+        let knightIdleAction = null;
+        let knightRunAction  = null;
+        let knightAnimState  = 'idle'; // 'idle' | 'run', tracked so we
+                                       // only crossfade on transitions
+
+        {
+            const knightLoader = new GLTFLoader();
+            knightLoader.load('assets/Knight_Animated.glb', gltf => {
+                const knight = gltf.scene;
+                knight.updateMatrixWorld(true);
+
+                // Use BONE positions, not mesh bind-pose bbox, for sizing
+                // and feet alignment. The GLB has bind matrices that
+                // don't quite line up with the rest pose, so
+                // Box3.setFromObject (which iterates bind-pose verts)
+                // reports a bbox in the wrong place. The bones at rest
+                // are where the model actually renders. Skip IK helper
+                // bones since they sit off to the side.
+                const _bboxV = new THREE.Vector3();
+                const computeBoneBbox = () => {
+                    const box = new THREE.Box3();
+                    knight.traverse(o => {
+                        if (o.isBone && !o.name.startsWith('IK')) {
+                            o.getWorldPosition(_bboxV);
+                            box.expandByPoint(_bboxV);
+                        }
+                    });
+                    return box;
+                };
+
+                let bbox = computeBoneBbox();
+                const size = new THREE.Vector3();
+                bbox.getSize(size);
+
+                // Scale to player height. PLAYER_BODY_HEIGHT is in the
+                // game's world units (cm-ish given USER_HEIGHT).
+                const PLAYER_BODY_HEIGHT = 175;
+                knight.scale.setScalar(PLAYER_BODY_HEIGHT / size.y);
+
+                // Re-compute bbox after scaling and shift so feet land
+                // at wrapper-local y=0 (the wrapper itself follows the
+                // floor each frame, so feet-at-0 means feet-on-ground).
+                knight.updateMatrixWorld(true);
+                bbox = computeBoneBbox();
+                knight.position.y -= bbox.min.y;
+
+                // Hide the head from the player's own camera by
+                // collapsing the head bones. Head + Head_end covers
+                // the neck-up region.
+                knight.traverse(o => {
+                    if (o.isBone && (o.name === 'Head' || o.name === 'Head_end')) {
+                        o.scale.setScalar(0.001);
+                    }
+                });
+
+                // Shadow casting + don't frustum-cull skinned meshes
+                // (their bounding box is computed from bind pose and
+                // can be wrong once bones move, causing pop-out).
+                // The body itself is hidden — we keep the skeleton +
+                // animation running so things like footstep hooks or
+                // future visible-body modes can still rely on the
+                // mixer/state, but you don't see anything occluding
+                // your view. Set BODY_VISIBLE = true to reveal it.
+                const BODY_VISIBLE = false;
+                knight.traverse(o => {
+                    if (o.isMesh || o.isSkinnedMesh) {
+                        o.castShadow = BODY_VISIBLE;
+                        o.frustumCulled = false;
+                        o.visible = BODY_VISIBLE;
+                    }
+                });
+
+                // Model's native forward direction. With the
+                // retargeted GLB, the body's local forward axis ended
+                // up perpendicular to the camera's forward, so we need
+                // a 90° (Math.PI/2) yaw offset, not the 180° (Math.PI)
+                // that the original Knight.glb wanted.
+                //
+                // If you see the body rotated the WRONG way 90° (front
+                // facing your left instead of forward, or facing back),
+                // try one of these four values until it's right:
+                //   knight.rotation.y = 0;
+                //   knight.rotation.y = Math.PI / 2;
+                //   knight.rotation.y = Math.PI;
+                //   knight.rotation.y = -Math.PI / 2;     // current
+                knight.rotation.y = -Math.PI / 2;
+
+                knightWrapper.add(knight);
+
+                // Hook up both clips. Idle plays at full weight, Run
+                // plays at zero weight; crossFadeTo will swap them.
+                // Both must be .play()'d for crossfading to work — the
+                // mixer needs them "active" so weight can be animated.
+                if (gltf.animations && gltf.animations.length) {
+                    knightMixer = new THREE.AnimationMixer(knight);
+                    const idleClip = THREE.AnimationClip.findByName(gltf.animations, 'Idle');
+                    const runClip  = THREE.AnimationClip.findByName(gltf.animations, 'Run');
+                    if (idleClip) {
+                        knightIdleAction = knightMixer.clipAction(idleClip);
+                        knightIdleAction.play();
+                    }
+                    if (runClip) {
+                        knightRunAction = knightMixer.clipAction(runClip);
+                        knightRunAction.play();
+                        knightRunAction.weight = 0;
+                    }
+                    // Fallback: if neither named clip exists, just play
+                    // whatever's at index 0 (defensive — shouldn't happen).
+                    if (!idleClip && !runClip && gltf.animations[0]) {
+                        knightMixer.clipAction(gltf.animations[0]).play();
+                    }
+                }
+
+                knightLoaded = true;
+            }, undefined, err => console.error('Knight load failed:', err));
+        }
+
+        // Per-frame: glue body to player position + yaw. Called from
+        // animate() right before render.
+        const _knightEuler = new THREE.Euler();
+        window.knightTick = function(delta) {
+            if (!knightLoaded) return;
+
+            // Decide which animation should be playing. Any directional
+            // key down = running. Note: while the character menu is
+            // open, all keys get cleared in openCharacterMenu, so the
+            // body smoothly transitions back to idle when menu opens.
+            const moving = !!(keys.w || keys.a || keys.s || keys.d
+                             || keys.arrowup || keys.arrowdown
+                             || keys.arrowleft || keys.arrowright);
+            const desired = moving ? 'run' : 'idle';
+            if (desired !== knightAnimState && knightIdleAction && knightRunAction) {
+                // crossFadeTo handles the weight ramp automatically;
+                // 0.18s is short enough to feel responsive but long
+                // enough to hide the pose-snap. `true` = warp time so
+                // the cycles stay in sync during the fade.
+                if (desired === 'run') {
+                    knightIdleAction.crossFadeTo(knightRunAction, 0.18, true);
+                } else {
+                    knightRunAction.crossFadeTo(knightIdleAction, 0.18, true);
+                }
+                knightAnimState = desired;
+            }
+
+            // Advance the mixer. If delta wasn't passed in (legacy
+            // callers), fall back to a 60fps step.
+            if (knightMixer) knightMixer.update(delta || 1/60);
+
+            knightWrapper.position.set(
+                camera.position.x,
+                camera.position.y - USER_HEIGHT,
+                camera.position.z
+            );
+            // Yaw only. setFromQuaternion with 'YXZ' order extracts
+            // yaw cleanly even when the camera is also pitched.
+            _knightEuler.setFromQuaternion(camera.quaternion, 'YXZ');
+            knightWrapper.rotation.y = _knightEuler.y;
+        };
+
+        // --- CHARACTER PORTRAIT (rendered inside the menu) ---
+        // A second, fully-isolated three.js stack: own renderer, own
+        // scene, own camera, own lights, own Knight.glb load. This is
+        // intentional — sharing the main scene/lighting would force us
+        // to filter what the portrait camera sees, and cloning a
+        // SkinnedMesh properly needs SkeletonUtils. Re-loading is dead
+        // simple and the GLB is already in the browser cache.
+        //
+        // The render loop only runs while the menu is open (driven from
+        // openCharacterMenu below), so this costs zero when closed.
+        const portraitCanvas    = document.getElementById('cm-portrait');
+        const portraitRenderer  = new THREE.WebGLRenderer({
+            canvas: portraitCanvas,
+            alpha: true,
+            antialias: true
+        });
+        portraitRenderer.setPixelRatio(window.devicePixelRatio || 1);
+        portraitRenderer.setSize(
+            portraitCanvas.width,
+            portraitCanvas.height,
+            false
+        );
+
+        const portraitScene  = new THREE.Scene();
+        // Camera framed for a full-body shot. The actual rendered model
+        // (computed from bone world positions) spans ~4.6 units tall in
+        // its native frame — far/near and initial position are set
+        // generously here, then overwritten with a precise distance
+        // after the GLB loads in the loader callback below.
+        const portraitCamera = new THREE.PerspectiveCamera(
+            32,
+            portraitCanvas.width / portraitCanvas.height,
+            0.1,
+            1000
+        );
+        portraitCamera.position.set(0, 0, 10);
+        portraitCamera.lookAt(0, 0, 0);
+
+        // 3-point lighting — key, fill, rim — so the silhouette reads
+        // even against the near-black panel background. Distances are
+        // scaled for the model's native ~5-unit height.
+        const pKey  = new THREE.DirectionalLight(0xffffff, 1.4);
+        pKey.position.set(4, 8, 6);
+        portraitScene.add(pKey);
+        const pFill = new THREE.DirectionalLight(0xbfd4ff, 0.5);
+        pFill.position.set(-6, 3, 4);
+        portraitScene.add(pFill);
+        const pRim  = new THREE.DirectionalLight(0xffe8b0, 0.6);
+        pRim.position.set(2, 5, -8);
+        portraitScene.add(pRim);
+        portraitScene.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+        let portraitKnight = null;
+        let portraitPivot  = null;
+        let portraitMixer  = null;  // AnimationMixer for the menu portrait
+        {
+            const ploader = new GLTFLoader();
+            ploader.load('assets/Knight_Animated.glb', g => {
+                portraitKnight = g.scene;
+                portraitKnight.updateMatrixWorld(true);
+
+                // Use BONE positions, not the bind-pose mesh bbox, for
+                // sizing and centering. The GLB's bind matrices don't
+                // line up with the rest pose, so Box3.setFromObject
+                // (which uses bind-pose verts) reports a bbox in the
+                // wrong place. The bones at rest are where the model
+                // actually renders. Skip IK helpers (off to the side).
+                const _bboxV = new THREE.Vector3();
+                const boneBox = new THREE.Box3();
+                portraitKnight.traverse(o => {
+                    if (o.isBone && !o.name.startsWith('IK')) {
+                        o.getWorldPosition(_bboxV);
+                        boneBox.expandByPoint(_bboxV);
+                    }
+                });
+                const boneSize   = new THREE.Vector3();
+                const boneCenter = new THREE.Vector3();
+                boneBox.getSize(boneSize);
+                boneBox.getCenter(boneCenter);
+
+                // Pivot at origin; offset the knight by -boneCenter so
+                // the rendered model is centered at origin and rotates
+                // around its own midpoint.
+                portraitPivot = new THREE.Group();
+                portraitKnight.position.sub(boneCenter);
+                portraitPivot.add(portraitKnight);
+                portraitScene.add(portraitPivot);
+
+                // Frame the camera based on the bone bbox, with a bit
+                // of padding so we don't crop arms/head against the
+                // canvas edges.
+                const fitSize  = Math.max(boneSize.y, boneSize.x);
+                const fovRad   = portraitCamera.fov * Math.PI / 180;
+                const distance = (fitSize / 2) / Math.tan(fovRad / 2) * 1.45;
+                portraitCamera.position.set(0, 0, distance);
+                portraitCamera.lookAt(0, 0, 0);
+                portraitCamera.updateProjectionMatrix();
+
+                portraitKnight.traverse(o => {
+                    if (o.isMesh || o.isSkinnedMesh) {
+                        o.frustumCulled = false; // skinned bbox lies, see above
+                    }
+                });
+
+                // If the knight ends up facing AWAY from the camera
+                // (you see his back instead of his front), flip this to
+                // Math.PI.
+                portraitPivot.rotation.y = 0;
+
+                // Hook up the idle animation on the portrait.
+                if (g.animations && g.animations.length) {
+                    portraitMixer = new THREE.AnimationMixer(portraitKnight);
+                    const idleClip = THREE.AnimationClip.findByName(g.animations, 'Idle')
+                                  || g.animations[0];
+                    portraitMixer.clipAction(idleClip).play();
+                }
+            }, undefined, err => console.error('Portrait knight load failed:', err));
+        }
+
+        // Render loop is started by openCharacterMenu and self-terminates
+        // when window.menuOpen flips false — see the .open/.close
+        // functions further down.
+        let portraitRafId = null;
+        let _portraitLastTime = 0;
+        function portraitRenderLoop(now) {
+            if (!window.menuOpen) {
+                portraitRafId = null;
+                _portraitLastTime = 0;
+                return;
+            }
+            portraitRafId = requestAnimationFrame(portraitRenderLoop);
+            // Compute delta for the AnimationMixer. requestAnimationFrame
+            // hands us a high-res timestamp in ms; cap at 100ms in case
+            // the tab was backgrounded and the gap is huge.
+            const t = now || performance.now();
+            const delta = _portraitLastTime
+                ? Math.min((t - _portraitLastTime) / 1000, 0.1)
+                : 1/60;
+            _portraitLastTime = t;
+            if (portraitMixer) portraitMixer.update(delta);
+            if (portraitPivot) {
+                portraitPivot.rotation.y += 0.006; // slow idle spin
+            }
+            portraitRenderer.render(portraitScene, portraitCamera);
+        }
 
      let keys = {
             w: 0, a: 0, s: 0, d: 0,
@@ -2975,26 +5644,344 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         };
 
         document.addEventListener('keydown', e => { 
+            // While the menu is open, swallow movement/jump input so the
+            // player doesn't keep walking with the menu up.
+            if (window.menuOpen) return;
             const key = e.key.toLowerCase();
             if(keys.hasOwnProperty(key)) keys[key] = 1; 
         });
 
         document.addEventListener('keyup', e => { 
+            if (window.menuOpen) return;
             const key = e.key.toLowerCase();
             if(keys.hasOwnProperty(key)) keys[key] = 0; 
+        });
+
+        // --- CHARACTER MENU TOGGLE ---
+        // Tab opens/closes; Esc closes (only when open, so it doesn't
+        // interfere with Esc's normal behavior of breaking pointer lock).
+        // We have to preventDefault() on Tab — otherwise the browser
+        // moves keyboard focus to the next focusable element.
+        window.menuOpen = false;
+        const characterMenuEl = document.getElementById('character-menu');
+
+        function openCharacterMenu() {
+            if (window.menuOpen) return;
+            window.menuOpen = true;
+            characterMenuEl.classList.add('open');
+            // Drop any held movement keys so the player stops dead.
+            for (const k in keys) keys[k] = 0;
+            // Release the cursor so the user can actually use the menu.
+            _deliberateUnlock = true;
+            if (controls.isLocked) controls.unlock();
+            // Kick off the portrait render loop (self-terminates when
+            // menuOpen flips false). Guarded so re-opens don't stack.
+            if (portraitRafId === null) portraitRenderLoop();
+        }
+        function closeCharacterMenu() {
+            if (!window.menuOpen) return;
+            window.menuOpen = false;
+            characterMenuEl.classList.remove('open');
+            // Try to grab pointer-lock back. Browsers usually allow this
+            // without a fresh user gesture if lock was recent; if it
+            // fails, the existing click-to-lock handler picks up the slack.
+            if (window.worldActive) {
+                try { controls.lock(); } catch (_) { /* user can click to relock */ }
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                if (window.settingsOpen) closeSettingsMenu();
+                else if (window.menuOpen) closeCharacterMenu();
+                else openCharacterMenu();
+            } else if (e.key === 'Escape') {
+                if (window.menuOpen) closeCharacterMenu();
+                else if (window.settingsOpen) closeSettingsMenu();
+                // pointer-lock exit is handled by the 'unlock' event below
+            }
+        });
+
+        // ── SETTINGS MENU ──────────────────────────────────────────
+        window.settingsOpen = false;
+        const settingsMenuEl = document.getElementById('settings-menu');
+
+        // Track whether WE unlocked the camera (so we don't open
+        // settings when the unlock was intentional — e.g. Tab menu).
+        let _deliberateUnlock = false;
+
+        // When pointer lock exits because the user pressed Esc, the
+        // browser consumes that keypress and fires the 'unlock' event
+        // instead of a keydown. Listen here so one Esc is enough.
+        controls.addEventListener('unlock', () => {
+            if (!_deliberateUnlock && window.worldActive && !window.menuOpen && !window.settingsOpen) {
+                openSettingsMenu();
+            }
+            _deliberateUnlock = false;
+        });
+
+        function openSettingsMenu() {
+            if (window.settingsOpen) return;
+            window.settingsOpen = true;
+            settingsMenuEl.classList.add('open');
+            for (const k in keys) keys[k] = 0;
+            _deliberateUnlock = true;
+            if (controls.isLocked) controls.unlock();
+        }
+        function closeSettingsMenu() {
+            if (!window.settingsOpen) return;
+            window.settingsOpen = false;
+            settingsMenuEl.classList.remove('open');
+            if (window.worldActive) {
+                try { controls.lock(); } catch (_) {}
+            }
+        }
+
+        // Also block movement input while settings are open
+        document.addEventListener('keydown', e => {
+            if (window.settingsOpen) {
+                const consumed = ['w','a','s','d',' ','arrowup','arrowdown','arrowleft','arrowright'];
+                if (consumed.includes(e.key.toLowerCase())) e.preventDefault();
+            }
+        }, { capture: true });
+
+        // Resume button
+        document.getElementById('sm-resume-btn').addEventListener('click', closeSettingsMenu);
+
+        // ── SETTINGS: music volume ──────────────────────────────────
+        const musicEl  = document.getElementById('gameMusic');
+        const volSlider = document.getElementById('sm-music-vol');
+        const volVal    = document.getElementById('sm-music-vol-val');
+        function updateSliderTrack(slider) {
+            const pct = ((slider.value - slider.min) / (slider.max - slider.min) * 100).toFixed(1) + '%';
+            slider.style.setProperty('--pct', pct);
+        }
+        volSlider.addEventListener('input', () => {
+            const v = parseInt(volSlider.value);
+            volVal.textContent = v + '%';
+            if (musicEl) musicEl.volume = v / 100;
+            updateSliderTrack(volSlider);
+        });
+        updateSliderTrack(volSlider);
+
+        // ── SETTINGS: mouse sensitivity ─────────────────────────────
+        // PointerLockControls exposes .pointerSpeed (default 1.0).
+        // We map slider 1–10 → 0.2–2.0 linearly.
+        const sensSlider = document.getElementById('sm-sensitivity');
+        const sensVal    = document.getElementById('sm-sensitivity-val');
+        sensSlider.addEventListener('input', () => {
+            const v = parseInt(sensSlider.value);
+            sensVal.textContent = v;
+            controls.pointerSpeed = v * 0.2;
+            updateSliderTrack(sensSlider);
+        });
+        updateSliderTrack(sensSlider);
+
+        // ── SETTINGS: field of view ─────────────────────────────────
+        const fovSlider = document.getElementById('sm-fov');
+        const fovVal    = document.getElementById('sm-fov-val');
+        fovSlider.addEventListener('input', () => {
+            const v = parseInt(fovSlider.value);
+            fovVal.textContent = v + '°';
+            camera.fov = v;
+            camera.updateProjectionMatrix();
+            updateSliderTrack(fovSlider);
+        });
+        updateSliderTrack(fovSlider);
+
+        // ── SETTINGS: render quality ────────────────────────────────
+        // Low = 4× scale (blocky), Med = 2.5× (default), High = 1× (native)
+        const qualityMap = { low: 4, med: 2.5, high: 1 };
+        let currentPixelScale = 2.5;
+        document.getElementById('sm-quality-group').addEventListener('click', e => {
+            const btn = e.target.closest('.sm-btn[data-q]');
+            if (!btn) return;
+            const q = btn.dataset.q;
+            document.querySelectorAll('#sm-quality-group .sm-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentPixelScale = qualityMap[q];
+            renderer.setSize(
+                window.innerWidth  / currentPixelScale,
+                window.innerHeight / currentPixelScale,
+                false
+            );
+        });
+        // Keep quality in sync on window resize
+        window.addEventListener('resize', () => {
+            renderer.setSize(
+                window.innerWidth  / currentPixelScale,
+                window.innerHeight / currentPixelScale,
+                false
+            );
+        });
+
+        // ── SETTINGS: fullscreen ────────────────────────────────────
+        document.getElementById('sm-fullscreen-btn').addEventListener('click', () => {
+            const btn = document.getElementById('sm-fullscreen-btn');
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                btn.textContent = 'EXIT';
+            } else {
+                document.exitFullscreen().catch(() => {});
+                btn.textContent = 'ENTER';
+            }
+        });
+        document.addEventListener('fullscreenchange', () => {
+            const btn = document.getElementById('sm-fullscreen-btn');
+            if (btn) btn.textContent = document.fullscreenElement ? 'EXIT' : 'ENTER';
         });
 
 // --- COLLISION SETUP ---
         scene.updateMatrixWorld(true);
 
         const PR = 22; // player horizontal capsule radius
+        // STEP_HEIGHT: how tall a surface the player will auto-walk-up
+        // without jumping. The bottom STEP_HEIGHT of the capsule is
+        // EXCLUDED from horizontal collision tests — anything below
+        // that is treated as a step that the floor-finder lifts you
+        // onto. Without this, walking up any ramp or step is impossible
+        // because the rising surface ahead of you intersects your
+        // capsule and side-collision blocks the move. ~30% of player
+        // height is a standard FPS value (matches Half-Life, Quake, Unity
+        // CharacterController defaults).
+        const STEP_HEIGHT = 50;
         const _pLocal = new THREE.Vector3();    // reusable for ellipsoid side-collision test
         const _eSurfLocal = new THREE.Vector3(); // reusable for ellipsoid floor surface point (local)
         const _eRockMat = new THREE.Matrix4();   // reusable rock world matrix (uninverted)
 
+        // ─── BVH MESH COLLISION ────────────────────────────────────────
+        // For complex assets like the parkour towers, AABB obstacles
+        // can't represent the actual shape (a spiral ramp's AABB is
+        // a giant box covering the whole tower). Instead we use the
+        // mesh GEOMETRY itself as the collider via three-mesh-bvh.
+        //
+        // bvhMeshes is a list of Three.js Mesh objects whose geometry
+        // has had .computeBoundsTree() called on it. Two query types
+        // run per frame:
+        //   1) Player capsule vs mesh — for side collisions / blocking.
+        //      Uses BVH.shapecast against a player-shaped box (with
+        //      the bottom STEP_HEIGHT shaved off — see step-up above).
+        //   2) Downward ray from camera — for floor finding on top of
+        //      ramps, slabs, steps, anything walkable.
+        //
+        // Both queries are O(log N) per mesh thanks to the BVH.
+        const bvhMeshes = [];
+        // Player capsule represented as an oriented box of half-extents
+        // (PR, USER_HEIGHT/2, PR) centered at camera mid-height. The
+        // shapecast call needs this in each candidate mesh's LOCAL space.
+        const _playerBox = new THREE.Box3();
+        const _localPlayerBox = new THREE.Box3();
+        const _worldToLocal = new THREE.Matrix4();
+        // Down-ray reused each frame
+        const _downRay = new THREE.Raycaster();
+        _downRay.firstHitOnly = true;     // huge speedup for BVH raycast
+        _downRay.far = 600;                // how far below feet to look for floor
+        const _downDir = new THREE.Vector3(0, -1, 0);
+        const _rayOrigin = new THREE.Vector3();
+
+        // Register a Three.js Mesh as a BVH collider. Call AFTER the mesh
+        // has its final world matrix set (parented + positioned).
+        // Caches the mesh's world-space AABB so per-frame queries can
+        // do a cheap broad-phase reject before the BVH walk. If the
+        // mesh ever moves, set mesh.userData._bvhWorldBoxDirty = true.
+        function addBVHCollider(mesh) {
+            if (!mesh.geometry) return;
+            if (!mesh.geometry.boundsTree) {
+                mesh.geometry.computeBoundsTree();
+            }
+            const worldBox = new THREE.Box3();
+            mesh.geometry.boundsTree.getBoundingBox(worldBox);
+            worldBox.applyMatrix4(mesh.matrixWorld);
+            mesh.userData._bvhWorldBox = worldBox;
+            bvhMeshes.push(mesh);
+        }
+
+        // Test whether the player capsule at (tx, tz) intersects any BVH
+        // mesh. Returns true on first hit.
+        function collidesBVH(tx, tz) {
+            // Bottom of capsule is raised by STEP_HEIGHT so small steps
+            // and rising ramp surfaces don't block horizontal movement.
+            const fy = camera.position.y - USER_HEIGHT + STEP_HEIGHT;
+            const hy = camera.position.y;
+            _playerBox.min.set(tx - PR, fy, tz - PR);
+            _playerBox.max.set(tx + PR, hy, tz + PR);
+
+            for (const mesh of bvhMeshes) {
+                // Cheap broad-phase: cached world AABB vs player box.
+                // ~95% of static meshes get rejected here without ever
+                // running the BVH walk.
+                const wb = mesh.userData._bvhWorldBox;
+                if (!wb || !wb.intersectsBox(_playerBox)) continue;
+
+                // Transform player box into mesh-local space for the
+                // BVH walk (BVH triangles are stored in local space).
+                _worldToLocal.copy(mesh.matrixWorld).invert();
+                _localPlayerBox.copy(_playerBox).applyMatrix4(_worldToLocal);
+
+                let hit = false;
+                mesh.geometry.boundsTree.shapecast({
+                    intersectsBounds: bvhBox => _localPlayerBox.intersectsBox(bvhBox)
+                        ? 2 /* INTERSECTED */
+                        : 0 /* NOT_INTERSECTED */,
+                    intersectsTriangle: tri => {
+                        // Triangle vs box: cheap conservative test using
+                        // the triangle's own AABB. Good enough — the
+                        // player box is generous and the BVH already
+                        // narrowed down to near-overlapping triangles.
+                        const a = tri.a, b = tri.b, c = tri.c;
+                        const minX = Math.min(a.x, b.x, c.x);
+                        const maxX = Math.max(a.x, b.x, c.x);
+                        if (maxX < _localPlayerBox.min.x || minX > _localPlayerBox.max.x) return false;
+                        const minY = Math.min(a.y, b.y, c.y);
+                        const maxY = Math.max(a.y, b.y, c.y);
+                        if (maxY < _localPlayerBox.min.y || minY > _localPlayerBox.max.y) return false;
+                        const minZ = Math.min(a.z, b.z, c.z);
+                        const maxZ = Math.max(a.z, b.z, c.z);
+                        if (maxZ < _localPlayerBox.min.z || minZ > _localPlayerBox.max.z) return false;
+                        hit = true;
+                        return true; // stop traversal
+                    }
+                });
+                if (hit) return true;
+            }
+            return false;
+        }
+
+        // Find the highest BVH triangle directly below the player.
+        // Uses the cached world AABB to skip meshes whose XZ footprint
+        // doesn't overlap the player — major speedup with hundreds of
+        // tower meshes.
+        function bvhFloorY(px, pz, fromY) {
+            _rayOrigin.set(px, fromY, pz);
+            _downRay.set(_rayOrigin, _downDir);
+            let bestY = -Infinity;
+            for (const mesh of bvhMeshes) {
+                const wb = mesh.userData._bvhWorldBox;
+                if (!wb) continue;
+                // Skip if the player's vertical line is outside the
+                // mesh's XZ footprint (with a little slack for rays
+                // that originate slightly outside).
+                if (px < wb.min.x || px > wb.max.x ||
+                    pz < wb.min.z || pz > wb.max.z) continue;
+                // Skip if our ray origin is below the mesh entirely.
+                if (fromY < wb.min.y) continue;
+
+                const hits = _downRay.intersectObject(mesh, false);
+                if (hits.length && hits[0].point.y > bestY) {
+                    bestY = hits[0].point.y;
+                }
+            }
+            return bestY;
+        }
+
         function collidesAt(tx, tz) {
             const fy = camera.position.y - USER_HEIGHT;
             const hy = camera.position.y;
+            // BVH meshes first — they're the precise colliders. AABB
+            // obstacles are still used for everything else (terrain
+            // henges, hand-built walls, simple props).
+            if (bvhMeshes.length && collidesBVH(tx, tz)) return true;
             for (const obs of obstacles) {
                 if (obs.type === 'cylinder') {
                     if (hy <= obs.minY || fy >= obs.maxY) continue;
@@ -3264,6 +6251,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 monolithMats[i].uniforms.uTime.value = time;
             }
 
+            // Push time + camera + day-light + fog into the meadow grass shader.
+            // Registered async-after-init via window.meadowTick (same pattern
+            // as window.cloudsTick), so guard for first few frames.
+            if (window.meadowTick) window.meadowTick(time);
+
             // Advance day/night cycle (sun direction, sky, lights, fog, haze)
             updateTimeOfDay(time);
 
@@ -3329,6 +6321,21 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // Floor — terrain plus any surface we're standing on top of
                 let currentFloorY = getElevation(camera.position.x, camera.position.z) + USER_HEIGHT;
                 const feetY = camera.position.y - USER_HEIGHT;
+
+                // BVH floor: cast a ray straight down from a bit above the
+                // player's head. We accept the hit as a floor if the
+                // player's feet are within STEP_HEIGHT BELOW the surface
+                // (i.e. small step-up, walkable ramp transition) or
+                // anywhere above. Without this tolerance, walking onto
+                // a ramp leaves you 1 frame "below" the surface and the
+                // floor isn't recognized — you'd slide back down.
+                if (bvhMeshes.length) {
+                    const fromY = camera.position.y + 50;
+                    const hitY = bvhFloorY(camera.position.x, camera.position.z, fromY);
+                    if (hitY > -Infinity && feetY >= hitY - STEP_HEIGHT) {
+                        currentFloorY = Math.max(currentFloorY, hitY + USER_HEIGHT);
+                    }
+                }
 
                 for (const obs of obstacles) {
                     if (obs.type === 'cylinder') {
@@ -3408,6 +6415,20 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     isGrounded        = true;
                     coyoteTimer       = COYOTE_DURATION;   // refresh while grounded
                     airJumpsRemaining = MAX_AIR_JUMPS;     // refresh while grounded
+                } else if (isGrounded && verticalVelocity <= 0 &&
+                           camera.position.y - currentFloorY < STEP_HEIGHT) {
+                    // GROUND-STICK: we were grounded last frame and the
+                    // floor is just slightly below us — we're walking
+                    // down a ramp or off a small step. Snap to the floor
+                    // instead of going briefly airborne. Without this,
+                    // walking down a ramp feels like a series of tiny
+                    // falls (each frame: ungrounded → fall → land →
+                    // ungrounded → fall…). The verticalVelocity gate
+                    // ensures we don't intercept actual jumps.
+                    camera.position.y = currentFloorY;
+                    verticalVelocity  = 0;
+                    coyoteTimer       = COYOTE_DURATION;
+                    airJumpsRemaining = MAX_AIR_JUMPS;
                 } else {
                     isGrounded = false;
                 }
@@ -3452,6 +6473,9 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             // in/live/fade out lifecycle. The function is registered
             // asynchronously after the GLB loads, hence the guard.
             if (window.cloudsTick) window.cloudsTick(delta);
+
+            // Update first-person body to follow camera position + yaw.
+            if (window.knightTick) window.knightTick(delta);
 
             renderer.render(scene, camera);
 
