@@ -2093,9 +2093,7 @@ window.addEventListener('touchstart', (e) => {
             starObjects.forEach(s => { gsap.to(s.scale, { z: 150, duration: 1.0 }); gsap.to(s.scale, { z: 1, duration: 0.5, delay: 3.2 }); });
             setTimeout(() => {
                 artifact.visible = true;
-                // Land the artifact CLOSE to camera first — feels more intimate / scrutinizable.
-                // It pulls back to the standard distance on unfold so the shards have room.
-                const targetZ = isMobile() ? -14 : -9;
+                const targetZ = isMobile() ? -25 : -15;
                 gsap.to(artifact.position, { z: targetZ, duration: 1.5, ease: "power3.out" });
                 // Bring up the dedicated holo lighting alongside the artifact reveal
                 gsap.to(artifactKey,  { intensity: 1000, duration: 2.0, ease: "power2.out" });
@@ -2106,11 +2104,6 @@ window.addEventListener('touchstart', (e) => {
         function executeUnfold() {
             isUnfolded = true;
             resetIdleTimer();
-            // Pull the artifact back to its standard distance as it shatters open.
-            // Matches the shard tween easing/duration so the camera "settles" as
-            // the pieces drift outward, instead of clipping into the lens.
-            const farZ = isMobile() ? -25 : -15;
-            gsap.to(artifact.position, { z: farZ, duration: 2.8, ease: "power3.out" });
             gsap.to(nebula.material, { opacity: 0.35, duration: 2.5 });
             artifact.children.forEach(c => {
                 if (c.userData.offsetDir) {
@@ -2281,11 +2274,28 @@ function onClick(event) {
                 const isHoveringOrb = orbIntersects.some(hit => hit.object.name === "interactiveOrb");
                 document.body.style.cursor = isHoveringOrb ? 'pointer' : 'crosshair';
                 
-                camera.position.z -= 1.35;
-                camera.position.x = Math.sin(timeNow * 0.3) * 25; 
-                camera.rotation.z = Math.sin(timeNow * 0.3) * 0.08; 
+                // Mouse steers flight direction — left/right banks the camera,
+                // forward speed reduces slightly when banking hard so it feels physical.
+                // The orb is parented to camera so it always stays centered on screen.
+                const FLIGHT_SPEED = 1.5;
+                const bank = mouse.x * 1.4;
+                const forwardScale = Math.sqrt(Math.max(0.3, 1 - Math.abs(mouse.x) * 0.45));
+
+                camera.position.x += bank * FLIGHT_SPEED * 0.75;
+                camera.position.z -= forwardScale * FLIGHT_SPEED;
+
+                // Soft clamp so tiles never lag too far behind a hard bank
+                camera.position.x = THREE.MathUtils.clamp(camera.position.x, -800, 800);
+
+                // Gentle pitch from mouse Y — slightly nose-down when pushing forward
+                const targetPitch = -0.10 + mouse.y * 0.06;
+                camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, targetPitch, 0.04);
+
+                // Roll into the turn like a plane banking
+                camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, -mouse.x * 0.14, 0.06);
+
                 terrainStars.position.z = camera.position.z - 1500;
-                terrainStars.position.x = camera.position.x * 0.95; 
+                terrainStars.position.x = camera.position.x * 0.95;
                 updateTerrainGrid();
             } else {
                 let isHovering = false;
