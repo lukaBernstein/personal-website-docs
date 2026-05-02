@@ -95,7 +95,7 @@
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
             z-index: 200;
-            display: flex;
+            display: none;               /* hidden = fully out of compositing */
             align-items: center;
             justify-content: center;
             font-family: 'Courier New', Courier, monospace;
@@ -105,6 +105,7 @@
             transition: opacity 0.22s ease-out;
         }
         #character-menu.open {
+            display: flex;
             opacity: 1;
             pointer-events: auto;
         }
@@ -349,6 +350,50 @@
             opacity: .4;
         }
 
+        /* Filled slot state */
+        .cm-item-slot.filled {
+            border-color: rgba(201,162,39,.7);
+            background: linear-gradient(135deg, #141008 0%, #0d0d08 100%);
+            box-shadow: 0 0 18px rgba(201,162,39,.18), inset 0 0 14px rgba(201,162,39,.07);
+        }
+        .cm-item-slot.filled .cm-slot-icon {
+            font-size: 28px !important;
+            opacity: 1 !important;
+            animation: none !important;
+            /* No filter:drop-shadow — filters on children of opacity:0 parents
+               still create compositor layers that cost GPU time every frame. */
+        }
+        .cm-item-slot.filled .cm-slot-num {
+            opacity: .9;
+            color: #e0d5c0;
+        }
+        .cm-slot-name {
+            position: absolute;
+            bottom: -18px;
+            left: 0; right: 0;
+            font-size: 7px;
+            letter-spacing: 2px;
+            text-align: center;
+            color: #c9a227;
+            opacity: .75;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 2px;
+        }
+        .cm-item-slots { padding-bottom: 22px; }
+
+        /* Pickup notification keyframes */
+        @keyframes notif-pop {
+            0%   { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+            15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+            70%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+        }
+        #pickup-notif.notif-show {
+            animation: notif-pop 2.2s ease forwards;
+        }
+
         /* ── Footer ── */
         .cm-footer {
             text-align: center;
@@ -374,7 +419,7 @@
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
             z-index: 210;
-            display: flex;
+            display: none;               /* hidden = fully out of compositing */
             align-items: center;
             justify-content: center;
             font-family: 'Courier New', Courier, monospace;
@@ -384,6 +429,7 @@
             transition: opacity 0.22s ease-out;
         }
         #settings-menu.open {
+            display: flex;
             opacity: 1;
             pointer-events: auto;
         }
@@ -602,6 +648,26 @@
 
     <div id="ui">WASD TO MOVE | SPACE TO JUMP | TAB FOR CHARACTER</div>
 
+    <!-- Pickup notification -->
+    <div id="pickup-notif" style="
+        position: fixed;
+        top: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 13px;
+        letter-spacing: 4px;
+        padding: 9px 22px;
+        border: 1px solid #c9a227;
+        color: #c9a227;
+        background: rgba(0,0,0,0.75);
+        pointer-events: none;
+        z-index: 300;
+        opacity: 0;
+        transition: none;
+        white-space: nowrap;
+    "></div>
+
     <!-- Click spark canvas — sits above all menus, pointer-events:none -->
     <canvas id="spark-canvas" style="
         position:fixed; inset:0;
@@ -676,35 +742,40 @@
             <div class="cm-items-section">
                 <div class="cm-items-title">◦ &nbsp; P O W E R - U P S &nbsp; ◦</div>
                 <div class="cm-item-slots">
-                    <div class="cm-item-slot">
+                    <div class="cm-item-slot" id="cm-slot-0">
                         <div class="cm-slot-inner">
-                            <span class="cm-slot-icon">✦</span>
-                            <span class="cm-slot-num">1</span>
+                            <span class="cm-slot-icon" id="cm-slot-icon-0">✦</span>
+                            <span class="cm-slot-num" id="cm-slot-count-0"></span>
                         </div>
+                        <div class="cm-slot-name" id="cm-slot-name-0"></div>
                     </div>
-                    <div class="cm-item-slot">
+                    <div class="cm-item-slot" id="cm-slot-1">
                         <div class="cm-slot-inner">
-                            <span class="cm-slot-icon">✦</span>
-                            <span class="cm-slot-num">2</span>
+                            <span class="cm-slot-icon" id="cm-slot-icon-1">✦</span>
+                            <span class="cm-slot-num" id="cm-slot-count-1"></span>
                         </div>
+                        <div class="cm-slot-name" id="cm-slot-name-1"></div>
                     </div>
-                    <div class="cm-item-slot">
+                    <div class="cm-item-slot" id="cm-slot-2">
                         <div class="cm-slot-inner">
-                            <span class="cm-slot-icon">✦</span>
-                            <span class="cm-slot-num">3</span>
+                            <span class="cm-slot-icon" id="cm-slot-icon-2">✦</span>
+                            <span class="cm-slot-num" id="cm-slot-count-2"></span>
                         </div>
+                        <div class="cm-slot-name" id="cm-slot-name-2"></div>
                     </div>
-                    <div class="cm-item-slot">
+                    <div class="cm-item-slot" id="cm-slot-3">
                         <div class="cm-slot-inner">
-                            <span class="cm-slot-icon">✦</span>
-                            <span class="cm-slot-num">4</span>
+                            <span class="cm-slot-icon" id="cm-slot-icon-3">✦</span>
+                            <span class="cm-slot-num" id="cm-slot-count-3"></span>
                         </div>
+                        <div class="cm-slot-name" id="cm-slot-name-3"></div>
                     </div>
-                    <div class="cm-item-slot">
+                    <div class="cm-item-slot" id="cm-slot-4">
                         <div class="cm-slot-inner">
-                            <span class="cm-slot-icon">✦</span>
-                            <span class="cm-slot-num">5</span>
+                            <span class="cm-slot-icon" id="cm-slot-icon-4">✦</span>
+                            <span class="cm-slot-num" id="cm-slot-count-4"></span>
                         </div>
+                        <div class="cm-slot-name" id="cm-slot-name-4"></div>
                     </div>
                 </div>
             </div>
@@ -1655,7 +1726,10 @@ if (isMobileDevice) {
         renderer.setSize(window.innerWidth / PIXEL_SCALE, window.innerHeight / PIXEL_SCALE, false);
         
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.getElementById('three-layer').appendChild(renderer.domElement);
 
         const SUN_DIR = new THREE.Vector3(0, 0.02, -1).normalize();
@@ -1692,7 +1766,7 @@ if (isMobileDevice) {
             side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
             uniforms: { sunDir: { value: SUN_DIR }, glowColor: { value: new THREE.Color(0xffa066) } },
             vertexShader: `varying vec3 vNormal; void main() { vNormal = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-            fragmentShader: `uniform vec3 sunDir; uniform vec3 glowColor; varying vec3 vNormal; void main() { vec3 dirToPoint = normalize(vNormal); float cosTheta = dot(dirToPoint, sunDir); float horizontalGlow = exp(3.0 * (cosTheta - 1.0)); float verticalMask = smoothstep(-0.8, -0.1, dirToPoint.y) * smoothstep(0.6, -0.2, dirToPoint.y); float intensity = horizontalGlow * verticalMask * 0.25; gl_FragColor = vec4(glowColor, intensity); }`
+            fragmentShader: `uniform vec3 sunDir; uniform vec3 glowColor; varying vec3 vNormal; void main() { vec3 dirToPoint = normalize(vNormal); float cosTheta = dot(dirToPoint, sunDir); float tightGlow = exp(4.0 * (cosTheta - 1.0)); float wideGlow  = exp(1.2 * (cosTheta - 1.0)); float horizontalGlow = tightGlow * 0.85 + wideGlow * 0.35; float verticalMask = smoothstep(-0.8, -0.05, dirToPoint.y) * smoothstep(0.7, -0.15, dirToPoint.y); float intensity = horizontalGlow * verticalMask * 0.55; gl_FragColor = vec4(glowColor, intensity); }`
         });
         const hazeMesh = new THREE.Mesh(hazeGeo, hazeMat);
         scene.add(hazeMesh);
@@ -1771,6 +1845,36 @@ if (isMobileDevice) {
                 }
             }
 
+            // ── 1.6  DRY HAY PATCHES ──  (NEW)
+            // Counterpart to the mossy dark blobs above, in the OPPOSITE
+            // direction: pale, sun-bleached, light-greenish hay zones.
+            // Reads as "this patch dried out in the sun" — gives the field
+            // a varied palette ranging from deep moss through meadow green
+            // into light hay. Same stippled feathering as the mossy blobs
+            // so edges feel organic; slightly less dense (0.45 vs 0.55) so
+            // green stalks/blades still show through the hay zones rather
+            // than fully overwriting them. Wraps with `& (SZ-1)` so the
+            // patches can straddle the canvas seam without visible joins.
+            const hayLight = ['#b8b070', '#a89860', '#c4b878', '#9c8c54', '#cec488'];
+            for (let i = 0; i < 11; i++) {
+                ctx.fillStyle = hayLight[Math.floor(rnd() * hayLight.length)];
+                const cx = rnd() * SZ;
+                const cy = rnd() * SZ;
+                const rx = 18 + rnd() * 24;
+                const ry = 18 + rnd() * 24;
+                for (let py = -ry; py < ry; py++) {
+                    for (let px = -rx; px < rx; px++) {
+                        const r2 = (px * px) / (rx * rx) + (py * py) / (ry * ry);
+                        if (r2 > 1.0) continue;
+                        if (rnd() < (1 - r2) * 0.45 + 0.08) {
+                            const x = ((cx + px) | 0) & (SZ - 1);
+                            const y = ((cy + py) | 0) & (SZ - 1);
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                    }
+                }
+            }
+
             // ── 2. SHADED CLUMP DABS ──
             // 2-5 px irregular dabs of medium-deep green — pockets where
             // the grass clumps thicker. Slightly bigger than before (was 2-4)
@@ -1810,6 +1914,26 @@ if (isMobileDevice) {
             const drystroke = ['#6c8642', '#587038', '#7a9650', '#4e6630', '#446028', '#7a8e5a', '#5a7034'];
             for (let i = 0; i < 6500; i++) {
                 ctx.fillStyle = drystroke[Math.floor(rnd() * drystroke.length)];
+                const x = Math.floor(rnd() * SZ);
+                const y = Math.floor(rnd() * SZ);
+                const r = rnd();
+                if (r > 0.78)      ctx.fillRect(x, y, 1, 3);
+                else if (r > 0.55) ctx.fillRect(x, y, 1, 2);
+                else                ctx.fillRect(x, y, 1, 1);
+            }
+
+            // ── 4.5  DRY HAY BLADES ──  (NEW)
+            // Pale yellow-green vertical strokes — sun-bleached blades.
+            // Lower count than the green stroke pass (which still
+            // dominates), so these read as accent pixels giving the
+            // palette its "light greenish hay" range. They scatter
+            // uniformly: most land on green areas (occasional bleached
+            // blade in the meadow) while some land in the hay patches
+            // added in section 1.6, where they thicken into recognisable
+            // dry tufts.
+            const hayStroke = ['#c8b876', '#b8a868', '#d4c488', '#a89858', '#dcd098', '#beb070'];
+            for (let i = 0; i < 1800; i++) {
+                ctx.fillStyle = hayStroke[Math.floor(rnd() * hayStroke.length)];
                 const x = Math.floor(rnd() * SZ);
                 const y = Math.floor(rnd() * SZ);
                 const r = rnd();
@@ -2145,33 +2269,38 @@ if (isMobileDevice) {
         const cobbleTex = createPixelCobbleTexture();
         const groundMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1.0 });
 
+        let groundShaderRef = null;
         groundMat.onBeforeCompile = (shader) => {
             shader.uniforms.uDirtTex      = { value: dirtTex };
             shader.uniforms.uCobbleTex    = { value: cobbleTex };
+            shader.uniforms.uSunDir       = { value: SUN_DIR };
+            shader.uniforms.uDayLight     = { value: 1.0 };
             // Path/monolith arrays — same Vector instances as WORLD_PATHS so
             // mutating those entries automatically updates this uniform too.
             shader.uniforms.uPaths        = { value: WORLD_PATHS.paths };
             shader.uniforms.uMonoliths    = { value: WORLD_PATHS.monoliths };
             shader.uniforms.uNumPaths     = { value: WORLD_PATHS.counts.numPaths };
             shader.uniforms.uNumMonoliths = { value: WORLD_PATHS.counts.numMonoliths };
+            // Stash for per-frame updates (uDayLight tracks SUN_DIR.y).
+            groundShaderRef = shader;
             // Register so paths/monolith counts can be hot-updated after
             // monolith spawn finishes (which happens later in script order).
             WORLD_PATHS.registerConsumer(() => shader.uniforms);
 
-            // Vertex: pass world position and a slope value (0=flat, 1=cliff).
+            // Vertex: pass world position, slope and world-space normal.
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <common>',
                 `#include <common>
                  varying vec3 vWorldPosG;
-                 varying float vSlopeG;`
+                 varying float vSlopeG;
+                 varying vec3 vWorldNormalG;`
             );
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `#include <begin_vertex>
                  vWorldPosG = (modelMatrix * vec4(transformed, 1.0)).xyz;
-                 // objectNormal is set by <beginnormal_vertex> earlier in the chunk
-                 // order, so it's safe to use here. Transform to world space.
                  vec3 wnG = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz);
+                 vWorldNormalG = wnG;
                  vSlopeG = 1.0 - clamp(wnG.y, 0.0, 1.0);`
             );
 
@@ -2184,12 +2313,15 @@ if (isMobileDevice) {
                  #define MAX_MONOLITHS 5
                  uniform sampler2D uDirtTex;
                  uniform sampler2D uCobbleTex;
+                 uniform vec3   uSunDir;
+                 uniform float  uDayLight;
                  uniform vec4  uPaths[MAX_PATHS];
                  uniform vec2  uMonoliths[MAX_MONOLITHS];
                  uniform int   uNumPaths;
                  uniform int   uNumMonoliths;
                  varying vec3  vWorldPosG;
                  varying float vSlopeG;
+                 varying vec3  vWorldNormalG;
 
                  // Cheap value-noise for color patch / blend masks. Don't need
                  // perfect quality — just something low-freq and continuous.
@@ -2218,9 +2350,13 @@ if (isMobileDevice) {
                  // grass shader, so blade height + colour and ground tint
                  // agree across every pixel of the transition.
                  float worldMoisture(vec2 p) {
-                     float n1 = gndNoise(p * 0.0008);             // ~1250u biome
-                     float n2 = gndNoise(p * 0.0028 + 41.7);     // ~360u local
-                     return clamp(n1 * 0.65 + n2 * 0.35, 0.0, 1.0);
+                     // Large independent offsets so this noise field is fully
+                     // decorrelated from shortGrassMask — short patches can be
+                     // lush, tall patches can be dry, etc.
+                     float n1 = gndNoise(p * 0.0008 + vec2(317.5, 211.9));
+                     float n2 = gndNoise(p * 0.0028 + vec2(581.3, 449.7));
+                     float m  = n1 * 0.65 + n2 * 0.35;
+                     return smoothstep(0.32, 0.68, m);
                  }
 
                  // ── PATH MASK ──
@@ -2308,19 +2444,68 @@ if (isMobileDevice) {
                  sampled.rgb *= mix(valleyTint, peakTint, h01);
 
                  // ── BIOME PATCHES ──
-                 // Two octaves of slow noise drift the color across the world
-                 // so different regions feel subtly different — but instead of
-                 // green-vs-warm, we drift wheat-vs-wheat: shaded dry grass on
-                 // one side, sun-bleached wheat on the other.
+                 // Large-scale drift across the world between shaded-cool and
+                 // sun-bleached-warm. Contrast boosted so the shift is actually
+                 // visible — previous 0.94–1.08 range was too gentle to perceive.
                  float patch1 = gndNoise(vWorldPosG.xz * 0.000035);
                  float patch2 = gndNoise(vWorldPosG.xz * 0.00012 + 17.0);
                  vec3 patchTint = mix(
-                     vec3(0.94, 0.98, 0.92),
-                     vec3(1.08, 1.02, 0.86),
+                     vec3(0.80, 0.96, 0.76),   // cool shaded zone — slightly greener
+                     vec3(1.02, 1.04, 0.82),   // warm zone — was very yellow, now subtle
                      patch1
                  );
-                 patchTint *= mix(vec3(0.94), vec3(1.05), patch2);
+                 patchTint *= mix(vec3(0.88), vec3(1.10), patch2);
                  sampled.rgb *= patchTint;
+
+                 // ── TERRAIN TYPE PATCHES ──
+                 // Three visually distinct ground types blended by noise so the
+                 // landscape never looks like a uniform texture-mapped plane.
+                 //
+                 //  MOSSY GREEN  – dark saturated green, patches ~800–2000u wide
+                 //  PALE DRY     – bleached warm straw, patches ~1200–3000u wide
+                 //  DARK EARTH   – rich loamy brown, smaller ~400–1000u blotches
+                 //
+                 // Key fix vs previous attempt: noise frequencies are HIGH enough
+                 // that patches are visible within normal viewing distance.
+                 // 0.000055 freq → ~18 000u periods (you'd walk forever to see one).
+                 // 0.0004  freq  → ~2 500u periods  (clearly visible at a glance).
+                 //
+                 // Two-octave noise per type makes edges irregular; smoothstep
+                 // sharpens the boundary so patches look like genuine biome
+                 // borders rather than a smooth gradient wash.
+                 // Blend is via direct mix toward a solid target color, not
+                 // a multiplier, so the shift is always visible against any
+                 // base grass tone.
+
+                 // ── MOSSY GREEN ──
+                 float mN1 = gndNoise(vWorldPosG.xz * 0.00040 + vec2(83.4, 12.7));
+                 float mN2 = gndNoise(vWorldPosG.xz * 0.00140 + vec2(31.7, 66.2));
+                 float mossMask = mN1 * 0.60 + mN2 * 0.40;
+                 mossMask = smoothstep(0.44, 0.60, mossMask);
+                 mossMask *= 1.0 - smoothstep(0.15, 0.45, vSlopeG);
+                 // Deep forest moss green — clearly distinct from base grass
+                 sampled.rgb = mix(sampled.rgb, vec3(0.12, 0.32, 0.09), mossMask * 0.70);
+
+                 // ── PALE DRY GRASS ──
+                 float pN1 = gndNoise(vWorldPosG.xz * 0.00028 + vec2(57.1, 91.3));
+                 float pN2 = gndNoise(vWorldPosG.xz * 0.00095 + vec2(99.3, 44.8));
+                 float paleMask = pN1 * 0.55 + pN2 * 0.45;
+                 paleMask = smoothstep(0.48, 0.64, paleMask);
+                 paleMask *= 1.0 - smoothstep(0.15, 0.40, vSlopeG);
+                 paleMask *= 1.0 - mossMask * 0.85;
+                 // Warm bleached straw — sandy yellow, distinct from green grass
+                 sampled.rgb = mix(sampled.rgb, vec3(0.58, 0.50, 0.18), paleMask * 0.65);
+
+                 // ── DARK EARTH ──
+                 float eN1 = gndNoise(vWorldPosG.xz * 0.00070 + vec2(13.6, 77.5));
+                 float eN2 = gndNoise(vWorldPosG.xz * 0.00200 + vec2(47.2, 28.9));
+                 float earthMask = eN1 * 0.50 + eN2 * 0.50;
+                 earthMask = smoothstep(0.52, 0.68, earthMask);
+                 earthMask *= 1.0 - smoothstep(0.06, 0.25, dirtMix);
+                 earthMask *= 1.0 - mossMask * 0.65;
+                 earthMask *= 1.0 - paleMask * 0.55;
+                 // Rich dark loam — clearly darker than surrounding grass
+                 sampled.rgb = mix(sampled.rgb, vec3(0.20, 0.13, 0.06), earthMask * 0.60);
 
                  // ── DISTANT GRASS CLUMP ILLUSION ──
                  // Four octaves of noise + smoothstep sharpening create rich,
@@ -2358,8 +2543,8 @@ if (isMobileDevice) {
                  float clump = n0 * 0.30 + n1 * 0.30 + n2 * 0.25 + n3 * 0.15;
                  clump = smoothstep(0.20, 0.80, clump);
 
-                 vec3 darkClump   = vec3(0.78, 0.86, 0.70);     // shaded grass — pulled green (G > R)
-                 vec3 brightClump = vec3(1.02, 1.08, 0.92);     // sunlit grass — pulled green (G > R)
+                 vec3 darkClump   = vec3(0.68, 0.80, 0.60);     // darker grass shadow — matches blade base
+                 vec3 brightClump = vec3(0.88, 0.98, 0.78);     // sunlit grass — was too bright/yellow
                  sampled.rgb *= mix(darkClump, brightClump, clump);
 
                  // ── MOISTURE-DRIVEN HUE ──
@@ -2370,10 +2555,81 @@ if (isMobileDevice) {
                  // while lush means saturated cool meadow green. Both keep
                  // the field reading as one cohesive deep meadow rather
                  // than two different biomes glued together.
+                 // ── GROUND-MATCH-GRASS BASE COLOUR ──
+                 // Strongly replace the ground colour with the EXACT same base
+                 // colour the blades use. Where there's grass cover (most of
+                 // the world), 90% of the ground colour becomes the unified
+                 // grass base. The moisture tint applied AFTER this gives the
+                 // dry/lush variation across both ground and blades equally.
+                 float grassCover = 1.0 - smoothstep(0.0, 0.5, dirtMix);
+                 // grassBaseCol matches the blade-VISIBLE colour (mostly the
+                 // upper portion of blades is what you actually see, not the
+                 // AO-darkened bases). Approx 70% tip + 30% mid-blade weighted.
+                 //   Blade tip: (0.42, 0.54, 0.23) → tip-weighted avg ≈ (0.40, 0.52, 0.22)
+                 // Ground at this colour matches what blades look like at
+                 // any reasonable viewing angle.
+                 // Compute moisture FIRST — needed by grassBaseCol below
+                 // (so dry zones get a hay-tinted base, not green) AND
+                 // by the dryTint multiplier and the distant grassBase.
                  float moisture = worldMoisture(vWorldPosG.xz);
-                 vec3 dryTint  = vec3(1.02, 0.94, 0.74);   // olive/parched (was straw-yellow)
-                 vec3 lushTint = vec3(0.82, 1.10, 0.78);   // saturated meadow
+
+                 // grassBaseCol now varies with moisture across broad zones:
+                 // lush meadow green where moisture=1, light-greenish HAY
+                 // where moisture=0. This is where the visible "drier patches"
+                 // colour actually comes from — multiplicative tints below
+                 // can only perturb a colour, they can't shift it from green
+                 // to hay. Same hay/lush pair is reused at the distant base
+                 // and on the blade shader so all three layers agree per cell.
+                 vec3 grassBaseLush = vec3(0.40, 0.52, 0.22);   // saturated meadow (was the only colour)
+                 vec3 grassBaseHay  = vec3(0.62, 0.60, 0.34);   // light greenish hay
+                 vec3 grassBaseCol  = mix(grassBaseHay, grassBaseLush, moisture);
+                 sampled.rgb = mix(sampled.rgb, grassBaseCol, grassCover * 0.30);
+
+                 // Natural meadow tints: gentle warm/dry vs gentle saturation.
+                 // SAME values as the blade tints below so ground and blade
+                 // shift hue identically at every cell. Kept SUBTLE because
+                 // the base-colour mix above already does the broad dry/lush
+                 // shift — the tint here is just fine-grain perturbation on
+                 // top, otherwise dry zones would compound into orange.
+                 vec3 dryTint  = vec3(1.12, 1.10, 0.82);
+                 vec3 lushTint = vec3(0.85, 1.10, 0.85);
                  sampled.rgb *= mix(dryTint, lushTint, moisture);
+
+                 // ── DISTANT GRASS FILL ──
+                 // Two layers: a solid base that uniformly turns the ground
+                 // the right grass-base green, then a HIGH-FREQUENCY GRAIN
+                 // pattern that mimics distant blade tips so the textural
+                 // transition between rendered blades and "no blades" ground
+                 // is invisible — both look like a textured grass field.
+                 float camDist2  = distance(vWorldPosG, cameraPosition);
+                 float distFade  = smoothstep(1400.0, 3800.0, camDist2)
+                                 * (1.0 - smoothstep(12000.0, 18000.0, camDist2))
+                                 * (1.0 - dirtMix)
+                                 * (1.0 - smoothstep(0.18, 0.48, vSlopeG));
+                 if (distFade > 0.003) {
+                     // Distant base mirrors the close-range mix — far-away
+                     // dry zones still fade out toward hay, lush toward
+                     // meadow green, so the dry/lush gradient is visible
+                     // ALL the way to the fog line, not just up close.
+                     vec3 grassBase = mix(grassBaseHay, grassBaseLush, moisture);
+                     sampled.rgb = mix(sampled.rgb, grassBase, distFade * 0.55);
+                 }
+
+                 // ── BLADE-TIP GRAIN (everywhere there's grass cover) ──
+                 // High-frequency noise pattern that creates the appearance
+                 // of scattered blade tips/bases against the ground colour.
+                 // Multipliers are kept SUBTLE so noise samples averaging
+                 // together at distance don't push the colour toward pale.
+                 float gA = gndNoise(vWorldPosG.xz * 0.85);     // ~1.2u features
+                 float gB = gndNoise(vWorldPosG.xz * 0.32);     // ~3u features
+                 float grain = smoothstep(0.40, 0.72, gA * 0.55 + gB * 0.45);
+                 // Balanced multipliers averaging close to 1.0 — preserves
+                 // grassBase colour at distance, just adds fine variation.
+                 vec3  tipMul   = vec3(1.10, 1.18, 1.05);
+                 vec3  baseMul  = vec3(0.90, 0.84, 0.92);
+                 vec3  grainMul = mix(baseMul, tipMul, grain);
+                 float grainAmt = grassCover * (0.45 + 0.35 * distFade);
+                 sampled.rgb *= mix(vec3(1.0), grainMul, grainAmt);
 
                  // ── PATH OVERLAY ──
                  // Last layer, applied after all the grass tinting: where the
@@ -2395,6 +2651,27 @@ if (isMobileDevice) {
                  }
 
                  diffuseColor *= sampled;
+                `
+            );
+
+            // ── GRASS LIGHTING OVERRIDE ──
+            // Replace <fog_fragment> with: our blade-style lighting override
+            // for grass areas, then the original fog logic. By this point
+            // gl_FragColor is already set by <output_fragment>, so we just
+            // mix its rgb toward the blade-style lit colour. Fog then applies
+            // to the final result, exactly as it would have without us.
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <fog_fragment>',
+                `
+                if (grassCover > 0.01) {
+                    vec3 gnrm = normalize(vWorldNormalG);
+                    float gndotL = max(0.0, dot(gnrm, uSunDir));
+                    float gTerrLight = 0.62 + 0.43 * gndotL;
+                    float gDayLight  = mix(0.25, 1.0, uDayLight);
+                    vec3 grassLit = sampled.rgb * gTerrLight * gDayLight;
+                    gl_FragColor.rgb = mix(gl_FragColor.rgb, grassLit, grassCover);
+                }
+                #include <fog_fragment>
                 `
             );
         };
@@ -2697,152 +2974,55 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         // `obstacles` after the rest of the world is already standing.
         // Player can ALWAYS approach the base on foot; the parkour course
         // ramp is a fast-track up to the mid-tier, not the only way in.
-        (function spawnGLBParkourTower() {
-            // Pushed well east of spawn (was sX + 6280). Now visible as
-            // a distant beacon from the henge rather than crowding it.
-            const towerX = sX + 12000;
-            const towerZ = sZ - 2000;
+        (function spawnBabelTower() {
+            // North-east of spawn, on its own so it doesn't crowd the henge.
+            const towerX = sX + 8000;
+            const towerZ = sZ + 5500;
 
-            // Source GLB is in metres (Blender export). 400x = monumental
-            // skyline-tower scale (~12k units tall total).
-            const SCALE = 400;
+            // GLB is ~38 Blender units tall (tower 35 + scaffolding crown).
+            // Scale 350 → ~13.3k in-game units, similar to the old towers.
+            const SCALE = 350;
 
-            // Whitelist of mesh-name prefixes that should be SOLID (full
-            // BVH triangle collision). Everything else (vines, cables,
-            // antennas, rebar, ladder rungs, figures, window frames,
-            // tiny ground rubble, decorative paintwork) stays visual-only.
+            // Procedural mesh names from the Blender build. Anything matching
+            // here gets a triangle-precise BVH collider; everything else
+            // (rebar rods, scaffold beams/posts) renders as decoration —
+            // they're too thin for reliable capsule collision.
             //
-            // Each solid mesh gets its actual GEOMETRY used as the
-            // collider via three-mesh-bvh — no more giant AABB walls,
-            // no more "where am I being blocked from". Walking on a tier
-            // slab is exactly walking on the slab's top triangles.
+            // BabelTower is intentionally NOT in this list. Its 4400-tri
+            // body (walls + balconies + window jambs from Solidify) plus
+            // the curved cone shape causes the conservative AABB-of-
+            // triangle test in collidesBVH to false-positive on the spiral
+            // ramp. We add a simple cylinder obstacle below instead: it
+            // blocks player from walking through the tower's bulk without
+            // interfering with the ramp's walking surface.
             const SOLID_PATTERNS = [
-                /^Plinth_/,
-                /^Tier_\d/,    /^Slab_\d/,
-                /^Spire_(Lower|Upper)$/,
-                /^TopPlatform$/,
-                /^Beam_\d/,    /^Balcony_\d/,
-                /^Bridge1_plank/, /^Bridge2_plank/,
-                /^FloatBrick_/, /^FloatBeam_/,
-                /^FloatPlat_/,
-                /^BrickPallet_/, /^LumberStack_/,
-                /^CraneCab$/,  /^CraneCounterweight$/,
-                /^CraneTrolley$/, /^CraneCargo$/,
-                /^TopCrane_Cargo$/, /^FCrane_brick$/,
-            ];
-
-            const loader = new GLTFLoader();
-            loader.load('assets/ClaudeParkourTower.glb', gltf => {
-                const root = gltf.scene;
-                root.scale.setScalar(SCALE);
-                // Place at provisional Y=0 so the bbox we sample reflects
-                // only model+scale offset; we set the real Y below after
-                // sampling terrain across the footprint.
-                root.position.set(towerX, 0, towerZ);
-                root.rotation.y = Math.PI;
-                scene.add(root);
-                root.updateMatrixWorld(true);
-
-                // Sink the base into terrain, NOT just to center elevation.
-                // The tower has a ~10k-unit-wide footprint; if I place it
-                // at single-point elevation, any slope across that area
-                // leaves the base half-floating. Sample terrain on a grid,
-                // take the LOWEST point, then bury the lowest mesh
-                // SINK_DEPTH below that. With SINK_DEPTH=400 the plinth
-                // edges nestle into the ground but don't disappear.
-                const bbox = new THREE.Box3().setFromObject(root);
-                let minTerrain = Infinity;
-                const N = 5;
-                for (let i = 0; i <= N; i++) {
-                    for (let j = 0; j <= N; j++) {
-                        const sx = THREE.MathUtils.lerp(bbox.min.x, bbox.max.x, i / N);
-                        const sz = THREE.MathUtils.lerp(bbox.min.z, bbox.max.z, j / N);
-                        const e = getElevation(sx, sz);
-                        if (e < minTerrain) minTerrain = e;
-                    }
-                }
-                const SINK_DEPTH = 400;
-                root.position.y = (minTerrain - SINK_DEPTH) - bbox.min.y;
-                root.updateMatrixWorld(true);
-
-                let solidCount = 0, totalMeshes = 0;
-                root.traverse(obj => {
-                    if (!obj.isMesh) return;
-                    obj.castShadow = true;
-                    obj.receiveShadow = true;
-                    totalMeshes++;
-
-                    const name = obj.name || '';
-                    if (!SOLID_PATTERNS.some(rx => rx.test(name))) return;
-
-                    addBVHCollider(obj);
-                    solidCount++;
-                });
-
-                console.log(`Parkour tower #1 loaded: ${solidCount}/${totalMeshes} meshes have BVH collision`);
-            }, undefined, err => {
-                console.error('Failed to load ClaudeParkourTower.glb:', err);
-            });
-        })();
-
-        // ============================================================
-        // GLB PARKOUR TOWER #2 — pendulums, timed platforms, ledges.
-        // ============================================================
-        // Placed on the opposite side of spawn from tower #1 so both are
-        // visible from the henge. This one is a more "active" parkour
-        // build with hazards (pendulum spikes) and animated platforms.
-        // The GLB itself has no animation tracks, so for now everything
-        // is static — pendulum spikes don't actually swing yet.
-        (function spawnGLBParkourTower2() {
-            // Pushed further NW of spawn (was sX-5500, sZ+2200).
-            // Asymmetric placement vs tower #1 keeps the skyline varied.
-            const towerX = sX - 11000;
-            const towerZ = sZ + 5000;
-
-            // Scale 280 = ~30% smaller than the previous 400. Tower top
-            // ends up around 12.5k units high, footprint ~7.5k × 8k.
-            const SCALE = 280;
-
-            // SOLID list can now include non-box shapes (spiral ramp,
-            // tilted planks, hanging blocks) because BVH collision uses
-            // the actual mesh triangles — no AABB approximation. The
-            // SpiralRamp specifically: with AABBs it created an invisible
-            // box covering the whole tower; with BVH the player walks
-            // up the actual ramp surface.
-            const SOLID_PATTERNS = [
-                /^Tier_/,
+                /^BabelRamp$/,
+                /^PartialWall/,
+                /^Stone_/,
+                /^Plank_/,
                 /^Step_/,
                 /^Ledge_/,
-                /^Stone_/,
-                /^Plank_/,                          // tilted ramps — fine now
-                /^Hanging_/,                        // tilted blocks — fine now
-                /^SpiralRamp$/,                     // the big climbable spiral
-                /^UnfinishedTop$/,
-                /^TimedPlatform_(Mover|Rotator)/,
             ];
 
             const loader = new GLTFLoader();
-            loader.load('assets/Tower2.glb', gltf => {
+            loader.load('assets/BabelTower.glb', gltf => {
                 const root = gltf.scene;
                 root.scale.setScalar(SCALE);
                 root.position.set(towerX, 0, towerZ);
                 scene.add(root);
                 root.updateMatrixWorld(true);
 
-                // Same terrain-sample-and-sink as tower #1. SINK_DEPTH
-                // is a touch smaller here because tower #2's plinth/Stone
-                // base is shorter — too much sink would bury the climbing
-                // entry points.
+                // Sample terrain across the footprint, take the lowest point,
+                // and bury the base SINK_DEPTH below it so the plinth nestles
+                // into uneven ground without floating on the high side.
                 const bbox = new THREE.Box3().setFromObject(root);
                 let minTerrain = Infinity;
                 const N = 5;
-                for (let i = 0; i <= N; i++) {
-                    for (let j = 0; j <= N; j++) {
-                        const sx = THREE.MathUtils.lerp(bbox.min.x, bbox.max.x, i / N);
-                        const sz = THREE.MathUtils.lerp(bbox.min.z, bbox.max.z, j / N);
-                        const e = getElevation(sx, sz);
-                        if (e < minTerrain) minTerrain = e;
-                    }
+                for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+                    const sx = THREE.MathUtils.lerp(bbox.min.x, bbox.max.x, i / N);
+                    const sz = THREE.MathUtils.lerp(bbox.min.z, bbox.max.z, j / N);
+                    const e  = getElevation(sx, sz);
+                    if (e < minTerrain) minTerrain = e;
                 }
                 const SINK_DEPTH = 250;
                 root.position.y = (minTerrain - SINK_DEPTH) - bbox.min.y;
@@ -2854,21 +3034,35 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     obj.castShadow = true;
                     obj.receiveShadow = true;
                     totalMeshes++;
-
                     const name = obj.name || '';
                     if (!SOLID_PATTERNS.some(rx => rx.test(name))) return;
-
                     addBVHCollider(obj);
                     solidCount++;
                 });
 
-                console.log(`Parkour tower #2 loaded: ${solidCount}/${totalMeshes} meshes have BVH collision`);
+                // ── CYLINDER OBSTACLE FOR THE TOWER BULK ──
+                // Stand-in for the BabelTower mesh as a collider. Radius
+                // is set tight to the wall (slightly INSIDE the actual
+                // outer radius at the base) so the player can still get
+                // close enough to walk on the ramp's inner edge. Going
+                // any tighter risks letting the player clip into the
+                // wall, but this radius is well clear of the ramp's
+                // walking surface (which sits at base_r + 1.10).
+                const baseR = 4.5 * SCALE;          // tower base radius in game units
+                const towerHeight = 35.2 * SCALE;   // mesh local Y top
+                obstacles.push({
+                    type: 'cylinder',
+                    cx: towerX, cz: towerZ,
+                    r: baseR - 30,                  // 30u inside the visual wall — just enough that the cylinder doesn't poke through but the player can't walk into the wall either
+                    minY: root.position.y,
+                    maxY: root.position.y + towerHeight,
+                });
+
+                console.log(`Babel tower loaded: ${solidCount}/${totalMeshes} BVH colliders + 1 cylinder obstacle for the body`);
             }, undefined, err => {
-                console.error('Failed to load Tower2.glb:', err);
+                console.error('Failed to load BabelTower.glb:', err);
             });
         })();
-
-
 
         // ── TREES ──
         // Three single-mesh GLBs (Acacia, Cypress, Olive), each loaded once
@@ -2942,6 +3136,53 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         maxY: gy + worldH
                     });
                 }
+
+                // ── FOLIAGE WIND SWAY ──
+                // Patch the GLB's material with a vertex-shader wind effect
+                // via onBeforeCompile so we keep the original PBR/shadow pipeline.
+                //
+                // Amplitude formula:  windAmp = (y/height)² × height × 0.05
+                //   = y² / height × 0.05
+                // After instance scale (sc = worldH/height), world displacement
+                //   = windAmp × sc = (y²/height × 0.05) × (worldH/height)
+                // At canopy top (y ≈ height):  = 0.05 × worldH
+                // → canopy tip sways ≈5% of tree height regardless of GLB scale.
+                // uModelHeight is passed from the JS closure so the shader can
+                // normalise without needing a separate attribute.
+                material.onBeforeCompile = (shader) => {
+                    shader.uniforms.uWindTime      = { value: 0 };
+                    shader.uniforms.uWindStrength  = { value: 1.0 };
+                    shader.uniforms.uModelHeight   = { value: height };
+
+                    if (!window._treeWindShaders) window._treeWindShaders = [];
+                    window._treeWindShaders.push(shader);
+
+                    shader.vertexShader = shader.vertexShader.replace(
+                        '#include <common>',
+                        `#include <common>
+                         uniform float uWindTime;
+                         uniform float uWindStrength;
+                         uniform float uModelHeight;`
+                    );
+                    shader.vertexShader = shader.vertexShader.replace(
+                        '#include <begin_vertex>',
+                        `#include <begin_vertex>
+                         // Per-instance world phase — column 3 of instanceMatrix is translation
+                         float _ix = instanceMatrix[3][0];
+                         float _iz = instanceMatrix[3][2];
+                         float _phase = _ix * 0.00130 + _iz * 0.00170;
+
+                         // Normalised height 0=base 1=canopy, squared so trunk
+                         // barely moves and canopy tips swing freely.
+                         float _normH = clamp(transformed.y / max(uModelHeight, 0.001), 0.0, 1.0);
+                         float _windAmp = _normH * _normH * uModelHeight * 0.07 * uWindStrength;
+
+                         transformed.x += sin(uWindTime * 1.10 + _phase)        * _windAmp
+                                        + sin(uWindTime * 0.65 + _phase + 1.30) * _windAmp * 0.40
+                                        + sin(uWindTime * 1.90 + _phase + 2.70) * _windAmp * 0.18;
+                         transformed.z += sin(uWindTime * 0.85 + _phase + 2.10) * _windAmp * 0.55;`
+                    );
+                };
 
                 const im = new THREE.InstancedMesh(geometry, material, mats.length);
                 im.castShadow = true;
@@ -3257,58 +3498,194 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 return tex;
             }
 
-            // ── 2. CROSS-QUAD TUFT GEOMETRY ──
-            // Two perpendicular quads (X-shape from above). Each quad: 4 verts,
-            // 2 tris. Per instance: 8 verts, 4 tris. Looks 3D from any angle.
-            function createTuftGeometry(width, height) {
-                const w = width * 0.5;
-                const h = height;
-                // Cap quad footprint, slightly wider than vertical quads so
-                // it provides extra coverage above the tuft. Placed at 0.85h
-                // (just below blade tips) so seedheads/specks of the blade
-                // texture still poke above it from horizontal angles.
-                const capW = w * 1.4;
-                const capY = h * 0.85;
-                const positions = new Float32Array([
-                    // Quad A: vertical, lies in XY plane (faces +/- Z)
-                    -w, 0, 0,    w, 0, 0,    w, h, 0,   -w, h, 0,
-                    // Quad B: vertical, lies in YZ plane (faces +/- X)
-                     0, 0,-w,    0, 0, w,    0, h, w,    0, h,-w,
-                    // Quad C: HORIZONTAL CAP at top, in XZ plane (faces +/- Y).
-                    // This is the key piece: when the camera looks straight
-                    // down, both vertical quads are edge-on and effectively
-                    // invisible — without this cap, the grass appears to
-                    // disappear from a top-down view. The cap is sampled
-                    // with a separate "grass tops" texture in the shader.
-                    -capW, capY, -capW,    capW, capY, -capW,
-                     capW, capY,  capW,   -capW, capY,  capW,
-                ]);
-                const uvs = new Float32Array([
-                    0, 0,  1, 0,  1, 1,  0, 1,
-                    0, 0,  1, 0,  1, 1,  0, 1,
-                    0, 0,  1, 0,  1, 1,  0, 1,
-                ]);
-                // 0 = vertical blade quad (use uTex with vertical AO),
-                // 1 = horizontal cap quad (use uCapTex, no vertical AO).
-                const isCap = new Float32Array([
-                    0, 0, 0, 0,
-                    0, 0, 0, 0,
-                    1, 1, 1, 1,
-                ]);
-                const indices = new Uint16Array([
-                    0, 1, 2,  0, 2, 3,
-                    4, 5, 6,  4, 6, 7,
-                    // Cap rendered with both winding orders so it's visible
-                    // from above AND below — saves switching to DoubleSide
-                    // material (which would also affect vertical quads).
-                    8, 9, 10,  8, 10, 11,
-                    8, 10, 9,  8, 11, 10,
-                ]);
+            // ── 2. ARCHING BLADE TUFT GEOMETRY ──
+            // Each tuft is N_BLADES individual 3D stalks arranged radially.
+            // Every blade is a narrow segmented strip that arches OUTWARD from
+            // the base using pow(t, 2) curvature — so from any horizontal angle
+            // you always see some blade faces (never just edges), and from above
+            // the fanned-out tips cover the ground. This is the same technique
+            // shown in the referenced Godot grass article. Blade lean and shape
+            // are BAKED into the geometry; the vertex shader only applies uniform
+            // scale, per-instance rotation, and wind sway.
+            //
+            // Geometry per blade: (N_SEGS+1) pairs of left/right verts forming
+            // a tapered strip. Double-sided: front + back indices generated so
+            // blades are visible from both sides without DoubleSide material.
+            // Plus a horizontal cap quad for top-down coverage.
+            function createTuftGeometry(width, height, scatterMul = 1.0) {
+                const N_BLADES = 6;   // blades per tuft, evenly spaced at 60°
+                                      // (each gets a per-blade angle jitter
+                                      // below — they're no longer at exact
+                                      // 60° intervals after that). Bump to 7
+                                      // or 8 here for denser tufts at a
+                                      // proportional triangle cost.
+                const N_SEGS   = 2;   // height segments — 2 is enough for a smooth
+                                      // quadratic arch while saving 33% of tris vs 3
+                const LVLS     = N_SEGS + 1;
+                // Wider base (0.22 vs old 0.12) means each blade covers far
+                // more ground, so the same instance count feels much denser.
+                // maxLean proportional to height keeps arch angle constant.
+                const baseHW   = width  * 0.22;
+                // More aggressive arch (0.65 vs old 0.52): tip tangent ≈ 52°
+                // from vertical. Blades now reach 65% of their height outward,
+                // ensuring neighbouring tufts overlap at all typical scaleY values.
+                const maxLean  = height * 0.65;
+
+                // Per-blade pseudo-random — deterministic, so blade index b
+                // always gets the same jitter values. Geometry is built once
+                // and shared across every instance, so this jitter is the
+                // SHAPE of the tuft itself (not per-instance variation, which
+                // is handled separately in the vertex shader). Different prime
+                // offsets keep the four jitter channels uncorrelated.
+                const pr = (seed) => {
+                    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+                    return x - Math.floor(x);
+                };
+
+                const BLADE_VERTS = N_BLADES * LVLS * 2;
+                const CAP_VERTS   = 4;
+                const TOTAL_VERTS = BLADE_VERTS + CAP_VERTS;
+
+                const positions = new Float32Array(TOTAL_VERTS * 3);
+                const uvs       = new Float32Array(TOTAL_VERTS * 2);
+                const isCap     = new Float32Array(TOTAL_VERTS);
+                // Per-vertex blade ID (0..N_BLADES-1 for blade vertices, 99
+                // sentinel for cap vertices). The vertex shader uses this to
+                // seed per-blade-PER-TUFT randomness — every blade in every
+                // tuft gets its own scale, rotation, and lean drawn from a
+                // hash of (worldCell, bladeId), so adjacent tufts no longer
+                // look like rotated copies of the same shape.
+                const bladeId   = new Float32Array(TOTAL_VERTS);
+                // Per-vertex blade outward direction (xz). With the scattered
+                // root positions used below, position.xz no longer encodes
+                // "which direction does this blade arch in" — so we track it
+                // explicitly here for the vertex shader's tip-bent normal.
+                // Zero for cap vertices (they don't need a direction).
+                const bladeOut  = new Float32Array(TOTAL_VERTS * 2);
+                const indices   = [];
+
+                let vi = 0;
+
+                // ── SCATTER RADIUS ──
+                // How far from the cell centre each blade can root. Combined
+                // with random arch directions below, this makes every blade
+                // feel like an INDIVIDUAL stalk in the field rather than a
+                // spoke of a tuft. Base value baseHW * 1.4 (≈23u for tuftW=75)
+                // means blades fill most of the cell area but rarely cluster
+                // tightly enough to recreate the "rosette around a centre"
+                // look. The scatterMul parameter lets specific fields crank
+                // this up — e.g. the dense short-grass field uses ~2.4× to
+                // make blades scatter way past their own cell into neighbours,
+                // producing genuine "individual blades scattered everywhere"
+                // chaos rather than a regular field of tufts.
+                const scatterR = baseHW * 1.4 * scatterMul;
+
+                for (let b = 0; b < N_BLADES; b++) {
+                    // ── INDIVIDUAL BLADE PLACEMENT ──
+                    // Each blade has TWO independent random properties:
+                    //   1. ROOT POSITION  — where in the cell area its base
+                    //      sits. Sampled with sqrt(rand) for the radius so
+                    //      blades distribute uniformly over the disc area
+                    //      (uniform random radius would crowd the centre).
+                    //   2. ARCH DIRECTION — which way it leans / its tip
+                    //      points. Fully decoupled from root position, so a
+                    //      blade rooted in the +X side of the cell can arch
+                    //      in any direction, including back toward -X.
+                    // The two being independent is what kills any remaining
+                    // "blades around a centre" look — there's no centre.
+                    const posAngle  = pr(b * 1.731) * Math.PI * 2;
+                    const posDist   = Math.sqrt(pr(b * 2.317)) * scatterR;
+                    const rootX     = Math.cos(posAngle) * posDist;
+                    const rootZ     = Math.sin(posAngle) * posDist;
+
+                    const archAngle = pr(b * 3.539) * Math.PI * 2;
+                    const outX      = Math.cos(archAngle);
+                    const outZ      = Math.sin(archAngle);
+                    const perpX     = -outZ;            // blade width axis
+                    const perpZ     =  outX;
+
+                    // Per-blade height & lean variation — kept from before
+                    // (short blades hide under tall ones, stiff blades next
+                    // to droopy ones).
+                    const heightScale = 0.62 + pr(b * 4.671) * 0.55;
+                    const leanScale   = 0.72 + pr(b * 5.821) * 0.56;
+                    const bladeHeight = height  * heightScale;
+                    const bladeLean   = maxLean * leanScale;
+
+                    const baseV = vi;
+                    for (let s = 0; s <= N_SEGS; s++) {
+                        const t    = s / N_SEGS;        // 0=base, 1=tip
+                        const lean = bladeLean * t * t; // quadratic arch
+                        // World position = root + arch_offset. Arch grows
+                        // along (outX, outZ) and is independent of root.
+                        const cx   = rootX + outX * lean;
+                        const cy   = t * bladeHeight;
+                        const cz   = rootZ + outZ * lean;
+                        const hw   = baseHW * (1.0 - t); // tapers to 0 at tip
+
+                        // Left vertex
+                        positions[vi*3]   = cx + perpX * hw;
+                        positions[vi*3+1] = cy;
+                        positions[vi*3+2] = cz + perpZ * hw;
+                        uvs[vi*2] = 0.0;  uvs[vi*2+1] = t;
+                        isCap[vi]        = 0;
+                        bladeId[vi]      = b;
+                        bladeOut[vi*2]   = outX;
+                        bladeOut[vi*2+1] = outZ;
+                        vi++;
+                        // Right vertex
+                        positions[vi*3]   = cx - perpX * hw;
+                        positions[vi*3+1] = cy;
+                        positions[vi*3+2] = cz - perpZ * hw;
+                        uvs[vi*2] = 1.0;  uvs[vi*2+1] = t;
+                        isCap[vi]        = 0;
+                        bladeId[vi]      = b;
+                        bladeOut[vi*2]   = outX;
+                        bladeOut[vi*2+1] = outZ;
+                        vi++;
+                    }
+
+                    // Front AND back faces so blades are solid from all sides
+                    for (let s = 0; s < N_SEGS; s++) {
+                        const bl = baseV + s * 2;
+                        const br = bl + 1;
+                        const tl = bl + 2;
+                        const tr = bl + 3;
+                        indices.push(bl, br, tr,  bl, tr, tl);  // front
+                        indices.push(bl, tr, br,  bl, tl, tr);  // back
+                    }
+                }
+
+                // Horizontal cap quad for top-down view coverage.
+                // Placed at 40% height — lower than before since the arching
+                // blades spread wide and cover the mid-height range themselves.
+                // Wider cap (0.75× vs old 0.55×) covers more ground per tuft,
+                // especially important for the outer ring's 100-unit cell spacing.
+                const capW   = width  * 0.75;
+                const capY   = height * 0.40;
+                const capBase = vi;
+                const cpPos = [[-capW,capY,-capW],[capW,capY,-capW],[capW,capY,capW],[-capW,capY,capW]];
+                const cpUv  = [[0,0],[1,0],[1,1],[0,1]];
+                for (let i = 0; i < 4; i++) {
+                    positions[vi*3]   = cpPos[i][0];
+                    positions[vi*3+1] = cpPos[i][1];
+                    positions[vi*3+2] = cpPos[i][2];
+                    uvs[vi*2]   = cpUv[i][0];
+                    uvs[vi*2+1] = cpUv[i][1];
+                    isCap[vi]   = 1;
+                    bladeId[vi] = 99.0;  // sentinel: shader treats >50 as cap
+                    vi++;
+                }
+                indices.push(capBase, capBase+1, capBase+2, capBase, capBase+2, capBase+3);
+                indices.push(capBase, capBase+2, capBase+1, capBase, capBase+3, capBase+2);
+
                 const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-                geo.setAttribute('uv',       new THREE.BufferAttribute(uvs, 2));
-                geo.setAttribute('aIsCap',   new THREE.BufferAttribute(isCap, 1));
-                geo.setIndex(new THREE.BufferAttribute(indices, 1));
+                geo.setAttribute('position', new THREE.BufferAttribute(positions.slice(0, vi*3), 3));
+                geo.setAttribute('uv',       new THREE.BufferAttribute(uvs.slice(0, vi*2), 2));
+                geo.setAttribute('aIsCap',   new THREE.BufferAttribute(isCap.slice(0, vi), 1));
+                geo.setAttribute('aBladeId', new THREE.BufferAttribute(bladeId.slice(0, vi), 1));
+                geo.setAttribute('aBladeOut',new THREE.BufferAttribute(bladeOut.slice(0, vi*2), 2));
+                geo.setIndex(new THREE.BufferAttribute(new Uint16Array(indices), 1));
                 return geo;
             }
 
@@ -3345,15 +3722,14 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     const y = Math.floor(cy + Math.sin(theta) * r);
                     if (x < 0 || x >= W || y < 0 || y >= H) continue;
 
-                    // Match blade colour palette: G > R for green look.
-                    // 70% chance of mid-blade green, 30% chance of bright tip.
+                    // Match updated blade palette — muted natural greens.
                     const isTip = rnd() > 0.7;
-                    const cR = isTip ? 170 + Math.floor(rnd() * 30)
-                                     : 105 + Math.floor(rnd() * 30);
-                    const cG = isTip ? 205 + Math.floor(rnd() * 25)
-                                     : 140 + Math.floor(rnd() * 30);
-                    const cB = isTip ? 115 + Math.floor(rnd() * 25)
-                                     :  70 + Math.floor(rnd() * 25);
+                    const cR = isTip ? 142 + Math.floor(rnd() * 24)
+                                     :  88 + Math.floor(rnd() * 26);
+                    const cG = isTip ? 172 + Math.floor(rnd() * 20)
+                                     : 122 + Math.floor(rnd() * 26);
+                    const cB = isTip ?  76 + Math.floor(rnd() * 20)
+                                     :  54 + Math.floor(rnd() * 20);
                     ctx.fillStyle = `rgb(${cR},${cG},${cB})`;
 
                     // Most tips are single pixels; some are 2px clusters
@@ -3378,9 +3754,9 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     }
                 }
 
-                // Sparse bright seedhead highlights — sun-catching tip pixels.
+                // Sparse bright seedhead highlights — muted to match new palette.
                 const numBright = Math.floor(NUM_TIPS * 0.18);
-                const brightTones = ['#bcd58e', '#a8c47e', '#aec985', '#d4e2a4'];
+                const brightTones = ['#94b468', '#88a860', '#8eae65', '#a0be74'];
                 for (let i = 0; i < numBright; i++) {
                     const r     = Math.pow(rnd(), 1.5) * maxR;
                     const theta = rnd() * Math.PI * 2;
@@ -3399,16 +3775,91 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 return tex;
             }
 
+            // ── 1b. BLADE COLOUR TEXTURE ──
+            // With actual 3D blade geometry we no longer need many blades
+            // drawn on a single canvas — each blade strip is real geometry.
+            // This texture is sampled along the blade length: uv.y=0 is the
+            // base (dark), uv.y=1 is the tip (bright yellow-green). uv.x
+            // gives subtle left/right variation across the blade width.
+            // Pixelated noise keeps it consistent with the game's aesthetic.
+            function createBladeColorTexture(opts) {
+                const W = opts.width  || 16;
+                const H = opts.height || 64;
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, W, H);
+
+                // Canvas py=0 = top = uv.y=1 (tip), py=H-1 = bottom = uv.y=0 (base).
+                const baseR = 56,  baseG = 82,  baseB = 38;
+                const tipR  = 108, tipG  = 138, tipB  = 58;
+                for (let py = 0; py < H; py++) {
+                    // Map canvas y to uv.y: py=0→uvT=1 (tip), py=H-1→uvT=0 (base)
+                    const uvT = 1.0 - py / (H - 1);
+                    const r = baseR + (tipR - baseR) * uvT;
+                    const g = baseG + (tipG - baseG) * uvT;
+                    const b = baseB + (tipB - baseB) * uvT;
+                    for (let px = 0; px < W; px++) {
+                        // Per-pixel noise for the pixelated look
+                        const nr = Math.max(0, Math.min(255, Math.round(r + (rnd()-0.5)*6)));
+                        const ng = Math.max(0, Math.min(255, Math.round(g + (rnd()-0.5)*6)));
+                        const nb = Math.max(0, Math.min(255, Math.round(b + (rnd()-0.5)*4)));
+                        ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+                        ctx.fillRect(px, py, 1, 1);
+                    }
+                }
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.magFilter = THREE.NearestFilter;
+                tex.minFilter = THREE.NearestMipMapLinearFilter;
+                tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.generateMipmaps = true;
+                return tex;
+            }
+
+            // Short-grass uses a brighter, more saturated lime-green palette
+            // (shorter blades catch more direct overhead light).
+            function createShortBladeColorTexture(opts) {
+                const W = opts.width  || 16;
+                const H = opts.height || 64;
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, W, H);
+                const baseR = 50,  baseG = 85,  baseB = 34;
+                const tipR  = 95,  tipG  = 128, tipB  = 50;
+                for (let py = 0; py < H; py++) {
+                    const uvT = 1.0 - py / (H - 1);
+                    const r = baseR + (tipR - baseR) * uvT;
+                    const g = baseG + (tipG - baseG) * uvT;
+                    const b = baseB + (tipB - baseB) * uvT;
+                    for (let px = 0; px < W; px++) {
+                        const nr = Math.max(0, Math.min(255, Math.round(r + (rnd()-0.5)*6)));
+                        const ng = Math.max(0, Math.min(255, Math.round(g + (rnd()-0.5)*6)));
+                        const nb = Math.max(0, Math.min(255, Math.round(b + (rnd()-0.5)*12)));
+                        ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+                        ctx.fillRect(px, py, 1, 1);
+                    }
+                }
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.magFilter = THREE.NearestFilter;
+                tex.minFilter = THREE.NearestMipMapLinearFilter;
+                tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.generateMipmaps = true;
+                return tex;
+            }
+
             // ── SHARED RESOURCES ──
-            // Two blade textures + two cap textures (one each per field).
-            // The cap textures fix the "grass disappears when viewed from
-            // above" problem — vertical cross-quads are edge-on at top-down
-            // angles, so we need a horizontal piece of geometry per tuft.
-            const innerBladeTex = createGrassBladeTexture({ width: 64, height: 128, blades: 12 });
-            const outerBladeTex = createGrassBladeTexture({ width: 96, height: 192, blades: 28 });
+            // Blade colour textures — sampled along blade length (uv.y=0
+            // base, uv.y=1 tip). Inner/outer use same texture at different
+            // geometry scales; short grass gets a separate brighter palette.
+            const innerBladeTex = createBladeColorTexture({ width: 16, height: 64 });
             const innerCapTex   = createGrassCapTexture({ width: 64, height: 64, tips: 600 });
             const outerCapTex   = createGrassCapTexture({ width: 96, height: 96, tips: 1400 });
+            const shortBladeTex = createShortBladeColorTexture({ width: 16, height: 64 });
+            const shortCapTex   = createGrassCapTexture({ width: 64, height: 64, tips: 700 });
             const fieldMaterials = [];
+            // Exposed for the B-key shadow debug toggle in the keydown handler.
+            window.fieldMaterials = fieldMaterials;
 
             // ── 3. FIELD BUILDER ──
             // Builds one camera-following grass field with the given config
@@ -3438,16 +3889,22 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             function buildField(cfg) {
                 const { FIELD, CELL_SIZE, tuftW, tuftH, hMin, hMax,
                         bladeTex, capTex,
+                        shortBladeTexRef, shortCapTexRef,
                         fadeOutStart, fadeOutEnd,
-                        fadeInStart, fadeInEnd, name } = cfg;
+                        fadeInStart, fadeInEnd,
+                        forceShortGrass,
+                        minXzScale = 0.0,
+                        scatterMul = 1.0,
+                        name } = cfg;
                 const INSTANCES = FIELD * FIELD;
-
-                const baseGeo = createTuftGeometry(tuftW, tuftH);
+                const baseGeo = createTuftGeometry(tuftW, tuftH, scatterMul);
                 const geo = new THREE.InstancedBufferGeometry();
                 geo.index = baseGeo.index;
-                geo.attributes.position = baseGeo.attributes.position;
-                geo.attributes.uv       = baseGeo.attributes.uv;
-                geo.attributes.aIsCap   = baseGeo.attributes.aIsCap;
+                geo.attributes.position  = baseGeo.attributes.position;
+                geo.attributes.uv        = baseGeo.attributes.uv;
+                geo.attributes.aIsCap    = baseGeo.attributes.aIsCap;
+                geo.attributes.aBladeId  = baseGeo.attributes.aBladeId;
+                geo.attributes.aBladeOut = baseGeo.attributes.aBladeOut;
                 geo.instanceCount = INSTANCES;
 
                 // Per-instance attribute: which cell of the field this blade
@@ -3473,6 +3930,8 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     uniforms: {
                         uTex:        { value: bladeTex },
                         uCapTex:     { value: capTex },
+                        uShortTex:   { value: shortBladeTexRef },
+                        uShortCapTex:{ value: shortCapTexRef },
                         uTime:       { value: 0 },
                         uCamera:     { value: new THREE.Vector3() },
                         uCellSize:   { value: CELL_SIZE },
@@ -3490,17 +3949,44 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         // WORLD_PATHS.activate() once monoliths exist.
                         uPaths:        { value: WORLD_PATHS.paths },
                         uNumPaths:     { value: WORLD_PATHS.counts.numPaths },
+                        // ── WATER-SUPPRESSION UNIFORMS ──
+                        // Carve grass blades out of the lake footprint so
+                        // they don't poke through the water surface or
+                        // sit on submerged ground. Configured later via
+                        // window.setGrassWater() once the lake is built.
+                        // halfSize = (0,0) is a sentinel meaning "no lake
+                        // configured yet" — the shader skips the whole
+                        // suppression branch in that case.
+                        uWaterCenter:   { value: new THREE.Vector2(0, 0) },
+                        uWaterHalfSize: { value: new THREE.Vector2(0, 0) },
+                        uWaterY:        { value: -1e9 },
+                        // ── SUN SHADOW SAMPLING ──
+                        // Manually piped from sunLight.shadow each frame so the
+                        // grass shader (a raw ShaderMaterial) can darken blades
+                        // standing in tree/tower shadows. uShadowEnabled gates
+                        // sampling at night and before the first shadow render.
+                        uShadowMap:     { value: null },
+                        uShadowMatrix:  { value: new THREE.Matrix4() },
+                        uShadowMapSize: { value: new THREE.Vector2(4096, 4096) },
+                        uShadowEnabled: { value: 0 },
+                        uShadowDebug:   { value: 0 },
                     },
                     vertexShader: `
                         #define MAX_PATHS 4
                         attribute vec2 iCell;
                         attribute float aIsCap;
+                        attribute float aBladeId;
+                        attribute vec2  aBladeOut;
                         uniform float uTime;
                         uniform float uCellSize;
                         uniform vec3  uCamera;
                         uniform vec3  uSunDir;
                         uniform vec4  uPaths[MAX_PATHS];
                         uniform int   uNumPaths;
+                        uniform vec2  uWaterCenter;
+                        uniform vec2  uWaterHalfSize;
+                        uniform float uWaterY;
+                        uniform mat4  uShadowMatrix;
 
                         varying vec2  vUv;
                         varying float vFade;
@@ -3509,6 +3995,14 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         varying float vTerrLight;
                         varying float vIsCap;
                         varying float vMoisture;
+                        varying vec3  vTerrainTint;
+                        varying float vGrassType;
+                        varying vec4  vShadowCoord;
+                        // Hexaquo-grass-style: synthesised blade normal that
+                        // points outward at the base and STRAIGHT UP at the
+                        // tip. Drives the per-fragment specular highlights.
+                        varying vec3  vBladeNormal;
+                        varying vec3  vViewDir;
 
                         // 2D hashes for per-cell jitter, scale, rotation.
                         float hash21(vec2 p) {
@@ -3540,9 +4034,10 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             );
                         }
                         float worldMoisture(vec2 p) {
-                            float n1 = gndNoise(p * 0.0008);
-                            float n2 = gndNoise(p * 0.0028 + 41.7);
-                            return clamp(n1 * 0.65 + n2 * 0.35, 0.0, 1.0);
+                            float n1 = gndNoise(p * 0.0008 + vec2(317.5, 211.9));
+                            float n2 = gndNoise(p * 0.0028 + vec2(581.3, 449.7));
+                            float m  = n1 * 0.65 + n2 * 0.35;
+                            return smoothstep(0.32, 0.68, m);
                         }
                         // Same parameters as the ground shader's worldPathMask.
                         // Used here to suppress blade height where the player
@@ -3568,6 +4063,26 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                                 bestMask = max(bestMask, m);
                             }
                             return bestMask;
+                        }
+
+                        // ── SHORT GRASS ZONE NOISE ──
+                        // Low-frequency noise that defines where short grass
+                        // patches occur. The two layers at different scales
+                        // produce natural-looking irregular patches roughly
+                        // 800–2000 world-units across. Returns 0 = tall grass,
+                        // 1 = short grass, with a smooth transition zone.
+                        float shortGrassMask(vec2 p) {
+                            float n1 = gndNoise(p * 0.00022 + vec2(12.31, 45.67));
+                            float n2 = gndNoise(p * 0.00055 + vec2(78.93, 23.14));
+                            float n  = n1 * 0.62 + n2 * 0.38;
+                            // smoothstep threshold: 0.34–0.54 → ~60% of world
+                            // area is short grass (lawn dominates, taller
+                            // meadow appears as islands). Transition band is
+                            // ~200–400 world-units wide (field-scale), which
+                            // is several tufts wide — enough to see individual
+                            // blades of both types standing side by side at
+                            // the boundary.
+                            return smoothstep(0.34, 0.54, n);
                         }
 
                         // Same heightmap as JS getElevation() — MUST stay
@@ -3615,13 +4130,47 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             float cellPathMask = worldPathMask(worldXZ);
                             vMoisture = cellMoisture;
 
+                            // ── TERRAIN PATCH TINT FOR BLADES ──
+                            // Same noise seeds/frequencies as the ground shader
+                            // patches so blades match the ground beneath them.
+                            // Applied as a multiplicative tint (not mix-to-solid)
+                            // so blade texture detail is preserved.
+                            float _mN1 = gndNoise(worldXZ * 0.00040 + vec2(83.4, 12.7));
+                            float _mN2 = gndNoise(worldXZ * 0.00140 + vec2(31.7, 66.2));
+                            float _moss = smoothstep(0.44, 0.60, _mN1 * 0.60 + _mN2 * 0.40);
+
+                            float _pN1 = gndNoise(worldXZ * 0.00028 + vec2(57.1, 91.3));
+                            float _pN2 = gndNoise(worldXZ * 0.00095 + vec2(99.3, 44.8));
+                            float _pale = smoothstep(0.48, 0.64, _pN1 * 0.55 + _pN2 * 0.45);
+                            _pale *= 1.0 - _moss * 0.85;
+
+                            float _eN1 = gndNoise(worldXZ * 0.00070 + vec2(13.6, 77.5));
+                            float _eN2 = gndNoise(worldXZ * 0.00200 + vec2(47.2, 28.9));
+                            float _earth = smoothstep(0.52, 0.68, _eN1 * 0.50 + _eN2 * 0.50);
+                            _earth *= 1.0 - _moss * 0.65;
+                            _earth *= 1.0 - _pale * 0.55;
+
+                            // Start from neutral, blend toward each patch tint.
+                            // Moss:  darken R+B, boost G → deep green blades
+                            // Pale:  warm up, bleach slightly → straw blades
+                            // Earth: darken + olive → sparse dry-soil blades
+                            vTerrainTint = vec3(1.0);
+                            vTerrainTint = mix(vTerrainTint, vec3(0.58, 1.08, 0.42), _moss  * 0.25);
+                            // Strength bumped 0.18 → 0.30 and tint nudged
+                            // a touch greener (less straw, more "light
+                            // greenish hay") so dry-zone blades visibly
+                            // match the stronger ground dryTint above.
+                            vTerrainTint = mix(vTerrainTint, vec3(1.30, 1.20, 0.62), _pale  * 0.30);
+                            vTerrainTint = mix(vTerrainTint, vec3(0.72, 0.82, 0.50), _earth * 0.18);
+
                             // Per-cell height jitter, then biased by moisture:
-                            // dry → 45% of original, lush → 125%. So an
-                            // existing 0.75-1.55 (inner field) range becomes
-                            // ~0.34-1.94, with the entire shape of the field
-                            // following the moisture map.
+                            // dry → 70% of original, lush → 130%.
+                            // Floor raised from 45% to keep blades from going
+                            // sparse-looking in dry zones.
                             float heightVar = mix(${f(hMin)}, ${f(hMax)}, seed);
-                            heightVar *= mix(0.45, 1.25, cellMoisture);
+                            heightVar *= mix(0.70, 1.30, cellMoisture);
+
+                            float grassType = shortGrassMask(worldXZ);
                             float rotation  = hash21(worldCell + 23.7) * 6.2832;
 
                             // STEP 4 — DUAL-EDGE GEOMETRIC FADE.
@@ -3638,21 +4187,76 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             float innerFade = smoothstep(${f(fadeInStart)}, ${f(fadeInEnd)}, distToCam);
                             float geomFade  = outerFade * innerFade;
 
+                            // ── WATER SUPPRESSION ──
+                            // The lake plane is a flat rectangle at uWaterY.
+                            // Without this, blades happily render on the lake
+                            // floor and on submerged banks — tall grass pokes
+                            // straight through the water surface and the
+                            // shoreline reads as "underwater meadow," which
+                            // is exactly what we don't want. Solution: kill
+                            // geomFade smoothly anywhere we're (a) inside the
+                            // water rectangle's footprint and (b) the ground
+                            // here is at-or-below the water line.
+                            //
+                            // Both axes use smoothstep instead of a hard
+                            // rectangle test so the shoreline transition is
+                            // ~50u wide rather than 1 cell. The depth band
+                            // -15..25 means grass on dry land 15u+ above the
+                            // waterline is fully present, grass on the bank
+                            // right at the waterline is partially thinned,
+                            // and grass that would sit 25u+ underwater is
+                            // gone entirely. The 25u upper bound matters: at
+                            // the rectangle's deep centre, ground is ~180u
+                            // below water, well past 25, so depthMask is
+                            // safely saturated to 1.
+                            //
+                            // We also compute groundY here (rather than at
+                            // STEP 5 below) because we need it now. The
+                            // STEP 5 block reuses this same variable.
+                            float groundY = getElevationGLSL(worldXZ.x, worldXZ.y);
+                            if (uWaterHalfSize.x > 0.5) {
+                                vec2  distToCenter = abs(worldXZ - uWaterCenter);
+                                vec2  inside       = uWaterHalfSize - distToCenter;
+                                float inWaterX     = smoothstep(-50.0, 50.0, inside.x);
+                                float inWaterZ     = smoothstep(-50.0, 50.0, inside.y);
+                                float inWater      = inWaterX * inWaterZ;
+                                float waterDepth   = uWaterY - groundY;
+                                float depthMask    = smoothstep(-15.0, 25.0, waterDepth);
+                                geomFade *= 1.0 - inWater * depthMask;
+                            }
+
                             // ── PATH SUPPRESSION ──
-                            // Multiply through geomFade so blades on/near a
-                            // path shrink rather than vanishing instantly —
-                            // matches the soft path-mask edge on the ground
-                            // so there's no visible step. smoothstep here
-                            // means full path strength only kills blades
-                            // when the path mask is over ~0.4 (the path
-                            // "core" rather than its faded edge), so the
-                            // path edge has tufts thinning out gradually.
                             geomFade *= 1.0 - smoothstep(0.35, 0.9, cellPathMask);
 
+                            // ── GRASS TYPE (TALL vs SHORT) ──
+                            ${forceShortGrass ? `
+                            geomFade *= smoothstep(0.08, 0.35, grassType);
+                            vGrassType = 1.0;
+                            heightVar *= 0.40;
+                            ` : `
+                            vGrassType = grassType;
+                            heightVar *= mix(1.0, 0.40, smoothstep(0.25, 0.75, grassType));
+                            // No density thinning — every cell keeps its blade.
+                            // Visual differentiation between tall and short comes
+                            // from xzScale (skinny tall, fat short) below, so the
+                            // world stays carpeted in grass everywhere. Short
+                            // multiplier is 0.40 (lawn length) — combined with
+                            // the xzScale floor of 1.30, short blades read as
+                            // stubby/wide rather than thin & sickly.
+                            `}
+
                             float scaleY    = heightVar * geomFade;
+                            // Single thick xzScale floor for ALL blades.
+                            // Tall vs short differentiation comes from height
+                            // (heightVar) only — width is uniform & substantial,
+                            // no more paper-thin stalks anywhere.
+                            float xzScale = max(scaleY, 1.30);
+                            xzScale = max(xzScale, ${f(minXzScale)});
 
                             // STEP 5 — terrain follow.
-                            float groundY = getElevationGLSL(worldXZ.x, worldXZ.y);
+                            // (groundY was computed above for water
+                            // suppression; reuse the same value here so
+                            // the elevation function only runs once.)
 
                             // STEP 5b — TERRAIN NORMAL & SUN LIGHTING.
                             // The ground material uses MeshStandardMaterial
@@ -3680,10 +4284,80 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             float ndotL = max(0.0, dot(terrN, uSunDir));
                             vTerrLight = 0.62 + 0.43 * ndotL;
 
-                            // STEP 6 — local-space transform: scale, tilt
-                            // (cap only), rotate, wind sway on top verts only.
+                            // ── PER-BLADE-PER-TUFT VARIATION ──
+                            // For each (worldCell, bladeId) pair, derive a
+                            // unique hash. Use it to give EACH BLADE in EACH
+                            // TUFT its own scale, rotation, and lean — and
+                            // occasionally hide one entirely. This is what
+                            // makes adjacent tufts look genuinely different
+                            // instead of being rotated copies of the same
+                            // baked shape. The geometry-level jitter from
+                            // createTuftGeometry() gives the tuft asymmetric
+                            // bones; THIS layer gives every tuft different
+                            // bones from its neighbours.
+                            float bRotate  = 0.0;
+                            float bScaleY  = 1.0;
+                            float bScaleXZ = 1.0;
+                            vec2  bLean    = vec2(0.0);
+                            float bHidden  = 1.0;
+                            if (aBladeId < 50.0) {
+                                vec2  bSeed = worldCell * 0.71 + aBladeId * 7.13 + 3.7;
+                                bScaleY  = 0.65 + hash21(bSeed)         * 0.75;  // 0.65–1.40
+                                bScaleXZ = 0.93 + hash21(bSeed + 11.1)  * 0.14;  // 0.93–1.07
+                                bRotate  = (hash21(bSeed + 22.2) - 0.5) * 0.70;  // ±~20°
+                                bLean    = (hash22(bSeed + 33.3) - 0.5) * 28.0;  // ±14u tip
+                                // ~7% of blades hidden — kills random
+                                // "spokes" of the original 6-pointed
+                                // asterisk so most tufts visibly have 4–6
+                                // blades, not always exactly 6.
+                                if (hash21(bSeed + 44.4) < 0.07) bHidden = 0.0;
+                            }
+
+                            // ── PER-TUFT WHOLE-CLUMP LEAN ──
+                            // The entire tuft permanently leans in a random
+                            // direction (independent of wind). Direction +
+                            // amplitude both per-cell, so adjacent tufts
+                            // lean differently and the field reads as
+                            // organically grown rather than as a forest of
+                            // identical upright clumps.
+                            vec2  tuftLeanDir = hash22(worldCell + 5.55) - 0.5;
+                            float tuftLeanAmt = hash21(worldCell + 7.77) * 0.65 + 0.15;
+
+                            // STEP 6 — scale, cap tilt, rotation, wind.
                             vec3 p = position;
-                            p.y *= scaleY;
+
+                            // Per-blade rotation around Y (in tuft-local
+                            // space, applied BEFORE the per-tuft rotation
+                            // further down).
+                            float bc = cos(bRotate), bs = sin(bRotate);
+                            p.xz = mat2(bc, -bs, bs, bc) * p.xz;
+
+                            // Per-blade scale. Hidden blades collapse to
+                            // origin via bHidden = 0 (degenerate triangles
+                            // don't rasterise).
+                            p.y  *= bScaleY  * bHidden;
+                            p.xz *= bScaleXZ * bHidden;
+
+                            // Per-blade tip-lean — extra wonk on top of the
+                            // baked-in geometry jitter. Quadratic in uv.y so
+                            // base stays rooted and tip bends freely.
+                            float bladeT2 = uv.y * uv.y;
+                            p.x += bLean.x * bladeT2 * bHidden;
+                            p.z += bLean.y * bladeT2 * bHidden;
+
+                            // Existing per-cell scaling (blade height range
+                            // and width floor for non-paper-thinness).
+                            p    *= scaleY;
+                            p.xz *= xzScale;
+
+                            // Per-tuft whole-clump lean. Skipped for caps
+                            // (multiplied by 1-aIsCap) so the horizontal
+                            // cap quad doesn't shear into a parallelogram.
+                            // Multiplied by geomFade so dying edge blades
+                            // don't lean weirdly at fixed world units.
+                            float notCap = 1.0 - aIsCap;
+                            p.x += tuftLeanDir.x * tuftLeanAmt * bladeT2 * 38.0 * geomFade * notCap;
+                            p.z += tuftLeanDir.y * tuftLeanAmt * bladeT2 * 38.0 * geomFade * notCap;
 
                             // Per-cap tilt: rotates the horizontal cap quad by
                             // ±~12° around BOTH X and Z axes. Without this,
@@ -3734,9 +4408,58 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             p.x += windAmt * (w1 + w2) * 18.0 * geomFade;
                             p.z += windAmt * sin(uTime * 0.9 + worldXZ.x * 0.013) * 11.0 * geomFade;
 
+                            // ── STEP 6.5 — TIP-BENT BLADE NORMAL ──
+                            // Synthesise a per-vertex normal that points OUTWARD
+                            // from the tuft centre at the blade base and
+                            // STRAIGHT UP at the blade tip. The upward-pointing
+                            // tip normal is the signature trick from the
+                            // Hexaquo Godot grass tutorial — when the sun
+                            // catches it, the fragment shader's specular term
+                            // produces a sharp white highlight that makes each
+                            // blade read as a distinct lit object instead of a
+                            // uniform mat. Caps already face up so they get
+                            // (0,1,0) directly — no specular trick needed for
+                            // them. position.xz at the base of a blade is near
+                            // zero (degenerate), but uv.y is ~0 there too so
+                            // the mix() weights us almost entirely toward the
+                            // up vector regardless.
+                            // ── STEP 6.5 — TIP-BENT BLADE NORMAL ──
+                            // Same article-style trick as before: outward at
+                            // base, straight up at tip → sharp specular at
+                            // the tip when sun catches it. With scattered
+                            // root positions (not radial), position.xz no
+                            // longer encodes the blade's arch direction —
+                            // we use aBladeOut, which was baked per-vertex
+                            // in createTuftGeometry as the actual direction
+                            // the blade leans in. Caps fall back to (0,1)
+                            // and are overwritten with vec3(0,1,0) at the
+                            // bottom anyway.
+                            vec2 horizDir2 = aIsCap > 0.5 ? vec2(0.0, 1.0) : aBladeOut;
+                            // Per-blade rotation FIRST (matches what we did
+                            // to p.xz above), then per-tuft rotation. Without
+                            // this, the synthesised normal would point in
+                            // the un-rotated outward direction while the
+                            // blade itself has been rotated by bRotate, and
+                            // the specular highlight would show up on the
+                            // wrong face.
+                            horizDir2 = mat2(bc, -bs, bs, bc) * horizDir2;
+                            vec2 worldHoriz2 = mat2(c, -s, s, c) * horizDir2;
+                            vec3 outwardN    = vec3(worldHoriz2.x, 0.0, worldHoriz2.y);
+                            vec3 bladeN      = normalize(mix(outwardN, vec3(0.0, 1.0, 0.0), uv.y));
+                            vBladeNormal     = aIsCap > 0.5 ? vec3(0.0, 1.0, 0.0) : bladeN;
+
                             // STEP 7 — assemble world position. Sink 4 units
                             // so the base hides slightly under the terrain.
                             vWorldPos = vec3(worldXZ.x + p.x, groundY + p.y - 4.0, worldXZ.y + p.z);
+                            // Shadow-map coord — light-space projection of the
+                            // blade's world position. uShadowMatrix is updated
+                            // per-frame from sunLight.shadow.matrix.
+                            vShadowCoord = uShadowMatrix * vec4(vWorldPos, 1.0);
+                            // View direction for fragment-shader specular &
+                            // backlight. Per-vertex is fine — grass tufts are
+                            // small enough that linear interpolation across the
+                            // ~1m blade gives a perfectly smooth result.
+                            vViewDir  = normalize(uCamera - vWorldPos);
                             vFade = geomFade;
                             vIsCap = aIsCap;
 
@@ -3750,63 +4473,222 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         precision highp float;
                         uniform sampler2D uTex;
                         uniform sampler2D uCapTex;
+                        uniform sampler2D uShortTex;
+                        uniform sampler2D uShortCapTex;
                         uniform float uDayLight;
                         uniform vec3  uFogColor;
                         uniform float uFogDensity;
+                        uniform vec3  uSunDir;
+                        uniform sampler2D uShadowMap;
+                        uniform vec2  uShadowMapSize;
+                        uniform float uShadowEnabled;
+                        uniform float uShadowDebug;
                         varying vec2  vUv;
                         varying float vFade;
                         varying float vFogDepth;
                         varying float vTerrLight;
                         varying float vIsCap;
                         varying float vMoisture;
+                        varying vec3  vTerrainTint;
+                        varying float vGrassType;
+                        varying vec4  vShadowCoord;
+                        varying vec3  vBladeNormal;
+
+                        // ── RGBA-PACKED DEPTH UNPACK ──
+                        // Three.js packs the 32-bit shadow depth across all
+                        // four RGBA channels via MeshDepthMaterial with
+                        // RGBADepthPacking. Reading only .r gives us 8-bit
+                        // precision across an 80k far plane (~313u per step)
+                        // which causes severe streak aliasing on grass. This
+                        // recovers the full depth — same constants Three
+                        // uses internally in <packing>.
+                        float unpackRGBAToDepth(vec4 v) {
+                            const vec4 UnpackFactors = (255.0 / 256.0) /
+                                vec4(256.0 * 256.0 * 256.0, 256.0 * 256.0, 256.0, 1.0);
+                            return dot(v, UnpackFactors);
+                        }
+
+                        // ── SUN SHADOW SAMPLE (3x3 PCF, distance-faded) ──
+                        // Returns 1.0 = fully lit, 0.0 = fully shadowed.
+                        // Sampling is skipped at night, when the shadow map
+                        // hasn't rendered yet, and for blades far from camera
+                        // (the meadow is mostly inside the shadow camera's
+                        // 6000u frustum but we fade out gracefully past 2500u
+                        // so the frustum boundary doesn't pop).
+                        float sampleSunShadow() {
+                            if (uShadowEnabled < 0.5) return 1.0;
+                            vec3 sc = vShadowCoord.xyz / vShadowCoord.w;
+                            // Outside the shadow camera frustum → no shadow data.
+                            if (sc.x < 0.001 || sc.x > 0.999 ||
+                                sc.y < 0.001 || sc.y > 0.999 ||
+                                sc.z > 0.999) return 1.0;
+                            // Distance-fade so blades way past the frustum's
+                            // edge don't suddenly snap from shadowed to lit.
+                            float distFade = 1.0 - smoothstep(2200.0, 2900.0, vFogDepth);
+                            if (distFade <= 0.0) return 1.0;
+                            // Bias: 0.0025 in NDC depth ≈ 200 world units of
+                            // tolerance with our 80k far plane. Grass blades
+                            // are tilted thin geometry and the shadow map is
+                            // ~3 units/texel; without this much bias the
+                            // depth comparison flickers and you get streaky
+                            // shadow acne across blade tips.
+                            float receiverZ = sc.z - 0.0025;
+                            vec2 texel = 1.0 / uShadowMapSize;
+                            // 3x3 PCF — wider kernel than rotated 4-tap, kills
+                            // the leftover streak banding from blade-to-blade
+                            // depth aliasing. Costs 9 samples vs 4, but
+                            // distance-fade keeps it cheap past 2200u.
+                            float lit = 0.0;
+                            for (int x = -1; x <= 1; x++) {
+                                for (int y = -1; y <= 1; y++) {
+                                    float d = unpackRGBAToDepth(texture2D(uShadowMap, sc.xy + texel * vec2(float(x), float(y))));
+                                    lit += d > receiverZ ? 1.0 : 0.0;
+                                }
+                            }
+                            float s = lit * (1.0 / 9.0);
+                            return mix(1.0, s, distFade);
+                        }
+                        varying vec3  vViewDir;
 
                         void main() {
-                            // Cap quad uses a separate "grass tops" texture
-                            // (the horizontal piece visible from above);
-                            // vertical quads use the standard blade texture.
                             vec4 c;
                             if (vIsCap > 0.5) {
+                                if (vGrassType > 0.45) discard;
                                 c = texture2D(uCapTex, vUv);
+                                if (c.a < 0.45) discard;
                             } else {
-                                c = texture2D(uTex, vUv);
+                                // Blade / billboard texture sampling.
+                                float blendA = smoothstep(0.35, 0.65, vGrassType);
+                                vec4 cTall  = texture2D(uTex, vUv);
+                                vec4 cShort = texture2D(uShortTex, vUv);
+                                c = mix(cTall, cShort, blendA);
                             }
-                            // Alpha test — fast, no blending, plays nice with depth.
-                            if (c.a < 0.45) discard;
-                            // Skip fully-shrunk edge blades — saves fillrate.
                             if (vFade < 0.02) discard;
+                            if (c.a < 0.45) discard;
 
-                            // Vertical AO only applies to the vertical blade
-                            // quads (where uv.y meaningfully maps to "base
-                            // → tip"). The cap is horizontal — uv.y on it
-                            // is just a 2D texture coord with no shading
-                            // meaning, so applying the AO there would just
-                            // darken arbitrary halves of the cap.
                             if (vIsCap < 0.5) {
-                                // Within ~800 units: full AO (close blades
-                                // read as 3D). Past ~3000 units: no AO (far
-                                // blades stay bright and match ground tone).
+                                // Stronger base-to-tip AO gradient (article-style):
+                                // base at 0.50× to read clearly as self-shadow,
+                                // tip preserved at 1.0×. Combined with the new
+                                // tip specular below, this gives blades the clean
+                                // dark-base / bright-tip silhouette of the Hexaquo
+                                // grass tutorial reference. The pow() pushes the
+                                // brightening toward the upper portion so the
+                                // dark band at the base reaches further up.
                                 float aoStrength = 1.0 - smoothstep(800.0, 3000.0, vFogDepth);
-                                float aoBaseMul  = mix(1.0, 0.78, aoStrength);
-                                c.rgb *= mix(aoBaseMul, 1.0, vUv.y);
+                                float aoBaseMul  = mix(1.0, 0.50, aoStrength);
+                                c.rgb *= mix(aoBaseMul, 1.0, pow(vUv.y, 1.3));
+
+                                // Aggressive colour merge: blades blend toward
+                                // ground-fill colour starting at just 1200 units
+                                // from camera, fully merged by 3000. By the time
+                                // blades enter the geometric fade band (1890+u)
+                                // they already look like ground colour, so the
+                                // texture-to-fill transition is invisible.
+                                float distMerge = smoothstep(1500.0, 4500.0, vFogDepth);
+                                vec3 dryB  = vec3(1.12, 1.10, 0.82);
+                                vec3 lushB = vec3(0.85, 1.10, 0.85);
+                                // Base colour now moisture-driven, matching
+                                // the ground shader so blades fading into the
+                                // distance settle to hay in dry zones and
+                                // meadow green in lush zones — instead of
+                                // every blade fading toward the same green.
+                                vec3 fillLush = vec3(0.40, 0.52, 0.22);
+                                vec3 fillHay  = vec3(0.62, 0.60, 0.34);
+                                vec3 fillGreen = mix(fillHay, fillLush, vMoisture)
+                                               * mix(dryB, lushB, vMoisture)
+                                               * vTerrLight;
+                                c.rgb = mix(c.rgb, fillGreen, distMerge * 0.80);
                             }
 
                             // ── MOISTURE-DRIVEN BLADE TINT ──
-                            // Mirrors the ground's moisture tints (olive-dry
-                            // ↔ saturated lush) so blade colour follows the
-                            // ground beneath. Slightly less aggressive on
-                            // the dry end than the ground because blades
-                            // are inherently brighter (catching light from
-                            // the side); pushing them too olive made them
-                            // look unhealthy rather than just drier.
-                            vec3 dryBlade  = vec3(1.04, 0.96, 0.74);
-                            vec3 lushBlade = vec3(0.86, 1.10, 0.80);
+                            // Same values as ground moisture tints — blade
+                            // and ground beneath it shift hue identically.
+                            vec3 dryBlade  = vec3(1.12, 1.10, 0.82);
+                            vec3 lushBlade = vec3(0.85, 1.10, 0.85);
                             c.rgb *= mix(dryBlade, lushBlade, vMoisture);
+
+                            // ── TERRAIN PATCH TINT ──
+                            // Moss / pale / earth variation matching the ground.
+                            c.rgb *= vTerrainTint;
 
                             // Day/night brightness, never fully black.
                             c.rgb *= mix(0.25, 1.0, uDayLight);
                             // Terrain N·L lighting — matches the ground's PBR
                             // brightness response to the sun.
                             c.rgb *= vTerrLight;
+
+                            // ── SUN SHADOW (cast by trees/towers/etc) ──
+                            // Floor at 0.55 keeps shadows dramatic. Tree
+                            // undersides etc. get their fill from the
+                            // hemisphere ground colour, not from this floor.
+                            // uDayLight gates so shadows fade out at dusk.
+                            float sunShadow = 1.0;
+                            if (vIsCap < 0.5 && uDayLight > 0.05 && uSunDir.y > 0.05) {
+                                sunShadow = sampleSunShadow();
+                                c.rgb *= mix(0.55, 1.0, sunShadow);
+                            }
+
+                            // ── SHADOW DEBUG VIEW (press B to toggle) ──
+                            // Replaces grass colour with the raw shadow factor:
+                            //   white = fully lit, black = fully shadowed.
+                            // Lets you see whether streaks are coming from the
+                            // shadow sample itself (visible here) or from
+                            // interactions with grass colour/lighting (not).
+                            if (uShadowDebug > 0.5 && vIsCap < 0.5) {
+                                c.rgb = vec3(sunShadow);
+                            }
+
+                            // ── BLADE TIP SPECULAR (article-style) ──
+                            // The Hexaquo grass tutorial's signature look: the
+                            // bent tip-normal catches the sun and produces a
+                            // sharp white highlight, making each blade read as
+                            // a distinct lit object instead of a uniform mat.
+                            // Strength scaled by tipMask (uv.y²) so only the
+                            // upper portion shines, by sun elevation so it
+                            // disappears at night, by uDayLight so dawn/dusk
+                            // ramps it gradually, and by distance so far blades
+                            // don't shimmer. Caps are skipped — they're full
+                            // horizontal quads with no meaningful "tip".
+                            // gl_FrontFacing flip matches the article's note
+                            // about double-sided geometry needing the back-face
+                            // normal flipped (otherwise the sun would only ever
+                            // light HALF of every blade).
+                            if (vIsCap < 0.5 && uDayLight > 0.05) {
+                                vec3 N = normalize(vBladeNormal);
+                                if (!gl_FrontFacing) N = -N;
+                                vec3 V = normalize(vViewDir);
+                                vec3 H = normalize(uSunDir + V);
+                                float ndh    = max(0.0, dot(N, H));
+                                float spec   = pow(ndh, 28.0);
+                                float tipMask = vUv.y * vUv.y;
+                                float sunUp  = clamp(uSunDir.y * 1.5, 0.0, 1.0);
+                                float distAtten = 1.0 - smoothstep(1500.0, 3500.0, vFogDepth);
+                                c.rgb += vec3(1.05, 1.00, 0.78)
+                                       * spec * tipMask * sunUp * distAtten * uDayLight * sunShadow * 0.65;
+                            }
+
+                            // ── TRANSLUCENCY / BACKLIGHT (article BACKLIGHT) ──
+                            // Light passing through thin blade material —
+                            // strongest when the sun is opposite the camera,
+                            // i.e. the blade is between viewer and sun. The
+                            // article uses a flat BACKLIGHT term; we modulate
+                            // it by view·-sun so it ramps up dramatically at
+                            // dawn/dusk when the sun is low and behind, and
+                            // by uv.y so only the thin upper half glows
+                            // (bases are too thick to transmit light). The
+                            // warm green tint pushes the meadow into a
+                            // golden-hour glow when the sun grazes the
+                            // horizon — easily the prettiest 30 seconds of
+                            // each in-game day.
+                            if (vIsCap < 0.5 && uDayLight > 0.05) {
+                                vec3 V = normalize(vViewDir);
+                                float backLit = max(0.0, dot(-uSunDir, V));
+                                float lowSun  = 1.0 - smoothstep(0.0, 0.45, uSunDir.y);
+                                float trans   = pow(backLit, 1.8) * vUv.y;
+                                c.rgb += vec3(0.42, 0.58, 0.16)
+                                       * trans * (0.30 + 0.70 * lowSun) * uDayLight;
+                            }
 
                             // Scene fog only — field-edge fade is handled
                             // geometrically (blades shrunk to nothing) in the
@@ -3837,60 +4719,68 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             'unit, half-radius', FIELD * CELL_SIZE * 0.5, 'units');
             }
 
-            // ── INNER FIELD: DENSE, NEAR, FULL RADIUS ──
-            // FIELD = 240, CELL = 42  → ~5040 unit half-radius, 57.6k inst,
-            // ~230k tris. Wide fade-out (40%→100%) so the boundary is
-            // imperceptible. No donut hole — visible from camera outward.
+            //   FIELD     280   →  blade dimension count
+            //   CELL_SIZE  35   →  ~35 units between blades (good overlap)
+            //   instances 78.4k →  half-radius 4900 units
+            //   tuftH      90   →  max ≈ 90 × 1.15 × 1.30 ≈ 134 units
+            //                      avg ≈ 90 × 1.10 × 1.00 ≈  99 units
+            //                      ~26u headroom below 160-unit eye level so
+            //                      tall blades on a small rise can't poke
+            //                      above the player's sightline.
             buildField({
-                FIELD: 240, CELL_SIZE: 42,
-                tuftW: 56, tuftH: 105,
-                hMin: 0.75, hMax: 1.55,
+                FIELD: 280, CELL_SIZE: 35,
+                tuftW: 75, tuftH: 90,
+                hMin: 1.05, hMax: 1.15,
                 bladeTex: innerBladeTex,
                 capTex:   innerCapTex,
-                fadeOutStart: 0.40, fadeOutEnd: 1.00,
-                fadeInStart: -1.0, fadeInEnd: 0.0,        // disabled (always 1)
-                name: 'Inner meadow'
+                shortBladeTexRef: innerBladeTex,
+                shortCapTexRef:   innerCapTex,
+                fadeOutStart: 0.45, fadeOutEnd: 1.00,
+                fadeInStart: -1.0, fadeInEnd: 0.0,
+                name: 'Grass'
             });
 
-            // Inner field's half-radius — sized the donut hole below.
-            const INNER_HALF_R = 240 * 42 * 0.5;          // 5040
-
-            // ── OUTER RING: SPARSE INSTANCES, FAT SPRITES, FAR REACH ──
-            // FIELD = 260, CELL = 100 → ~13,000 unit half-radius, 67.6k inst,
-            // ~270k tris. Lives in a ring beyond the inner field. Donut
-            // fade-in matches the inner field's fade-out region exactly
-            // (2016→5040) so the handoff is seamless: as inner blades shrink
-            // to nothing, outer clumps grow into full size in the same range.
-            // Then full visibility ~5040–11050, fading out into heavy fog
-            // (~56% at 13k units) by the edge — fog naturally hides the
-            // outer boundary.
-            //
-            // The trick that makes this look like a continuous dense field
-            // rather than scattered tufts: each outer instance uses a DENSER
-            // texture (96×192 canvas with 28 blades vs inner's 64×128/12)
-            // AND bigger geometry (130×240 vs inner's 56×105). So each
-            // outer sprite "represents" a meaningful patch of grass — a
-            // clump rather than a tuft. From distance it reads as thick
-            // grass cover with no need for more instances.
-            //
-            // Height variance tightened (0.75→1.10 vs 0.75→1.55) since
-            // outer sprites are already large by default — extra variance
-            // would produce some absurdly tall outliers.
+            // ── DENSE SHORT-GRASS BOOST FIELD ──
+            // A second field stacked on top of the main one, configured to:
+            //   • forceShortGrass: true  → blades only render where the
+            //     shortGrassMask is high (lawn zones), nothing in tall-grass
+            //     regions. Tall meadow keeps its existing density.
+            //   • CELL_SIZE 18           → tighter cell grid = more cells per
+            //     square unit = more individual blades on the ground.
+            //   • scatterMul 2.4         → each blade scatters up to ~30u from
+            //     its cell centre — well beyond the 18u cell size, so blades
+            //     freely intermix across cell boundaries. No grid pattern at
+            //     any viewing distance, just blades scattered everywhere.
+            //   • tuftW/tuftH halved     → these are smaller blades to match
+            //     the lawn aesthetic, not the meadow.
+            //   • Half-radius 1620u      → only renders close to camera where
+            //     the density boost actually reads visually; far away the
+            //     main field's blades take over.
+            // Uses shortBladeTex/shortCapTex which have a brighter, more
+            // uniform palette suited to lawn grass (no seedhead feathers).
             buildField({
-                FIELD: 260, CELL_SIZE: 100,
-                tuftW: 130, tuftH: 240,
-                hMin: 0.75, hMax: 1.10,
-                bladeTex: outerBladeTex,
-                capTex:   outerCapTex,
-                fadeOutStart: 0.85, fadeOutEnd: 1.00,
-                fadeInStart: INNER_HALF_R * 0.40, fadeInEnd: INNER_HALF_R,
-                name: 'Outer meadow ring'
+                FIELD: 180, CELL_SIZE: 18,
+                tuftW: 38, tuftH: 48,
+                hMin: 0.85, hMax: 1.20,
+                bladeTex: shortBladeTex,
+                capTex:   shortCapTex,
+                shortBladeTexRef: shortBladeTex,
+                shortCapTexRef:   shortCapTex,
+                fadeOutStart: 0.55, fadeOutEnd: 1.00,
+                fadeInStart: -1.0, fadeInEnd: 0.0,
+                forceShortGrass: true,
+                scatterMul: 2.4,
+                name: 'Dense Short Grass'
             });
 
             // ── PER-FRAME UNIFORM UPDATES ──
             // One tick updates all registered field materials.
             window.meadowTick = function (time) {
                 const day = Math.max(0.15, Math.min(1.0, SUN_DIR.y * 1.5 + 0.4));
+                // Shadow uniforms — sunLight.shadow.map is null until the
+                // first shadow render, so guard. matrix is computed by Three
+                // every frame from the light's position/target/frustum.
+                const shadowReady = !!(sunLight.shadow && sunLight.shadow.map && SUN_DIR.y > 0.05);
                 for (let k = 0; k < fieldMaterials.length; k++) {
                     const m = fieldMaterials[k];
                     m.uniforms.uTime.value     = time;
@@ -3898,6 +4788,35 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     m.uniforms.uDayLight.value = day;
                     m.uniforms.uFogColor.value.copy(scene.fog.color);
                     m.uniforms.uFogDensity.value = scene.fog.density;
+                    if (shadowReady) {
+                        m.uniforms.uShadowMap.value = sunLight.shadow.map.texture;
+                        m.uniforms.uShadowMatrix.value.copy(sunLight.shadow.matrix);
+                        m.uniforms.uShadowMapSize.value.copy(sunLight.shadow.mapSize);
+                        m.uniforms.uShadowEnabled.value = 1;
+                    } else {
+                        m.uniforms.uShadowEnabled.value = 0;
+                    }
+                }
+                // Ground shader needs the same day/night value for its
+                // grass-area lighting override (uSunDir is a Vector3 ref
+                // mutated in-place by updateTimeOfDay so it auto-updates).
+                if (groundShaderRef && groundShaderRef.uniforms.uDayLight) {
+                    groundShaderRef.uniforms.uDayLight.value = day;
+                }
+            };
+
+            // ── LAKE → GRASS BRIDGE ──
+            // Called from the lake-spawn block once the basin location
+            // and water plane Y are known. Pushes those values into every
+            // grass field's uniforms so the vertex shader can carve blades
+            // out of the submerged area. No-op until invoked, which is
+            // why the uniforms initialise with halfSize = (0,0).
+            window.setGrassWater = function (cx, cz, halfX, halfZ, waterY) {
+                for (let k = 0; k < fieldMaterials.length; k++) {
+                    const u = fieldMaterials[k].uniforms;
+                    u.uWaterCenter.value.set(cx, cz);
+                    u.uWaterHalfSize.value.set(halfX, halfZ);
+                    u.uWaterY.value = waterY;
                 }
             };
         })();
@@ -4537,6 +5456,8 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         const spawnedMonolithPositions = [];
 
         let pillarsSpawned = 0;
+        const monolithMeshes = [];   // tracked for O(1) per-frame spin (avoids scene.traverse)
+        const crystalMeshes  = [];   // tracked for O(1) per-frame bob
         while (pillarsSpawned < 5) {
             const px = sX + (rnd() - 0.5) * 45000;
             const pz = sZ + (rnd() - 0.5) * 45000;
@@ -4562,6 +5483,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 p.userData.rotSpeed = (rnd() - 0.5) * 0.2;
                 p.userData.isMonolith = true;   // animate-loop spin uses this flag
                 scene.add(p);
+                monolithMeshes.push(p);
 
                 // Cylinder collision — icosahedron AABB inflates badly when rotated.
                 obstacles.push({
@@ -5102,6 +6024,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 crystal.userData.bobSeed = rnd() * Math.PI * 2;
                 crystal.userData.spinSpeed = 0.5 + rnd() * 0.4;
                 scene.add(crystal);
+                crystalMeshes.push(crystal);
 
                 // Remember this monolith's footprint position so the path
                 // system can put cobble around it.
@@ -5150,6 +6073,56 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     WORLD_PATHS.counts.numPaths, 'paths,',
                     WORLD_PATHS.counts.numMonoliths, 'monoliths');
 
+        // ── COLLECTABLES ─────────────────────────────────────────────
+        // Glowing orbs scattered around the world. Each type maps to one
+        // of the five inventory slots.
+        //
+        // KEY PERFORMANCE RULES:
+        // 1. MeshBasicMaterial — skips the entire PBR pipeline (no lighting,
+        //    no shadow-map lookups, no roughness/metalness math). Collectables
+        //    just need to glow — BasicMaterial outputs colour directly.
+        // 2. ONE shared material per item type (5 total) — the renderer can
+        //    batch draw-calls for items that share a material + geometry.
+        //    MeshStandardMaterial created one shader program per mesh (30×).
+        // 3. No transparent flag — avoids the per-frame depth-sort pass that
+        //    Three.js runs over ALL transparent objects in the scene.
+        const collectables = [];
+        const COLLECT_RADIUS = 170;
+        const COLLECTABLE_COUNT = 30;
+
+        // Shared geometry + 5 shared BasicMaterials (one per type).
+        const collectGeo = new THREE.IcosahedronGeometry(1, 0); // subdiv 0 = 20 faces (was 80)
+        const SLOT_COLORS = [0x44aaff, 0xc9a227, 0x44cc77, 0xff6633, 0xaa88ff];
+        const collectMats = SLOT_COLORS.map(hex =>
+            new THREE.MeshBasicMaterial({ color: hex })
+        );
+
+        for (let i = 0; i < COLLECTABLE_COUNT; i++) {
+            const slotIndex = i % 5;
+            const ringFrac  = i / COLLECTABLE_COUNT;
+            const angle     = rnd() * Math.PI * 2 + i * 2.39996;
+            const dist      = 600 + ringFrac * 14000 + rnd() * 800;
+            const cx        = sX + Math.cos(angle) * dist;
+            const cz        = sZ + Math.sin(angle) * dist;
+            const cy        = getElevation(cx, cz) + 90;
+
+            const mesh = new THREE.Mesh(collectGeo, collectMats[slotIndex]);
+            mesh.scale.setScalar(22 + rnd() * 12);
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.position.set(cx, cy, cz);
+            scene.add(group);
+
+            collectables.push({
+                group, mesh,
+                slotIndex,
+                bobSeed: rnd() * Math.PI * 2,
+                baseY: cy,
+                collected: false
+            });
+        }
+
         const moteCount = 1500;
         const moteGeo = new THREE.BufferGeometry();
         const motePos = new Float32Array(moteCount * 3);
@@ -5172,6 +6145,222 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         });
         scene.add(new THREE.Points(moteGeo, moteMat));
 
+        // ══════════════════════════════════════════════════════════════
+        // WATER — lake in lowest terrain basin near spawn
+        // ══════════════════════════════════════════════════════════════
+        // Scan terrain in a 2500–10000 unit ring around spawn for the
+        // lowest basin. Set the water plane 180 units above the absolute
+        // minimum so the bank naturally peeks above the waterline.
+        // The shader: scrolling dual-layer ripples, deep/shallow colour
+        // gradient, sky-colour reflection via uniform, specular glints,
+        // soft edge fade to blend into the bank.
+        let lakeX = sX, lakeZ = sZ + 4000, lakeMinY = Infinity;
+        {
+            const LAKE_SEARCH = 400;  // step size (coarse is fine — we want the bowl)
+            for (let ox = -9000; ox <= 9000; ox += LAKE_SEARCH) {
+                for (let oz = -9000; oz <= 9000; oz += LAKE_SEARCH) {
+                    const d2 = ox*ox + oz*oz;
+                    if (d2 < 2500*2500 || d2 > 9500*9500) continue;
+                    const ex = sX + ox, ez = sZ + oz;
+                    const h = getElevation(ex, ez);
+                    if (h < lakeMinY) { lakeMinY = h; lakeX = ex; lakeZ = ez; }
+                }
+            }
+        }
+        const lakeWaterY = lakeMinY + 180;
+        // Lake rectangle dimensions — referenced again below when we
+        // register the lake footprint with the grass shader, so they
+        // live as named constants here rather than inline literals.
+        const LAKE_W = 5400;
+        const LAKE_D = 3800;
+        // Subdivide the plane (60×40) so future vertex-side effects
+        // have something to work with; the fragment shader does most
+        // of the heavy lifting either way. ~2400 verts is negligible.
+        const waterGeo = new THREE.PlaneGeometry(LAKE_W, LAKE_D, 60, 40);
+        waterGeo.rotateX(-Math.PI / 2);
+        const waterMat = new THREE.ShaderMaterial({
+            transparent: true, depthWrite: false, side: THREE.FrontSide,
+            uniforms: {
+                uTime:       { value: 0 },
+                uFogColor:   { value: new THREE.Color(0xd0dbe4) },
+                uFogDensity: { value: 0.00007 },
+                uSkyColor:   { value: new THREE.Color(0xa8c8dd) },
+                uDayLight:   { value: 1.0 },
+                // Water plane Y, used to compute REAL ground-based depth
+                // in the fragment shader (see comments below).
+                uWaterY:     { value: lakeWaterY }
+            },
+            vertexShader: `
+                // World-space position is the key thing the fragment
+                // shader needs — both ripples and depth-based colouring
+                // sample world XZ, not UV. Computing it once here and
+                // passing as a varying is cheaper than reconstructing
+                // from UV in the fragment.
+                varying vec2  vUv;
+                varying float vFogDist;
+                varying vec3  vWorldPos;
+                varying vec3  vViewDir;
+                void main() {
+                    vUv = uv;
+                    vec4 wp = modelMatrix * vec4(position, 1.0);
+                    vWorldPos = wp.xyz;
+                    vec4 mv   = viewMatrix * wp;
+                    vFogDist  = -mv.z;
+                    // cameraPosition is auto-injected by three.js.
+                    vViewDir = normalize(cameraPosition - wp.xyz);
+                    gl_Position = projectionMatrix * mv;
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform vec3  uFogColor;
+                uniform float uFogDensity;
+                uniform vec3  uSkyColor;
+                uniform float uDayLight;
+                uniform float uWaterY;
+                varying vec2  vUv;
+                varying float vFogDist;
+                varying vec3  vWorldPos;
+                varying vec3  vViewDir;
+
+                // Identical to JS getElevation() and the grass shader's
+                // getElevationGLSL — must stay in sync. Letting the water
+                // sample real terrain lets us drive depth colour, edge
+                // fade, and shoreline foam from the actual basin shape
+                // instead of UV approximations.
+                float getElevationGLSL(float x, float z) {
+                    float baseWave = sin(x * 0.00015) * cos(z * 0.00015);
+                    float e = sign(baseWave) * pow(abs(baseWave), 0.7) * 1400.0;
+                    e += sin(x * 0.0006)  * cos(z * 0.0006)  * 400.0;
+                    e += sin(x * 0.0015)  * cos(z * 0.0015)  * 60.0;
+                    e += sin(x * 0.0035 + z * 0.0021)  * 35.0;
+                    e += sin(x * 0.0012 - z * 0.0043)  * 30.0;
+                    e += sin(-x * 0.0030 + z * 0.0028) * 22.0;
+                    e += sin(x * 0.0050 - z * 0.0030)  * 15.0;
+                    e += sin(x * 0.0080 + z * 0.0055)  * 8.0;
+                    return e;
+                }
+
+                void main() {
+                    // ── REAL WATER DEPTH ──
+                    // Sample the terrain right under this pixel. Positive
+                    // = ground is below the water plane (this pixel is
+                    // covered by water). Negative = ground pokes above
+                    // (this pixel should fade out — it's a bank).
+                    float groundY    = getElevationGLSL(vWorldPos.x, vWorldPos.z);
+                    float waterDepth = uWaterY - groundY;
+
+                    // ── EDGE FADE ──
+                    // Drive alpha entirely from real depth: water dies
+                    // exactly where the bank emerges, so the rectangular
+                    // plane edges become invisible against rising terrain.
+                    // Tiny safety UV fade kills any pixel that somehow
+                    // ends up exactly on the geometry boundary.
+                    float depthFade  = smoothstep(-12.0, 35.0, waterDepth);
+                    float uvEdge     = min(vUv.x, min(1.0 - vUv.x, min(vUv.y, 1.0 - vUv.y)));
+                    float uvFade     = smoothstep(0.0, 0.04, uvEdge);
+                    float edgeFade   = depthFade * uvFade;
+                    if (edgeFade < 0.01) discard;
+
+                    // ── RIPPLES ──
+                    // Three layers in WORLD space (so a single ripple is
+                    // the same physical size everywhere on the lake — the
+                    // old UV-space ripples stretched along the long axis).
+                    // Layer 1+2 are crossed sines; layer 3 is a longer-
+                    // wavelength diagonal that breaks the regular grid the
+                    // first two would otherwise produce. All three combine
+                    // to ~±0.05 — gentle enough that the lake reads as
+                    // calm but you can clearly see motion.
+                    float wx = vWorldPos.x * 0.0085;
+                    float wz = vWorldPos.z * 0.0085;
+                    float t  = uTime;
+                    float r1 = sin(wx * 1.00 + t * 0.90) * 0.014
+                             + sin(wz * 0.85 + t * 0.65) * 0.012;
+                    float r2 = sin(wx * 0.55 - t * 0.55 + 1.7) * 0.010
+                             + cos(wz * 0.65 + t * 0.42 + 0.9) * 0.009;
+                    float r3 = sin(wx * 0.27 + wz * 0.34 - t * 0.28) * 0.008;
+                    float ripple = r1 + r2 + r3;
+
+                    // ── DEPTH-BASED COLOUR ──
+                    // Now that we have REAL depth, the colour gradient is
+                    // physically meaningful: deep blue in the basin,
+                    // teal/green tint in the shallows. The 320u depth
+                    // ceiling means colour saturates at the basin floor
+                    // (~180u below water) but the gradient is still
+                    // visible across the bank slope.
+                    float depthN     = clamp(waterDepth / 320.0, 0.0, 1.0);
+                    vec3  deepCol    = vec3(0.04, 0.13, 0.26);
+                    vec3  shallowCol = vec3(0.22, 0.46, 0.55);
+                    vec3  waterCol   = mix(shallowCol, deepCol, depthN);
+
+                    // ── FRESNEL-STYLE SKY REFLECTION ──
+                    // Looking straight down: see depth colour. Looking at
+                    // a glancing angle (e.g. from a hill across the lake):
+                    // see mostly mirrored sky. This single change does
+                    // more for "looks like real water" than any other
+                    // tweak — flat lakes go from "flat blue rectangle"
+                    // to "reflective surface" the moment you tilt the
+                    // camera. Power-of-4 keeps the depth colour visible
+                    // for most viewing angles.
+                    float NoV     = max(0.0, dot(vec3(0.0, 1.0, 0.0), vViewDir));
+                    float fresnel = pow(1.0 - NoV, 4.0);
+                    vec3  reflCol = uSkyColor * 0.62 + vec3(0.04, 0.07, 0.12);
+                    waterCol = mix(waterCol, reflCol,
+                                   clamp(0.28 + fresnel * 0.55 + ripple * 2.2,
+                                         0.0, 1.0));
+
+                    // ── SHORELINE FOAM ──
+                    // Where waterDepth is small (the bank just below water
+                    // line), a noisy band of brighter colour reads as
+                    // foam / wet sand. Combining a depth-driven envelope
+                    // with a moving sin/cos pattern animates the foam so
+                    // it doesn't feel painted on.
+                    float foamBand = 1.0 - smoothstep(2.0, 55.0, waterDepth);
+                    float foamN    = sin(wx * 3.7 + t * 1.3) * cos(wz * 3.1 - t * 0.9)
+                                   + sin((wx + wz) * 1.9 - t * 0.7) * 0.7;
+                    foamN          = foamN * 0.5 + 0.5;
+                    float foamMask = foamBand * smoothstep(0.45, 0.78, foamN);
+                    waterCol = mix(waterCol, vec3(0.92, 0.96, 1.00),
+                                   foamMask * 0.85 * uDayLight);
+
+                    // ── SPECULAR GLINTS ──
+                    // Same as before — pow on positive ripple peaks gives
+                    // sparkle on wave crests. Daylight-gated so the lake
+                    // doesn't sparkle at midnight.
+                    float glint = pow(max(0.0, ripple + 0.013), 2.5) * 12.0;
+                    waterCol += vec3(glint * 0.82, glint * 0.90, glint) * uDayLight;
+
+                    // Day/night dimming
+                    waterCol *= mix(0.12, 1.0, uDayLight);
+                    // Scene fog
+                    float fogF = 1.0 - exp(-uFogDensity * uFogDensity * vFogDist * vFogDist);
+                    waterCol = mix(waterCol, uFogColor, clamp(fogF, 0.0, 1.0));
+                    gl_FragColor = vec4(waterCol, edgeFade * 0.93);
+                }
+            `
+        });
+        const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+        waterMesh.position.set(lakeX, lakeWaterY, lakeZ);
+        waterMesh.renderOrder = 2;
+        scene.add(waterMesh);
+        // Per-frame uniform updates — registered as window.waterTick and called from animate
+        window.waterTick = (time) => {
+            waterMat.uniforms.uTime.value       = time;
+            waterMat.uniforms.uFogColor.value.copy(scene.fog.color);
+            waterMat.uniforms.uFogDensity.value = scene.fog.density;
+            waterMat.uniforms.uSkyColor.value.copy(skyMat.uniforms.midColor.value);
+            waterMat.uniforms.uDayLight.value   = Math.max(0, Math.min(1, SUN_DIR.y * 1.5 + 0.4));
+        };
+        console.log('Lake spawned at', lakeX.toFixed(0), lakeWaterY.toFixed(0), lakeZ.toFixed(0));
+
+        // Tell every grass field where the lake is so they can carve
+        // their blades out of the submerged area. Done after spawnMeadows
+        // has registered window.setGrassWater (it always runs first
+        // because the meadow IIFE is earlier in this file).
+        if (window.setGrassWater) {
+            window.setGrassWater(lakeX, lakeZ, LAKE_W * 0.5, LAKE_D * 0.5, lakeWaterY);
+        }
+
         const lanternGroup = new THREE.Group();
         const lanternCore = new THREE.Mesh(new THREE.TorusKnotGeometry(10, 3, 50, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 10 }));
         const lanternLight = new THREE.PointLight(0xffccaa, 25000, 2000); lanternGroup.add(lanternCore, lanternLight); scene.add(lanternGroup);
@@ -5183,10 +6372,12 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         });
         const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(35000, 35000), sunMat);
         scene.add(sunMesh);
-        const sunLight = new THREE.DirectionalLight(0xffccaa, 2.5); sunLight.castShadow = true; 
-        sunLight.shadow.mapSize.set(1024, 1024); sunLight.shadow.camera.left = -3000; sunLight.shadow.camera.right = 3000;
+        const sunLight = new THREE.DirectionalLight(0xffccaa, 2.5); sunLight.castShadow = true;
+        sunLight.shadow.mapSize.set(4096, 4096); sunLight.shadow.camera.left = -3000; sunLight.shadow.camera.right = 3000;
         sunLight.shadow.camera.top = 3000; sunLight.shadow.camera.bottom = -3000;
-        sunLight.shadow.camera.near = 100; sunLight.shadow.camera.far = 80000; sunLight.shadow.bias = -0.0005;
+        sunLight.shadow.camera.near = 100; sunLight.shadow.camera.far = 80000;
+        sunLight.shadow.bias = -0.0003; sunLight.shadow.normalBias = 0.04;
+        sunLight.shadow.radius = 2.0;
         const hemiLight = new THREE.HemisphereLight(0x99aacc, 0xffb59d, 1.2);
         scene.add(sunLight, sunLight.target, hemiLight);
 
@@ -5643,12 +6834,33 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             " ": 0 // Add this line for the spacebar
         };
 
-        document.addEventListener('keydown', e => { 
+        document.addEventListener('keydown', e => {
             // While the menu is open, swallow movement/jump input so the
             // player doesn't keep walking with the menu up.
             if (window.menuOpen) return;
             const key = e.key.toLowerCase();
-            if(keys.hasOwnProperty(key)) keys[key] = 1; 
+            if(keys.hasOwnProperty(key)) keys[key] = 1;
+            // ── DIAGNOSTIC: V toggles BVH-collision logging ──
+            // While ON, every time horizontal movement is blocked, the
+            // console logs which mesh blocked you + your world position.
+            // Use it to figure out which mesh is catching you on the
+            // tower's spiral ramp (run, get stuck, look at console).
+            if (key === 'v') {
+                window.__bvhDebug = !window.__bvhDebug;
+                console.log('BVH collision debug:', window.__bvhDebug ? 'ON (move into something to see what blocks you)' : 'OFF');
+            }
+            // ── DIAGNOSTIC: B toggles the grass shadow debug view ──
+            // Renders blades as grayscale shadow factor (white=lit, black=
+            // shadowed). Lets you see if streaks come from the shadow
+            // sample itself or interactions with grass colour/lighting.
+            if (key === 'b' && window.fieldMaterials) {
+                window.shadowDebugOn = !window.shadowDebugOn;
+                const v = window.shadowDebugOn ? 1 : 0;
+                for (let i = 0; i < window.fieldMaterials.length; i++) {
+                    window.fieldMaterials[i].uniforms.uShadowDebug.value = v;
+                }
+                console.log('Grass shadow debug:', window.shadowDebugOn ? 'ON' : 'OFF');
+            }
         });
 
         document.addEventListener('keyup', e => { 
@@ -5656,6 +6868,60 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             const key = e.key.toLowerCase();
             if(keys.hasOwnProperty(key)) keys[key] = 0; 
         });
+
+        // ── INVENTORY STATE ──────────────────────────────────────
+        // Five collectable types, one per UI slot.
+        const ITEM_DEFS = [
+            { id: 'crystal_shard', icon: '💎', name: 'CRYSTAL SHARD', threeColor: new THREE.Color(0x44aaff), hexColor: '#44aaff', slot: 0 },
+            { id: 'ancient_coin',  icon: '🪙', name: 'ANCIENT COIN',  threeColor: new THREE.Color(0xc9a227), hexColor: '#c9a227', slot: 1 },
+            { id: 'mystic_herb',   icon: '🌿', name: 'MYSTIC HERB',   threeColor: new THREE.Color(0x44cc77), hexColor: '#44cc77', slot: 2 },
+            { id: 'ember_stone',   icon: '🔶', name: 'EMBER STONE',   threeColor: new THREE.Color(0xff6633), hexColor: '#ff6633', slot: 3 },
+            { id: 'moon_pearl',    icon: '🔮', name: 'MOON PEARL',    threeColor: new THREE.Color(0xaa88ff), hexColor: '#aa88ff', slot: 4 }
+        ];
+        const inventoryCounts = [0, 0, 0, 0, 0];
+
+        // Cache all DOM refs up front — querySelector/getElementById inside the
+        // game loop causes layout queries that hitch the frame.
+        const _slotEls  = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-'       + i));
+        const _iconEls  = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-icon-'  + i));
+        const _countEls = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-count-' + i));
+        const _nameEls  = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-name-'  + i));
+        const _notifEl  = document.getElementById('pickup-notif');
+
+        function updateInventoryUI(slotIndex) {
+            // Only update the one slot that changed, not all five.
+            const def   = ITEM_DEFS[slotIndex];
+            const count = inventoryCounts[slotIndex];
+            const slotEl   = _slotEls[slotIndex];
+            const iconEl   = _iconEls[slotIndex];
+            const countEl  = _countEls[slotIndex];
+            const nameEl   = _nameEls[slotIndex];
+            if (!slotEl) return;
+            slotEl.classList.add('filled');
+            iconEl.textContent  = def.icon;
+            countEl.textContent = 'x' + count;
+            nameEl.textContent  = def.name;
+            nameEl.style.color  = def.hexColor;
+        }
+
+        // Notification: swap to a clone so the CSS animation restarts without
+        // a forced layout reflow (offsetWidth read locks up the render thread).
+        let _notifTimer = null;
+        function showPickupNotification(def) {
+            if (!_notifEl) return;
+            if (_notifTimer) { clearTimeout(_notifTimer); _notifTimer = null; }
+            _notifEl.textContent       = def.icon + '  ' + def.name + '  +1';
+            _notifEl.style.borderColor = def.hexColor;
+            _notifEl.style.color       = def.hexColor;
+            _notifEl.style.boxShadow   = '0 0 20px ' + def.hexColor + '55';
+            // Reset animation by toggling the class via setTimeout(0) —
+            // schedules AFTER the current frame so no layout reflow occurs.
+            _notifEl.classList.remove('notif-show');
+            _notifTimer = setTimeout(() => {
+                _notifEl.classList.add('notif-show');
+                _notifTimer = null;
+            }, 0);
+        }
 
         // --- CHARACTER MENU TOGGLE ---
         // Tab opens/closes; Esc closes (only when open, so it doesn't
@@ -5665,28 +6931,35 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         window.menuOpen = false;
         const characterMenuEl = document.getElementById('character-menu');
 
+        // Menu open/close: use display:none when closed so the browser
+        // removes the element — and its backdrop-filter blur — from the
+        // compositor entirely. opacity:0 alone keeps it composited every frame.
+        // Open: set display:flex first, then opacity on next tick for the fade-in.
+        // Close: fade out, then set display:none once the transition finishes.
+        let _charMenuCloseTimer = null;
         function openCharacterMenu() {
             if (window.menuOpen) return;
             window.menuOpen = true;
-            characterMenuEl.classList.add('open');
-            // Drop any held movement keys so the player stops dead.
+            if (_charMenuCloseTimer) { clearTimeout(_charMenuCloseTimer); _charMenuCloseTimer = null; }
+            characterMenuEl.style.display = 'flex';
+            requestAnimationFrame(() => characterMenuEl.classList.add('open'));
             for (const k in keys) keys[k] = 0;
-            // Release the cursor so the user can actually use the menu.
             _deliberateUnlock = true;
             if (controls.isLocked) controls.unlock();
-            // Kick off the portrait render loop (self-terminates when
-            // menuOpen flips false). Guarded so re-opens don't stack.
             if (portraitRafId === null) portraitRenderLoop();
         }
         function closeCharacterMenu() {
             if (!window.menuOpen) return;
             window.menuOpen = false;
             characterMenuEl.classList.remove('open');
-            // Try to grab pointer-lock back. Browsers usually allow this
-            // without a fresh user gesture if lock was recent; if it
-            // fails, the existing click-to-lock handler picks up the slack.
+            // After fade-out transition (220ms), set display:none to remove
+            // from compositing completely while the game is running.
+            _charMenuCloseTimer = setTimeout(() => {
+                characterMenuEl.style.display = 'none';
+                _charMenuCloseTimer = null;
+            }, 250);
             if (window.worldActive) {
-                try { controls.lock(); } catch (_) { /* user can click to relock */ }
+                try { controls.lock(); } catch (_) {}
             }
         }
 
@@ -5721,10 +6994,13 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             _deliberateUnlock = false;
         });
 
+        let _settMenuCloseTimer = null;
         function openSettingsMenu() {
             if (window.settingsOpen) return;
             window.settingsOpen = true;
-            settingsMenuEl.classList.add('open');
+            if (_settMenuCloseTimer) { clearTimeout(_settMenuCloseTimer); _settMenuCloseTimer = null; }
+            settingsMenuEl.style.display = 'flex';
+            requestAnimationFrame(() => settingsMenuEl.classList.add('open'));
             for (const k in keys) keys[k] = 0;
             _deliberateUnlock = true;
             if (controls.isLocked) controls.unlock();
@@ -5733,6 +7009,10 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             if (!window.settingsOpen) return;
             window.settingsOpen = false;
             settingsMenuEl.classList.remove('open');
+            _settMenuCloseTimer = setTimeout(() => {
+                settingsMenuEl.style.display = 'none';
+                _settMenuCloseTimer = null;
+            }, 250);
             if (window.worldActive) {
                 try { controls.lock(); } catch (_) {}
             }
@@ -5878,6 +7158,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         _downRay.firstHitOnly = true;     // huge speedup for BVH raycast
         _downRay.far = 600;                // how far below feet to look for floor
         const _downDir = new THREE.Vector3(0, -1, 0);
+        const _projVec = new THREE.Vector3(); // reused for collectable screen-projection
         const _rayOrigin = new THREE.Vector3();
 
         // Register a Three.js Mesh as a BVH collider. Call AFTER the mesh
@@ -5920,6 +7201,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 _localPlayerBox.copy(_playerBox).applyMatrix4(_worldToLocal);
 
                 let hit = false;
+                if (window.__bvhDebug) {
+                    // One-shot debug: tag the mesh that's about to block so
+                    // we can log it from the caller. Press B in-game to arm.
+                    window.__bvhDebugLastMesh = mesh.name || '(unnamed)';
+                }
                 mesh.geometry.boundsTree.shapecast({
                     intersectsBounds: bvhBox => _localPlayerBox.intersectsBox(bvhBox)
                         ? 2 /* INTERSECTED */
@@ -6091,11 +7377,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             // animate-loop fix that re-aims the directional light at the
             // moon when the sun is below the horizon. Together these make
             // the world feel lit by the moon rather than pitch black.
-            sunCol:     new THREE.Color(0x88a0d8),
-            sunInt:     0.66,
-            hemiSky:    new THREE.Color(0x7a90c0),
-            hemiGround: new THREE.Color(0x202028),
-            hemiInt:    0.50,
+            sunCol:     new THREE.Color(0x8aa6e0),
+            sunInt:     0.95,
+            hemiSky:    new THREE.Color(0x7088c0),
+            hemiGround: new THREE.Color(0x1c1c26),
+            hemiInt:    0.48,
             fogCol:     new THREE.Color(0x1a2048),
             hazeCol:    new THREE.Color(0x2a3a66),
             sunGlow:    new THREE.Color(0x667799),
@@ -6107,11 +7393,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             skyTop:     new THREE.Color(0x5a6a90),
             skyMid:     new THREE.Color(0xffa98a),
             skyBottom:  new THREE.Color(0xffd8b8),
-            sunCol:     new THREE.Color(0xffb58a),
-            sunInt:     2.0,
-            hemiSky:    new THREE.Color(0xffc2a3),
-            hemiGround: new THREE.Color(0x6a4a33),
-            hemiInt:    1.15,
+            sunCol:     new THREE.Color(0xffaa78),
+            sunInt:     2.9,
+            hemiSky:    new THREE.Color(0xffc4a8),
+            hemiGround: new THREE.Color(0x9a6a48),
+            hemiInt:    1.20,
             fogCol:     new THREE.Color(0xffb599),
             hazeCol:    new THREE.Color(0xff9966),
             sunGlow:    new THREE.Color(0xffa878),
@@ -6123,11 +7409,11 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             skyTop:     new THREE.Color(0x9ebcd6),
             skyMid:     new THREE.Color(0xc2d6e3),
             skyBottom:  new THREE.Color(0xdde8ee),
-            sunCol:     new THREE.Color(0xfff4dd),
-            sunInt:     2.8,
-            hemiSky:    new THREE.Color(0xb5ccdc),
-            hemiGround: new THREE.Color(0x7a6a55),
-            hemiInt:    1.4,
+            sunCol:     new THREE.Color(0xfff2d4),
+            sunInt:     3.4,
+            hemiSky:    new THREE.Color(0xb8d2e2),
+            hemiGround: new THREE.Color(0xa89578),
+            hemiInt:    1.25,
             fogCol:     new THREE.Color(0xd0dbe4),
             hazeCol:    new THREE.Color(0xffceaa),
             sunGlow:    new THREE.Color(0xffd8a8),
@@ -6148,6 +7434,16 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         }
         const _palA = makePal();
         const _palOut = makePal();
+
+        // ── BIOME SCRATCH — reused every frame, no GC pressure ──────────
+        // Three tint targets that blend into the base TOD fog depending
+        // on where the player is standing:
+        //   • Dark forest (east):  dense green underglow under the canopy
+        //   • Highland (north):    cool slate-blue mountain air
+        //   • Lake shore:          soft water-blue mist near the lake
+        const _biomeFogForest   = new THREE.Color(0x2c4820);  // deep moss green
+        const _biomeFogHighland = new THREE.Color(0x7a92b8);  // cool highland slate
+        const _biomeFogLake     = new THREE.Color(0x3a607e);  // soft lake blue
 
         function lerpPal(a, b, t, out) {
             out.skyTop.lerpColors(a.skyTop, b.skyTop, t);
@@ -6256,8 +7552,47 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             // as window.cloudsTick), so guard for first few frames.
             if (window.meadowTick) window.meadowTick(time);
 
+            // ── TREE WIND UPDATE ──
+            // Drive every foliage wind shader registered by spawnInstancedTree.
+            // uWindStrength can be bumped toward 2–3 during storms; default 1.
+            if (window._treeWindShaders) {
+                const _windS = 1.0; // raise during weather events if desired
+                for (let _wi = 0; _wi < window._treeWindShaders.length; _wi++) {
+                    window._treeWindShaders[_wi].uniforms.uWindTime.value     = time;
+                    window._treeWindShaders[_wi].uniforms.uWindStrength.value = _windS;
+                }
+            }
+
             // Advance day/night cycle (sun direction, sky, lights, fog, haze)
             updateTimeOfDay(time);
+
+            // ── BIOME FOG TINTING ─────────────────────────────────────────
+            // After TOD sets the base fog colour, nudge it toward whichever
+            // biome the player is standing in. Completely smooth — no hard
+            // boundaries, just a gentle atmospheric shift:
+            //   East  → dark forest: green-tinted mist under the canopy
+            //   North → highland:    cool slate light, mountain-air feel
+            //   Near lake:           soft blue-grey water mist
+            // Tints are subtle (≤30%) so they read as ambience, not tint.
+            {
+                const _bx = camera.position.x - sX;
+                const _bz = camera.position.z - sZ;
+                const _bd = Math.sqrt(_bx*_bx + _bz*_bz);
+                // biomeT: 0 at spawn, 1 beyond 9k units — prevents tinting
+                // right at the meadow origin where all biomes converge.
+                const biomeT    = Math.max(0, Math.min(1, (_bd - 3000) / 6000));
+                const forestT   = Math.max(0, Math.min(1,  _bx / 9000)) * biomeT;
+                const highlandT = Math.max(0, Math.min(1, -_bz / 9000)) * biomeT;
+                const _ldx = camera.position.x - lakeX;
+                const _ldz = camera.position.z - lakeZ;
+                const lakeProx = Math.max(0, 1.0 - Math.sqrt(_ldx*_ldx + _ldz*_ldz) / 5000);
+                if (forestT   > 0.01) scene.fog.color.lerp(_biomeFogForest,   forestT   * 0.28);
+                if (highlandT > 0.01) scene.fog.color.lerp(_biomeFogHighland, highlandT * 0.22);
+                if (lakeProx  > 0.01) scene.fog.color.lerp(_biomeFogLake,     lakeProx  * 0.35);
+            }
+
+            // ── WATER TICK ────────────────────────────────────────────────
+            if (window.waterTick) window.waterTick(time);
 
           if (controls.isLocked) {
                 // --- INPUT DIRECTION (normalized-ish: -1 / 0 / +1 per axis) ---
@@ -6310,10 +7645,22 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // Killing the velocity component on a blocked axis stops the
                 // player from "pressing into" a wall and storing up speed.
                 if (collidesAt(camera.position.x, oldZ)) {
+                    if (window.__bvhDebug && window.__bvhDebugLastMesh) {
+                        console.log('[BVH-DEBUG] X blocked by:', window.__bvhDebugLastMesh,
+                                    'at world (', camera.position.x.toFixed(1), oldZ.toFixed(1),
+                                    ') feetY=', (camera.position.y - USER_HEIGHT).toFixed(1));
+                        window.__bvhDebugLastMesh = null;
+                    }
                     camera.position.x = oldX;
                     moveVel.x = 0;
                 }
                 if (collidesAt(camera.position.x, camera.position.z)) {
+                    if (window.__bvhDebug && window.__bvhDebugLastMesh) {
+                        console.log('[BVH-DEBUG] Z blocked by:', window.__bvhDebugLastMesh,
+                                    'at world (', camera.position.x.toFixed(1), camera.position.z.toFixed(1),
+                                    ') feetY=', (camera.position.y - USER_HEIGHT).toFixed(1));
+                        window.__bvhDebugLastMesh = null;
+                    }
                     camera.position.z = oldZ;
                     moveVel.z = 0;
                 }
@@ -6447,11 +7794,23 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // of objects, making night feel pitch black even with the
                 // night-palette intensity boost. Now the light actually
                 // comes from above all night long.
-                if (SUN_DIR.y >= 0) {
-                    sunLight.position.copy(sunMesh.position);
-                } else {
-                    sunLight.position.copy(moon.position);
+                // ── SMOOTH SUN→MOON HANDOFF ──
+                // Hard switching at SUN_DIR.y == 0 caused every shadow to
+                // snap to the opposite side of the world the instant the
+                // sun crossed the horizon. We instead lerp the directional
+                // light's position from moon→sun across a ±W elevation
+                // window. Inside the window, shadows visibly slide across
+                // ~5 game seconds (golden hour is time-warped slow);
+                // outside, position is hard-locked to one source.
+                const _W = 0.08;
+                let _t;
+                if (SUN_DIR.y >=  _W)      _t = 1.0;
+                else if (SUN_DIR.y <= -_W) _t = 0.0;
+                else {
+                    const _u = (SUN_DIR.y + _W) / (2.0 * _W);
+                    _t = _u * _u * (3.0 - 2.0 * _u);
                 }
+                sunLight.position.lerpVectors(moon.position, sunMesh.position, _t);
                 sunLight.target.position.set(camera.position.x, 0, camera.position.z);
             }
 
@@ -6479,22 +7838,59 @@ const s = Math.sin(angle); const c = Math.cos(angle);
 
             renderer.render(scene, camera);
 
-            scene.traverse(obj => {
-                if (!obj.isMesh) return;
-                if (obj.userData.isMonolith) {
-                    // The five towers themselves — slow Y-spin.
-                    obj.rotation.y += delta * (obj.userData.rotSpeed || 0.05);
-                } else if (obj.userData.isMonolithCrystal) {
-                    // Floating reward crystals on each tower top. Per-crystal
-                    // bob seed and spin speed (set at spawn) keep the 5
-                    // crystals out of phase with each other.
-                    obj.rotation.y += delta * obj.userData.spinSpeed;
-                    obj.rotation.x += delta * obj.userData.spinSpeed * 0.4;
-                    obj.position.y =
-                        obj.userData.crystalBaseY +
-                        Math.sin(time * 1.1 + obj.userData.bobSeed) * 35;
+            // Direct array iteration — avoids expensive scene.traverse every frame
+            for (let mi = 0; mi < monolithMeshes.length; mi++) {
+                monolithMeshes[mi].rotation.y += delta * (monolithMeshes[mi].userData.rotSpeed || 0.05);
+            }
+            for (let ci = 0; ci < crystalMeshes.length; ci++) {
+                const cr = crystalMeshes[ci];
+                cr.rotation.y += delta * cr.userData.spinSpeed;
+                cr.rotation.x += delta * cr.userData.spinSpeed * 0.4;
+                cr.position.y = cr.userData.crystalBaseY + Math.sin(time * 1.1 + cr.userData.bobSeed) * 35;
+            }
+
+            // ── COLLECTABLE ANIMATION + PROXIMITY PICKUP ─────────────
+            if (window.worldActive && typeof collectables !== 'undefined') {
+                for (let ci = collectables.length - 1; ci >= 0; ci--) {
+                    const c = collectables[ci];
+                    if (c.collected) continue;
+
+                    // Bob up/down and spin
+                    c.group.position.y = c.baseY + Math.sin(time * 1.4 + c.bobSeed) * 28;
+                    c.mesh.rotation.y += delta * 1.1;
+                    c.mesh.rotation.x += delta * 0.35;
+
+
+                    // Proximity check — only when controls are locked (player is in-world)
+                    if (controls.isLocked) {
+                        const dx = camera.position.x - c.group.position.x;
+                        const dz = camera.position.z - c.group.position.z;
+                        const dy = camera.position.y - c.group.position.y;
+                        if (dx*dx + dy*dy + dz*dz < COLLECT_RADIUS * COLLECT_RADIUS) {
+                            c.collected = true;
+                            // Materials are shared across collectables of the same type,
+                            // so we must NOT dispose them here. Just remove from scene.
+                            scene.remove(c.group);
+                            collectables.splice(ci, 1);
+
+                            // Update inventory
+                            inventoryCounts[c.slotIndex]++;
+                            updateInventoryUI(c.slotIndex);
+                            showPickupNotification(ITEM_DEFS[c.slotIndex]);
+
+                            // Screen-space spark — reuse _projVec to avoid allocation
+                            if (window.spawnClickSpark) {
+                                _projVec.copy(c.group.position).project(camera);
+                                const sx = (_projVec.x * 0.5 + 0.5) * window.innerWidth;
+                                const sy = (-_projVec.y * 0.5 + 0.5) * window.innerHeight;
+                                if (sx > 0 && sx < window.innerWidth && sy > 0 && sy < window.innerHeight) {
+                                    window.spawnClickSpark(sx, sy, ITEM_DEFS[c.slotIndex].hexColor);
+                                }
+                            }
+                        }
+                    }
                 }
-            });
+            }
         }
 
       
