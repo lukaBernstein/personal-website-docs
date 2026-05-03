@@ -114,13 +114,13 @@
         /* ── Panel shell ── */
         #character-menu .cm-panel {
             position: relative;
-            width: min(720px, 96vw);
-            max-height: 92vh;
+            width: min(960px, 96vw);
+            max-height: 94vh;
             overflow-y: auto;
             overflow-x: hidden;
             background: linear-gradient(155deg, #0d0d1c 0%, #080810 55%, #0a0a12 100%);
             border: 1px solid #c9a227;
-            padding: 36px 34px 26px;
+            padding: 30px 34px 22px;
             animation: cm-shimmer 4s ease-in-out infinite;
         }
         #character-menu.open .cm-panel {
@@ -195,8 +195,8 @@
         .cm-portrait-frame::after  { bottom:2px; right:2px; border-width:0 1px 1px 0; }
 
         #character-menu #cm-portrait {
-            width: 188px;
-            height: 232px;
+            width: 360px;
+            height: 460px;
             display: block;
             background: #01010a;
         }
@@ -211,7 +211,7 @@
 
         /* HP / SP bars */
         .cm-bars {
-            width: 198px;
+            width: 360px;
             display: flex;
             flex-direction: column;
             gap: 9px;
@@ -298,9 +298,58 @@
             margin-bottom: 18px;
         }
         .cm-item-slots {
-            display: flex;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: repeat(8, 74px);
+            grid-auto-rows: 74px;
             gap: 14px;
+            justify-content: center;
+        }
+        /* ── Equip slots (HEAD/CHEST/LEGS/FEET) ── */
+        .cm-equip-block {
+            display: grid;
+            grid-template-columns: repeat(2, 74px);
+            grid-auto-rows: 74px;
+            gap: 14px;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+        .cm-equip-slot {
+            position: relative;
+            border: 1px dashed rgba(201,162,39,.35);
+            background: rgba(201,162,39,.025);
+            cursor: pointer;
+            transition: border-color .2s, box-shadow .2s, background .2s;
+        }
+        .cm-equip-slot:hover {
+            border-color: #c9a227;
+            box-shadow: 0 0 18px rgba(201,162,39,.18), inset 0 0 14px rgba(201,162,39,.06);
+        }
+        .cm-equip-slot.filled {
+            border-style: solid;
+            border-color: rgba(201,162,39,.7);
+            background: linear-gradient(135deg, #141008 0%, #0d0d08 100%);
+            box-shadow: 0 0 18px rgba(201,162,39,.18), inset 0 0 14px rgba(201,162,39,.07);
+        }
+        .cm-equip-slot .cm-slot-type {
+            position: absolute;
+            top: 4px; left: 0; right: 0;
+            text-align: center;
+            font-size: 7px;
+            letter-spacing: 2px;
+            color: #c9a227;
+            opacity: .55;
+            pointer-events: none;
+        }
+        .cm-equip-slot .cm-slot-icon { opacity: .12; }
+        .cm-equip-slot.filled .cm-slot-icon { opacity: 1; }
+
+        /* ── Drag-and-drop visual states ── */
+        .cm-item-slot.dragging,
+        .cm-equip-slot.dragging { opacity: .4; }
+        .cm-item-slot.drag-over,
+        .cm-equip-slot.drag-over {
+            border-color: #ffe9a0 !important;
+            box-shadow: 0 0 22px rgba(255,233,160,.35), inset 0 0 18px rgba(255,233,160,.1) !important;
         }
         .cm-item-slot {
             width: 74px;
@@ -705,8 +754,8 @@
                 <!-- Portrait column -->
                 <div class="cm-portrait-col">
                     <div class="cm-portrait-frame">
-                        <canvas id="cm-portrait" width="220" height="260"></canvas>
-                        <div class="cm-portrait-label">K N I G H T</div>
+                        <canvas id="cm-portrait" width="540" height="690"></canvas>
+                        <div class="cm-portrait-label">A D V E N T U R E R</div>
                     </div>
                     <!-- HP / Stamina bars -->
                     <div class="cm-bars">
@@ -723,7 +772,7 @@
                     </div>
                 </div>
 
-                <!-- Stats column -->
+                <!-- Right column: stats + equip slots -->
                 <div class="cm-stats-col">
                     <div class="cm-stat-block">
                         <div class="cm-stat-title">S T A T S</div>
@@ -735,58 +784,44 @@
                     </div>
                     <div class="cm-stat-block">
                         <div class="cm-stat-title">E Q U I P M E N T</div>
-                        <div class="cm-stat-row"><span>HEAD</span><span>—</span></div>
-                        <div class="cm-stat-row"><span>BODY</span><span>—</span></div>
-                        <div class="cm-stat-row"><span>WEAPON</span><span>—</span></div>
-                        <div class="cm-stat-row"><span>OFFHAND</span><span>—</span></div>
+                        <div class="cm-equip-block">
+                            <div class="cm-equip-slot" data-equip="head" id="cm-equip-head">
+                                <div class="cm-slot-type">HEAD</div>
+                                <div class="cm-slot-inner">
+                                    <span class="cm-slot-icon">✦</span>
+                                </div>
+                            </div>
+                            <div class="cm-equip-slot" data-equip="chest" id="cm-equip-chest">
+                                <div class="cm-slot-type">CHEST</div>
+                                <div class="cm-slot-inner">
+                                    <span class="cm-slot-icon">✦</span>
+                                </div>
+                            </div>
+                            <div class="cm-equip-slot" data-equip="legs" id="cm-equip-legs">
+                                <div class="cm-slot-type">LEGS</div>
+                                <div class="cm-slot-inner">
+                                    <span class="cm-slot-icon">✦</span>
+                                </div>
+                            </div>
+                            <div class="cm-equip-slot" data-equip="feet" id="cm-equip-feet">
+                                <div class="cm-slot-type">FEET</div>
+                                <div class="cm-slot-inner">
+                                    <span class="cm-slot-icon">✦</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
             </div><!-- /.cm-main -->
 
-            <!-- Power-up item slots -->
+            <!-- Inventory grid (12 cells, drag-and-drop) -->
             <div class="cm-items-section">
-                <div class="cm-items-title">◦ &nbsp; P O W E R - U P S &nbsp; ◦</div>
-                <div class="cm-item-slots">
-                    <div class="cm-item-slot" id="cm-slot-0">
-                        <div class="cm-slot-inner">
-                            <span class="cm-slot-icon" id="cm-slot-icon-0">✦</span>
-                            <span class="cm-slot-num" id="cm-slot-count-0"></span>
-                        </div>
-                        <div class="cm-slot-name" id="cm-slot-name-0"></div>
-                    </div>
-                    <div class="cm-item-slot" id="cm-slot-1">
-                        <div class="cm-slot-inner">
-                            <span class="cm-slot-icon" id="cm-slot-icon-1">✦</span>
-                            <span class="cm-slot-num" id="cm-slot-count-1"></span>
-                        </div>
-                        <div class="cm-slot-name" id="cm-slot-name-1"></div>
-                    </div>
-                    <div class="cm-item-slot" id="cm-slot-2">
-                        <div class="cm-slot-inner">
-                            <span class="cm-slot-icon" id="cm-slot-icon-2">✦</span>
-                            <span class="cm-slot-num" id="cm-slot-count-2"></span>
-                        </div>
-                        <div class="cm-slot-name" id="cm-slot-name-2"></div>
-                    </div>
-                    <div class="cm-item-slot" id="cm-slot-3">
-                        <div class="cm-slot-inner">
-                            <span class="cm-slot-icon" id="cm-slot-icon-3">✦</span>
-                            <span class="cm-slot-num" id="cm-slot-count-3"></span>
-                        </div>
-                        <div class="cm-slot-name" id="cm-slot-name-3"></div>
-                    </div>
-                    <div class="cm-item-slot" id="cm-slot-4">
-                        <div class="cm-slot-inner">
-                            <span class="cm-slot-icon" id="cm-slot-icon-4">✦</span>
-                            <span class="cm-slot-num" id="cm-slot-count-4"></span>
-                        </div>
-                        <div class="cm-slot-name" id="cm-slot-name-4"></div>
-                    </div>
+                <div class="cm-items-title">◦ &nbsp; I N V E N T O R Y &nbsp; ◦</div>
+                <div class="cm-item-slots" id="cm-inventory-grid">
+                    <!-- 12 cells generated by JS -->
                 </div>
             </div>
-
-            <div class="cm-footer">[ TAB ] &nbsp;·&nbsp; [ ESC ] &nbsp; CLOSE</div>
 
         </div><!-- /.cm-panel -->
     </div><!-- /#character-menu -->
@@ -6619,19 +6654,39 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         //    MeshStandardMaterial created one shader program per mesh (30×).
         // 3. No transparent flag — avoids the per-frame depth-sort pass that
         //    Three.js runs over ALL transparent objects in the scene.
+        // Item catalog — hoisted above collectable spawn so pickup orbs
+        // can pull their colors from it. Power-ups are stackable; armors
+        // have equipType so we know which equip slot accepts them.
+        const ITEM_DEFS = {
+            crystal_shard: { icon: '💎', name: 'CRYSTAL SHARD', threeColor: new THREE.Color(0x44aaff), hexColor: '#44aaff' },
+            ancient_coin:  { icon: '🪙', name: 'ANCIENT COIN',  threeColor: new THREE.Color(0xc9a227), hexColor: '#c9a227' },
+            mystic_herb:   { icon: '🌿', name: 'MYSTIC HERB',   threeColor: new THREE.Color(0x44cc77), hexColor: '#44cc77' },
+            ember_stone:   { icon: '🔶', name: 'EMBER STONE',   threeColor: new THREE.Color(0xff6633), hexColor: '#ff6633' },
+            moon_pearl:    { icon: '🔮', name: 'MOON PEARL',    threeColor: new THREE.Color(0xaa88ff), hexColor: '#aa88ff' },
+            armor_metal:   { icon: '🛡', name: 'METAL PLATE',   threeColor: new THREE.Color(0xc0c4cc), hexColor: '#c0c4cc', equipType: 'chest', glb: 'assets/Armor/Metal.glb',   meshName: 'Armor_Metal2' },
+            armor_golden:  { icon: '🏅', name: 'GOLDEN PLATE',  threeColor: new THREE.Color(0xe6c34d), hexColor: '#e6c34d', equipType: 'chest', glb: 'assets/Armor/Golden.glb',  meshName: 'Armor_Golden' },
+            armor_leather: { icon: '🦺', name: 'LEATHER VEST',  threeColor: new THREE.Color(0x8a5a2b), hexColor: '#8a5a2b', equipType: 'chest', glb: 'assets/Armor/Leather.glb', meshName: 'Armor_Leather' }
+        };
+
         const collectables = [];
         const COLLECT_RADIUS = 170;
         const COLLECTABLE_COUNT = 30;
 
-        // Shared geometry + 5 shared BasicMaterials (one per type).
-        const collectGeo = new THREE.IcosahedronGeometry(1, 0); // subdiv 0 = 20 faces (was 80)
-        const SLOT_COLORS = [0x44aaff, 0xc9a227, 0x44cc77, 0xff6633, 0xaa88ff];
-        const collectMats = SLOT_COLORS.map(hex =>
-            new THREE.MeshBasicMaterial({ color: hex })
-        );
+        // Shared geometry + per-type material cache so we don't build a new
+        // material for every orb.
+        const collectGeo = new THREE.IcosahedronGeometry(1, 0); // subdiv 0 = 20 faces
+        const collectMatCache = {};
+        const matFor = id => {
+            if (!collectMatCache[id]) {
+                collectMatCache[id] = new THREE.MeshBasicMaterial({ color: ITEM_DEFS[id].threeColor });
+            }
+            return collectMatCache[id];
+        };
 
+        // Power-up orbs scattered across the world.
+        const POWERUP_IDS = ['crystal_shard', 'ancient_coin', 'mystic_herb', 'ember_stone', 'moon_pearl'];
         for (let i = 0; i < COLLECTABLE_COUNT; i++) {
-            const slotIndex = i % 5;
+            const itemId    = POWERUP_IDS[i % POWERUP_IDS.length];
             const ringFrac  = i / COLLECTABLE_COUNT;
             const angle     = rnd() * Math.PI * 2 + i * 2.39996;
             const dist      = 600 + ringFrac * 14000 + rnd() * 800;
@@ -6639,7 +6694,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             const cz        = sZ + Math.sin(angle) * dist;
             const cy        = getElevation(cx, cz) + 90;
 
-            const mesh = new THREE.Mesh(collectGeo, collectMats[slotIndex]);
+            const mesh = new THREE.Mesh(collectGeo, matFor(itemId));
             mesh.scale.setScalar(22 + rnd() * 12);
 
             const group = new THREE.Group();
@@ -6648,8 +6703,32 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             scene.add(group);
 
             collectables.push({
-                group, mesh,
-                slotIndex,
+                group, mesh, itemId,
+                bobSeed: rnd() * Math.PI * 2,
+                baseY: cy,
+                collected: false
+            });
+        }
+
+        // Armor orbs — 3 close to spawn, larger than power-ups so they read
+        // as obviously different. Placed in a triangle ~400-700 units out.
+        const ARMOR_SPAWNS = [
+            { itemId: 'armor_metal',   angle:  0.0,           dist: 450 },
+            { itemId: 'armor_golden',  angle:  Math.PI * 2/3, dist: 600 },
+            { itemId: 'armor_leather', angle: -Math.PI * 2/3, dist: 550 }
+        ];
+        for (const spec of ARMOR_SPAWNS) {
+            const cx = sX + Math.cos(spec.angle) * spec.dist;
+            const cz = sZ + Math.sin(spec.angle) * spec.dist;
+            const cy = getElevation(cx, cz) + 110;
+            const mesh = new THREE.Mesh(collectGeo, matFor(spec.itemId));
+            mesh.scale.setScalar(45);  // bigger than power-ups
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.position.set(cx, cy, cz);
+            scene.add(group);
+            collectables.push({
+                group, mesh, itemId: spec.itemId,
                 bobSeed: rnd() * Math.PI * 2,
                 baseY: cy,
                 collected: false
@@ -7067,9 +7146,17 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         let knightAnimState  = 'idle'; // 'idle' | 'run', tracked so we
                                        // only crossfade on transitions
 
+        // Substring match (case-insensitive). Man.glb's clips are named like
+        // "HumanArmature|Man_Idle" — exact-name lookup misses them, but
+        // searching for "idle" / "run" works for both Knight and Man.
+        const findClipByKey = (anims, key) => {
+            const k = key.toLowerCase();
+            return anims.find(c => c.name.toLowerCase().includes(k)) || null;
+        };
+
         {
             const knightLoader = new GLTFLoader();
-            knightLoader.load('assets/Knight_Animated.glb', gltf => {
+            knightLoader.load('assets/Characters/Man.glb', gltf => {
                 const knight = gltf.scene;
                 knight.updateMatrixWorld(true);
 
@@ -7157,8 +7244,8 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // mixer needs them "active" so weight can be animated.
                 if (gltf.animations && gltf.animations.length) {
                     knightMixer = new THREE.AnimationMixer(knight);
-                    const idleClip = THREE.AnimationClip.findByName(gltf.animations, 'Idle');
-                    const runClip  = THREE.AnimationClip.findByName(gltf.animations, 'Run');
+                    const idleClip = findClipByKey(gltf.animations, 'Idle');
+                    const runClip  = findClipByKey(gltf.animations, 'Run');
                     if (idleClip) {
                         knightIdleAction = knightMixer.clipAction(idleClip);
                         knightIdleAction.play();
@@ -7278,28 +7365,27 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         let portraitMixer  = null;  // AnimationMixer for the menu portrait
         {
             const ploader = new GLTFLoader();
-            ploader.load('assets/Knight_Animated.glb', g => {
+            ploader.load('assets/Characters/Man.glb', g => {
                 portraitKnight = g.scene;
                 portraitKnight.updateMatrixWorld(true);
 
-                // Use BONE positions, not the bind-pose mesh bbox, for
-                // sizing and centering. The GLB's bind matrices don't
-                // line up with the rest pose, so Box3.setFromObject
-                // (which uses bind-pose verts) reports a bbox in the
-                // wrong place. The bones at rest are where the model
-                // actually renders. Skip IK helpers (off to the side).
-                const _bboxV = new THREE.Vector3();
-                const boneBox = new THREE.Box3();
+                // Use the visible-mesh bbox for centering/sizing. The
+                // Man.glb has a root "Bone" whose head/tail extend ±2.4m
+                // sideways even though the visible body is ~1.4m wide;
+                // bone-bbox would shift the rotation pivot off-axis.
+                // SkinnedMesh bbox is computed from bind-pose verts which,
+                // for this model, line up close enough to the rest pose.
+                const meshBox = new THREE.Box3();
                 portraitKnight.traverse(o => {
-                    if (o.isBone && !o.name.startsWith('IK')) {
-                        o.getWorldPosition(_bboxV);
-                        boneBox.expandByPoint(_bboxV);
+                    if (o.isMesh || o.isSkinnedMesh) {
+                        const objBox = new THREE.Box3().setFromObject(o);
+                        meshBox.union(objBox);
                     }
                 });
                 const boneSize   = new THREE.Vector3();
                 const boneCenter = new THREE.Vector3();
-                boneBox.getSize(boneSize);
-                boneBox.getCenter(boneCenter);
+                meshBox.getSize(boneSize);
+                meshBox.getCenter(boneCenter);
 
                 // Pivot at origin; offset the knight by -boneCenter so
                 // the rendered model is centered at origin and rotates
@@ -7309,7 +7395,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 portraitPivot.add(portraitKnight);
                 portraitScene.add(portraitPivot);
 
-                // Frame the camera based on the bone bbox, with a bit
+                // Frame the camera based on the mesh bbox, with a bit
                 // of padding so we don't crop arms/head against the
                 // canvas edges.
                 const fitSize  = Math.max(boneSize.y, boneSize.x);
@@ -7333,7 +7419,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // Hook up the idle animation on the portrait.
                 if (g.animations && g.animations.length) {
                     portraitMixer = new THREE.AnimationMixer(portraitKnight);
-                    const idleClip = THREE.AnimationClip.findByName(g.animations, 'Idle')
+                    const idleClip = findClipByKey(g.animations, 'Idle')
                                   || g.animations[0];
                     portraitMixer.clipAction(idleClip).play();
                 }
@@ -7409,39 +7495,375 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         });
 
         // ── INVENTORY STATE ──────────────────────────────────────
-        // Five collectable types, one per UI slot.
-        const ITEM_DEFS = [
-            { id: 'crystal_shard', icon: '💎', name: 'CRYSTAL SHARD', threeColor: new THREE.Color(0x44aaff), hexColor: '#44aaff', slot: 0 },
-            { id: 'ancient_coin',  icon: '🪙', name: 'ANCIENT COIN',  threeColor: new THREE.Color(0xc9a227), hexColor: '#c9a227', slot: 1 },
-            { id: 'mystic_herb',   icon: '🌿', name: 'MYSTIC HERB',   threeColor: new THREE.Color(0x44cc77), hexColor: '#44cc77', slot: 2 },
-            { id: 'ember_stone',   icon: '🔶', name: 'EMBER STONE',   threeColor: new THREE.Color(0xff6633), hexColor: '#ff6633', slot: 3 },
-            { id: 'moon_pearl',    icon: '🔮', name: 'MOON PEARL',    threeColor: new THREE.Color(0xaa88ff), hexColor: '#aa88ff', slot: 4 }
-        ];
-        const inventoryCounts = [0, 0, 0, 0, 0];
+        // (ITEM_DEFS is hoisted above the collectables block so the
+        // pickup-orb spawn loop can look up colors from it.)
 
-        // Cache all DOM refs up front — querySelector/getElementById inside the
-        // game loop causes layout queries that hitch the frame.
-        const _slotEls  = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-'       + i));
-        const _iconEls  = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-icon-'  + i));
-        const _countEls = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-count-' + i));
-        const _nameEls  = ITEM_DEFS.map((_, i) => document.getElementById('cm-slot-name-'  + i));
+        // 12-cell grid. Each cell is null or { itemId, count }.
+        const INVENTORY_CELL_COUNT = 16;
+        const inventoryCells = new Array(INVENTORY_CELL_COUNT).fill(null);
+
+        // Equipment state — itemId or null per slot.
+        const equipped = { head: null, chest: null, legs: null, feet: null };
+
         const _notifEl  = document.getElementById('pickup-notif');
+        const _gridEl   = document.getElementById('cm-inventory-grid');
+        const _equipEls = {
+            head:  document.getElementById('cm-equip-head'),
+            chest: document.getElementById('cm-equip-chest'),
+            legs:  document.getElementById('cm-equip-legs'),
+            feet:  document.getElementById('cm-equip-feet')
+        };
 
-        function updateInventoryUI(slotIndex) {
-            // Only update the one slot that changed, not all five.
-            const def   = ITEM_DEFS[slotIndex];
-            const count = inventoryCounts[slotIndex];
-            const slotEl   = _slotEls[slotIndex];
-            const iconEl   = _iconEls[slotIndex];
-            const countEl  = _countEls[slotIndex];
-            const nameEl   = _nameEls[slotIndex];
-            if (!slotEl) return;
-            slotEl.classList.add('filled');
+        // Build 12 inventory cells once, then re-fill them on render.
+        for (let i = 0; i < INVENTORY_CELL_COUNT; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cm-item-slot';
+            cell.dataset.cellIndex = i;
+            cell.innerHTML =
+                '<div class="cm-slot-inner">'
+                +   '<span class="cm-slot-icon">✦</span>'
+                +   '<span class="cm-slot-num"></span>'
+                + '</div>'
+                + '<div class="cm-slot-name"></div>';
+            _gridEl.appendChild(cell);
+        }
+
+        function renderCell(cellEl, entry) {
+            const iconEl  = cellEl.querySelector('.cm-slot-icon');
+            const countEl = cellEl.querySelector('.cm-slot-num');
+            const nameEl  = cellEl.querySelector('.cm-slot-name');
+            if (!entry) {
+                cellEl.classList.remove('filled');
+                cellEl.removeAttribute('draggable');
+                iconEl.textContent  = '✦';
+                countEl.textContent = '';
+                nameEl.textContent  = '';
+                nameEl.style.color  = '';
+                return;
+            }
+            const def = ITEM_DEFS[entry.itemId];
+            cellEl.classList.add('filled');
+            cellEl.setAttribute('draggable', 'true');
             iconEl.textContent  = def.icon;
-            countEl.textContent = 'x' + count;
+            countEl.textContent = entry.count > 1 ? 'x' + entry.count : '';
             nameEl.textContent  = def.name;
             nameEl.style.color  = def.hexColor;
         }
+
+        function renderInventory() {
+            for (let i = 0; i < INVENTORY_CELL_COUNT; i++) {
+                renderCell(_gridEl.children[i], inventoryCells[i]);
+            }
+        }
+
+        function renderEquip() {
+            for (const slotName of ['head', 'chest', 'legs', 'feet']) {
+                const el      = _equipEls[slotName];
+                const itemId  = equipped[slotName];
+                const iconEl  = el.querySelector('.cm-slot-icon');
+                if (!itemId) {
+                    el.classList.remove('filled');
+                    el.removeAttribute('draggable');
+                    iconEl.textContent = '✦';
+                    iconEl.style.color = '';
+                } else {
+                    const def = ITEM_DEFS[itemId];
+                    el.classList.add('filled');
+                    el.setAttribute('draggable', 'true');
+                    iconEl.textContent = def.icon;
+                    iconEl.style.color = def.hexColor;
+                }
+            }
+        }
+
+        // Add an item to the first cell that already has it (stacking) or
+        // the first empty cell. Returns true on success.
+        function addItemToInventory(itemId, qty = 1) {
+            const def = ITEM_DEFS[itemId];
+            // Armor doesn't stack — always goes into a fresh cell.
+            const stackable = !def.equipType;
+            if (stackable) {
+                for (let i = 0; i < INVENTORY_CELL_COUNT; i++) {
+                    if (inventoryCells[i] && inventoryCells[i].itemId === itemId) {
+                        inventoryCells[i].count += qty;
+                        renderInventory();
+                        return true;
+                    }
+                }
+            }
+            for (let i = 0; i < INVENTORY_CELL_COUNT; i++) {
+                if (!inventoryCells[i]) {
+                    inventoryCells[i] = { itemId, count: qty };
+                    renderInventory();
+                    return true;
+                }
+            }
+            return false; // inventory full
+        }
+
+        // ── EQUIP / UNEQUIP + PORTRAIT ARMOR RENDERING ──────────────
+        // The portrait armor mesh is attached to a bone of the loaded man
+        // model so it follows the body as he idles. Cache loaded armor
+        // meshes by itemId so we only fetch each GLB once per session.
+        const _armorMeshCache = {};
+        // Anchor info per equip type: bone name on the man + tweakable
+        // local offset/rotation/scale. The armors are static meshes, so
+        // anchoring them rigidly to a bone keeps them in place during
+        // animation. Tune these by editing here, no code change needed.
+        const ARMOR_ANCHORS = {
+            chest: { bone: 'Torso', pos: [0, 0.005, 0], rot: [0, 0, 0], scale: 0.012 },
+            head:  { bone: 'Head',  pos: [0, 0, 0], rot: [0, 0, 0], scale: 0.2 },
+            legs:  { bone: 'Hips',  pos: [0, 0, 0], rot: [0, 0, 0], scale: 0.2 },
+            feet:  { bone: 'Bone',  pos: [0, 0, 0], rot: [0, 0, 0], scale: 0.2 }
+        };
+
+        // Live-tune armor placement from the browser console while the
+        // menu is open. Examples:
+        //   tuneArmor('chest', 'scale', 0.1)
+        //   tuneArmor('chest', 'pos', [0, 5, 0])
+        //   tuneArmor('chest', 'rot', [0, Math.PI/2, 0])
+        // Re-equips the current item to apply the change.
+        window.tuneArmor = function(equipType, key, value) {
+            const a = ARMOR_ANCHORS[equipType];
+            if (!a) return console.warn('Unknown equipType:', equipType);
+            a[key] = value;
+            const id = equipped[equipType];
+            if (id) {
+                const tmp = id;
+                equipped[equipType] = null;
+                detachPortraitArmor(equipType);
+                setEquipped(equipType, tmp);
+            }
+            return a;
+        };
+
+        // Track current portrait-attached armor meshes so we can detach
+        // them when unequipping. Keyed by equip type.
+        const _portraitArmorAttached = { head: null, chest: null, legs: null, feet: null };
+
+        function detachPortraitArmor(equipType) {
+            const m = _portraitArmorAttached[equipType];
+            if (m && m.parent) m.parent.remove(m);
+            _portraitArmorAttached[equipType] = null;
+        }
+
+        function attachPortraitArmor(itemId) {
+            const def     = ITEM_DEFS[itemId];
+            const anchor  = ARMOR_ANCHORS[def.equipType];
+            if (!def.glb || !anchor) return;
+            // Wait for the portrait man to finish loading — if it hasn't
+            // yet, retry on the next frame. The portrait GLB load happens
+            // once at startup.
+            if (!portraitKnight) {
+                requestAnimationFrame(() => attachPortraitArmor(itemId));
+                return;
+            }
+            const bone = portraitKnight.getObjectByName(anchor.bone);
+            if (!bone) {
+                console.warn('Portrait bone not found for', def.equipType, ':', anchor.bone);
+                return;
+            }
+
+            const place = (mesh) => {
+                detachPortraitArmor(def.equipType);
+                bone.add(mesh);
+                mesh.position.set(...anchor.pos);
+                mesh.rotation.set(...anchor.rot);
+                mesh.scale.setScalar(anchor.scale);
+                mesh.traverse(o => {
+                    if (o.isMesh) {
+                        o.frustumCulled = false;
+                        o.castShadow = false;
+                    }
+                });
+                _portraitArmorAttached[def.equipType] = mesh;
+            };
+
+            if (_armorMeshCache[itemId]) {
+                place(_armorMeshCache[itemId].clone(true));
+            } else {
+                // Cache the entire imported scene root so the GLB's baked-in
+                // transforms on RootNode → Mesh chain are preserved.
+                new GLTFLoader().load(def.glb, g => {
+                    _armorMeshCache[itemId] = g.scene;
+                    place(g.scene.clone(true));
+                }, undefined, err => console.error('Armor load failed:', def.glb, err));
+            }
+        }
+
+        function setEquipped(slotName, itemId) {
+            // Detach old portrait mesh (if any) — unequip or swap.
+            const prev = equipped[slotName];
+            if (prev) detachPortraitArmor(slotName);
+            equipped[slotName] = itemId || null;
+            renderEquip();
+            if (itemId) attachPortraitArmor(itemId);
+        }
+
+        // ── DRAG-AND-DROP WIRING ─────────────────────────────────────
+        // Source descriptor stored on the active drag. Use a module-level
+        // var because dataTransfer.getData isn't available in dragover (we
+        // need the source identity to validate the drop target).
+        let _dragSrc = null;
+
+        function clearDragOver() {
+            for (const el of document.querySelectorAll('.drag-over')) {
+                el.classList.remove('drag-over');
+            }
+        }
+
+        function inventoryEntryFromCell(cellIndex) {
+            return inventoryCells[cellIndex];
+        }
+
+        function tryDrop(target) {
+            if (!_dragSrc) return;
+            const src = _dragSrc;
+
+            // Pull source entry
+            let srcEntry;
+            if (src.origin === 'cell') {
+                srcEntry = inventoryCells[src.cellIndex];
+            } else {
+                srcEntry = src.itemId ? { itemId: src.itemId, count: 1 } : null;
+            }
+            if (!srcEntry) return;
+
+            if (target.kind === 'cell') {
+                const targetEntry = inventoryCells[target.cellIndex];
+                if (src.origin === 'cell') {
+                    // Same cell? no-op
+                    if (src.cellIndex === target.cellIndex) return;
+                    // Stack if same itemId AND stackable.
+                    const def = ITEM_DEFS[srcEntry.itemId];
+                    if (targetEntry && targetEntry.itemId === srcEntry.itemId && !def.equipType) {
+                        targetEntry.count += srcEntry.count;
+                        inventoryCells[src.cellIndex] = null;
+                    } else {
+                        // Swap (or move into empty)
+                        inventoryCells[target.cellIndex] = srcEntry;
+                        inventoryCells[src.cellIndex]    = targetEntry || null;
+                    }
+                    renderInventory();
+                } else if (src.origin === 'equip') {
+                    // Unequipping into a cell
+                    const def = ITEM_DEFS[src.itemId];
+                    // If target cell has an item of the same equipType, swap-equip
+                    if (targetEntry && ITEM_DEFS[targetEntry.itemId] &&
+                        ITEM_DEFS[targetEntry.itemId].equipType === def.equipType) {
+                        inventoryCells[target.cellIndex] = { itemId: src.itemId, count: 1 };
+                        setEquipped(src.slotName, targetEntry.itemId);
+                    } else if (!targetEntry) {
+                        inventoryCells[target.cellIndex] = { itemId: src.itemId, count: 1 };
+                        setEquipped(src.slotName, null);
+                    } else {
+                        // Target cell is occupied by something incompatible; reject.
+                        return;
+                    }
+                    renderInventory();
+                }
+            } else if (target.kind === 'equip') {
+                const def = ITEM_DEFS[srcEntry.itemId];
+                if (!def.equipType || def.equipType !== target.slotName) return; // wrong slot
+                if (src.origin === 'cell') {
+                    // Equipping. If target slot already has something, return it
+                    // to the source cell as a swap.
+                    const previouslyEquipped = equipped[target.slotName];
+                    inventoryCells[src.cellIndex] = previouslyEquipped
+                        ? { itemId: previouslyEquipped, count: 1 }
+                        : null;
+                    setEquipped(target.slotName, srcEntry.itemId);
+                    renderInventory();
+                } else if (src.origin === 'equip') {
+                    // Equip-to-equip only makes sense if same slot (no-op) or
+                    // we don't support cross-slot here.
+                    return;
+                }
+            }
+        }
+
+        function attachDragHandlers() {
+            // Inventory cells
+            for (let i = 0; i < INVENTORY_CELL_COUNT; i++) {
+                const cell = _gridEl.children[i];
+                cell.addEventListener('dragstart', e => {
+                    const entry = inventoryCells[i];
+                    if (!entry) { e.preventDefault(); return; }
+                    _dragSrc = { origin: 'cell', cellIndex: i, itemId: entry.itemId };
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', entry.itemId);
+                    cell.classList.add('dragging');
+                });
+                cell.addEventListener('dragend', () => {
+                    cell.classList.remove('dragging');
+                    clearDragOver();
+                    _dragSrc = null;
+                });
+                cell.addEventListener('dragover', e => {
+                    if (!_dragSrc) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                });
+                cell.addEventListener('dragenter', e => {
+                    if (!_dragSrc) return;
+                    e.preventDefault();
+                    cell.classList.add('drag-over');
+                });
+                cell.addEventListener('dragleave', () => {
+                    cell.classList.remove('drag-over');
+                });
+                cell.addEventListener('drop', e => {
+                    e.preventDefault();
+                    cell.classList.remove('drag-over');
+                    tryDrop({ kind: 'cell', cellIndex: i });
+                });
+            }
+            // Equip slots
+            for (const slotName of ['head', 'chest', 'legs', 'feet']) {
+                const el = _equipEls[slotName];
+                el.addEventListener('dragstart', e => {
+                    const itemId = equipped[slotName];
+                    if (!itemId) { e.preventDefault(); return; }
+                    _dragSrc = { origin: 'equip', slotName, itemId };
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', itemId);
+                    el.classList.add('dragging');
+                });
+                el.addEventListener('dragend', () => {
+                    el.classList.remove('dragging');
+                    clearDragOver();
+                    _dragSrc = null;
+                });
+                el.addEventListener('dragover', e => {
+                    if (!_dragSrc) return;
+                    // Only allow drop if the dragged item's type matches this slot.
+                    const def = ITEM_DEFS[_dragSrc.itemId];
+                    if (!def || def.equipType !== slotName) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                });
+                el.addEventListener('dragenter', e => {
+                    if (!_dragSrc) return;
+                    const def = ITEM_DEFS[_dragSrc.itemId];
+                    if (!def || def.equipType !== slotName) return;
+                    e.preventDefault();
+                    el.classList.add('drag-over');
+                });
+                el.addEventListener('dragleave', () => {
+                    el.classList.remove('drag-over');
+                });
+                el.addEventListener('drop', e => {
+                    e.preventDefault();
+                    el.classList.remove('drag-over');
+                    tryDrop({ kind: 'equip', slotName });
+                });
+            }
+        }
+
+        // Initial render + wire drag handlers.
+        renderInventory();
+        renderEquip();
+        attachDragHandlers();
 
         // Notification: swap to a clone so the CSS animation restarts without
         // a forced layout reflow (offsetWidth read locks up the render thread).
@@ -8468,10 +8890,10 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             scene.remove(c.group);
                             collectables.splice(ci, 1);
 
-                            // Update inventory
-                            inventoryCounts[c.slotIndex]++;
-                            updateInventoryUI(c.slotIndex);
-                            showPickupNotification(ITEM_DEFS[c.slotIndex]);
+                            // Update inventory: stack or fill first empty cell.
+                            const def = ITEM_DEFS[c.itemId];
+                            addItemToInventory(c.itemId, 1);
+                            showPickupNotification(def);
 
                             // Screen-space spark — reuse _projVec to avoid allocation
                             if (window.spawnClickSpark) {
@@ -8479,7 +8901,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                                 const sx = (_projVec.x * 0.5 + 0.5) * window.innerWidth;
                                 const sy = (-_projVec.y * 0.5 + 0.5) * window.innerHeight;
                                 if (sx > 0 && sx < window.innerWidth && sy > 0 && sy < window.innerHeight) {
-                                    window.spawnClickSpark(sx, sy, ITEM_DEFS[c.slotIndex].hexColor);
+                                    window.spawnClickSpark(sx, sy, def.hexColor);
                                 }
                             }
                         }
