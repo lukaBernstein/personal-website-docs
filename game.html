@@ -23,10 +23,10 @@
         
         /* Layer 1: The Three.js World (Hidden initially) */
         #three-layer {
-            position: absolute; top: 0; left: 0; 
+            position: absolute; top: 0; left: 0;
             width: 100vw; height: 100vh;
-            opacity: 0; 
-            transition: opacity 2s ease-in-out;
+            opacity: 0;
+            transition: opacity 4s ease-out;
             z-index: 1;
         }
         #three-layer canvas { 
@@ -38,13 +38,14 @@
 
         /* Layer 2: The ASCII Interface */
        #ascii-layer {
-            position: absolute; 
+            position: absolute;
             top: 0; left: 0;
-            width: 100%; 
+            width: 100%;
             height: 100dvh;
             display: block; /* Removed flex centering to prevent gaps */
             z-index: 2;
             background: #000;
+            transition: opacity 4s ease-out;
         }
         
         #ascii-canvas { cursor: crosshair; }
@@ -561,6 +562,11 @@
             border-radius: 0;
             cursor: pointer;
             box-shadow: 0 0 10px rgba(138,106,255,.7);
+            /* Center the 14px thumb on the 3px track. WebKit aligns
+               the thumb to the top of the input box, not the track,
+               when appearance:none is set — needs explicit offset of
+               (track_height - thumb_height) / 2 = -5.5px. */
+            margin-top: -5.5px;
         }
         .sm-slider::-moz-range-thumb {
             width: 14px; height: 14px;
@@ -1002,6 +1008,12 @@ if (isMobileDevice) {
         let cellW = 12, cellH = 17, fontSize = 18;
         let cols, rows, heatGrid, smudgeGrid, mask, visibleGrid;
         let mouse = { x: -100, y: -100, lastX: -100, lastY: -100, vx: 0, vy: 0 };
+        // Ripple sources dropped along the cursor path. Each entry is
+        // {x, y, t(ms)}. Stationary mouse adds no entries (no effect).
+        // Each drop emits an expanding ring that fades over its lifetime
+        // — together they form a short trail behind the cursor.
+        const mouseTrail = [];
+        let lastDropTime = 0;
         let currentRotation = 0, colorPhase = 0;
 
         let isFalling = false;
@@ -1105,11 +1117,23 @@ if (isMobileDevice) {
             // positions even during the crumble/fall sequence.
             fluidMousePx = e.clientX;
             fluidMousePy = e.clientY;
-            if (isFalling) return; 
+            if (isFalling) return;
             mouse.x = (e.clientX / window.innerWidth) * cols;
             mouse.y = (e.clientY / window.innerHeight) * rows;
             mouse.vx = mouse.x - mouse.lastX;
             mouse.vy = mouse.y - mouse.lastY;
+
+            // Drop a ripple source on motion. Speed gate (>0.3 cells)
+            // ensures stationary mouse adds nothing; time gate (40ms)
+            // throttles drop frequency so a fast swipe doesn't flood
+            // the trail with hundreds of overlapping rings.
+            const nowMs = Date.now();
+            const moveSpeed = Math.sqrt(mouse.vx*mouse.vx + mouse.vy*mouse.vy);
+            if (moveSpeed > 0.3 && nowMs - lastDropTime > 40) {
+                mouseTrail.push({ x: mouse.x, y: mouse.y, t: nowMs });
+                lastDropTime = nowMs;
+                if (mouseTrail.length > 80) mouseTrail.shift();
+            }
         });
 
         canvas.addEventListener('click', (e) => {
@@ -1131,7 +1155,11 @@ if (isMobileDevice) {
                 music.volume = 0.3; // Sets volume to 30%
                 music.play().catch(e => console.log("Audio waiting for user interaction"));
             }
-                if (window.lockCamera) window.lockCamera();
+                // Pointer-lock request is deferred until after the crumble.
+                // controls.lock() triggers a browser fullscreen-pointer
+                // transition that idles the main thread for ~1 second,
+                // which used to freeze the ASCII crumble mid-animation.
+                // Now we lock right when the world reveal begins.
 
                 const time = Date.now() * 0.0003;
                 for (let y = 0; y < rows; y++) {
@@ -1150,13 +1178,19 @@ if (isMobileDevice) {
                     }
                 }
                 isFalling = true;
+                // Click → world reveal. 2600ms wait lets the crumble play
+                // out fully, then both layers cross-fade over 4s (matching
+                // CSS transitions on #three-layer and #ascii-layer). The
+                // 4000ms ascii cleanup matches the fade duration so we
+                // don't display:none the layer mid-fade.
                 setTimeout(() => {
                     document.getElementById('three-layer').style.opacity = '1';
                     document.getElementById('ui').style.opacity = '0.8';
                     document.getElementById('ascii-layer').style.opacity = '0';
                     window.worldActive = true;
-                    setTimeout(() => { document.getElementById('ascii-layer').style.display = 'none'; }, 2000);
-                }, 4000);
+                    if (window.lockCamera) window.lockCamera();
+                    setTimeout(() => { document.getElementById('ascii-layer').style.display = 'none'; }, 4000);
+                }, 2600);
             }
         });
 
@@ -1227,17 +1261,37 @@ if (isMobileDevice) {
 
                     if (isVisible) {
                         if (!isFalling) {
-                            const dx = x - mouse.x, dy = y - mouse.y;
-                            const dist = Math.sqrt(dx*dx + dy*dy);
-                            const angle = Math.atan2(dy, dx) - currentRotation;
-                            const starShape = 0.3 + 0.7 * Math.pow(Math.abs(Math.cos(angle * 2.5)), 4);
-                            const starEffect = Math.max(0, (1 - dist / 10) * starShape); 
-                            const rippleEffect = Math.sin(dist * 0.45 - time * 18) * Math.max(0, 1 - dist / 60);
-                            const totalInfluence = (starEffect * 0.8) + (rippleEffect * 0.4);
+                            // Sum ring contributions from active trail
+                            // drops. Each drop emits a single ring that
+                            // expands outward over its lifetime, so the
+                            // cursor leaves a wake of ripples and a
+                            // short trail right behind it. Stationary
+                            // mouse → empty trail → no influence.
+                            let totalInfluence = 0;
+                            const nowMs = Date.now();
+                            const TRAIL_MAX_AGE = 2800; // ms — long trail
+                            const RING_SPEED = 0.012;   // cells/ms — rings expand slower → smaller max radius
+                            const RING_WIDTH = 0.55;    // very thin rings
+                            for (let i = 0; i < mouseTrail.length; i++) {
+                                const drop = mouseTrail[i];
+                                const age = nowMs - drop.t;
+                                if (age > TRAIL_MAX_AGE) continue;
+                                const dx = x - drop.x, dy = y - drop.y;
+                                const dist = Math.sqrt(dx*dx + dy*dy);
+                                const ringRadius = age * RING_SPEED;
+                                const offset = dist - ringRadius;
+                                // Bell curve around the expanding ring.
+                                const ring = Math.exp(-(offset*offset) / (RING_WIDTH*RING_WIDTH));
+                                // Quadratic age fade — recent drops are
+                                // brighter, so the freshest part of the
+                                // path reads as the "trail" right behind
+                                // the cursor.
+                                const fade = 1 - age / TRAIL_MAX_AGE;
+                                totalInfluence += ring * fade * fade;
+                            }
 
                             if (totalInfluence > 0.05) {
                                 smudgeGrid[idx] += (totalInfluence - smudgeGrid[idx]) * 0.2;
-                                if (dist < 1.1) heatGrid[idx] = 1.0;
                             }
                         }
 
@@ -1270,11 +1324,10 @@ if (isMobileDevice) {
                         const combinedWave = (w1 + w2) / 2;
                         const shimmer = Math.pow(Math.max(0, Math.sin(x * 0.5 + y * 0.3 + time * 8)), 10) * 40;
 
-                        const baseHue = (0 + colorPhase) % 360; 
+                        const baseHue = (0 + colorPhase) % 360;
                         const hue = baseHue + (s * 60) + (combinedWave * 10);
-                        let distForLight = isFalling ? 100 : Math.sqrt(Math.pow(x - mouse.x, 2) + Math.pow(y - mouse.y, 2));
-                        const lightness = 30 + (s * 75) + (h * 40) + (combinedWave * 10) + shimmer + (Math.max(0, (1 - distForLight / 15)) * 40);
-                        
+                        const lightness = 30 + (s * 75) + (h * 40) + (combinedWave * 10) + shimmer;
+
                         let char = "";
                         if (isFalling && fallOffsets[idx] > 10) {
                             // Degrade characters into smaller bits as they fall
@@ -1283,8 +1336,18 @@ if (isMobileDevice) {
                         } else if (h > 0.9) {
                             char = boldChars[Math.floor(Math.random() * boldChars.length)];
                         } else if (s > 0.15) {
-                            const sIdx = Math.floor((1 - s) * (smudgeChars.length - 1));
-                            char = smudgeChars[Math.max(0, Math.min(smudgeChars.length - 1, sIdx))];
+                            // Center index from smudge intensity. Window
+                            // of 7 + per-cell spatial hash gives varied
+                            // glyphs so a smudged region reads as ASCII
+                            // texture rather than a uniform character —
+                            // but high-smudge cells can still land on @
+                            // for that dense look.
+                            const center = Math.floor((1 - s) * (smudgeChars.length - 1));
+                            const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+                            const windowSize = 7;
+                            const offset = (hash % windowSize) - Math.floor(windowSize / 2);
+                            const sIdx = Math.max(0, Math.min(smudgeChars.length - 1, center + offset));
+                            char = smudgeChars[sIdx];
                         } else {
                             char = thinChars[Math.floor(((combinedWave + 1) / 2) * (thinChars.length - 1))];
                         }
@@ -1734,20 +1797,79 @@ if (isMobileDevice) {
 
         const SUN_DIR = new THREE.Vector3(0, 0.02, -1).normalize();
 
+        // Stylized procedural sky. Three-band vertical gradient
+        // (top→mid→bottom) plus a sun-direction halo that adds warmth
+        // around the sun. This is fast (a handful of math ops per pixel)
+        // and gives us a true cartoon-blue zenith with controlled horizon
+        // brightness, instead of fighting Preetham's physically-accurate
+        // white horizon. Day/night transitions come from the existing
+        // palette system swapping topColor/midColor/bottomColor + sunGlow.
+        //
+        // sunDir + sunGlow are wired in updateTimeOfDay each frame so the
+        // halo follows the sun. uSunPower controls halo strength
+        // (small at noon, larger at sunset for that golden hour feel).
         const skyGeo = new THREE.SphereGeometry(60000, 32, 32);
         const skyMat = new THREE.ShaderMaterial({
-            side: THREE.BackSide, depthWrite: false, 
+            side: THREE.BackSide, depthWrite: false,
             uniforms: {
-                topColor: { value: new THREE.Color(0x8a9db0) },
-                midColor: { value: new THREE.Color(0xffb59d) },
-                bottomColor: { value: new THREE.Color(0xffdec7) }
+                topColor:    { value: new THREE.Color(0x2a78d8) },
+                midColor:    { value: new THREE.Color(0x7ab8e8) },
+                bottomColor: { value: new THREE.Color(0xc2d6e3) },
+                sunDir:      { value: SUN_DIR },
+                // Hardcoded clean white — independent of palette sunGlow
+                // (which stays warm for the sun disc). The halo on the
+                // sky reads as bright atmospheric haze around the sun
+                // rather than a peach tint.
+                sunGlow:     { value: new THREE.Color(0xffffff) },
+                uSunPower:   { value: 0.35 }
             },
-            vertexShader: `varying vec3 vWorldPosition; void main() { vWorldPosition = position; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`,
-            fragmentShader: `uniform vec3 topColor; uniform vec3 midColor; uniform vec3 bottomColor; varying vec3 vWorldPosition; void main() { float h = normalize(vWorldPosition).y; vec3 finalColor = h > 0.0 ? mix(midColor, topColor, pow(h, 0.35)) : mix(midColor, bottomColor, pow(abs(h), 1.0)); gl_FragColor = vec4(finalColor, 1.0); }`
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vWorldPosition = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 midColor;
+                uniform vec3 bottomColor;
+                uniform vec3 sunDir;
+                uniform vec3 sunGlow;
+                uniform float uSunPower;
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec3 dir = normalize(vWorldPosition);
+                    float h = dir.y;
+                    // Vertical gradient. pow(h, 0.35) leaves a generous
+                    // band of pale mid color along the horizon (atmospheric
+                    // haze) before easing into the saturated zenith blue.
+                    vec3 col = h > 0.0
+                        ? mix(midColor, topColor, pow(clamp(h, 0.0, 1.0), 0.35))
+                        : mix(midColor, bottomColor, pow(abs(h), 1.0));
+                    // Sun haze: wide bright halo around sun direction.
+                    // pow(.,2.0) gives a generous diffuse brightening
+                    // (atmospheric haze around the sun) rather than a
+                    // tight pinprick. uSunPower scales overall intensity.
+                    //
+                    // Halo color shifts from white at high sun → warm
+                    // gold as the sun drops toward the horizon, so
+                    // sunset reads as golden haze instead of a glaring
+                    // white ring. sunDir.y is the sun's elevation.
+                    float sunDot = max(0.0, dot(dir, sunDir));
+                    float halo = pow(sunDot, 2.0) * uSunPower;
+                    float sunHeight = clamp(sunDir.y, 0.0, 1.0);
+                    vec3 warmHalo = vec3(1.00, 0.72, 0.42);
+                    vec3 haloColor = mix(warmHalo, sunGlow, smoothstep(0.05, 0.30, sunHeight));
+                    col = mix(col, haloColor, halo);
+                    gl_FragColor = vec4(col, 1.0);
+                }
+            `
         });
         const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+        skyMesh.renderOrder = -100;
         scene.add(skyMesh);
-        scene.fog = new THREE.FogExp2(0xffb59d, 0.00007);
+        scene.fog = new THREE.FogExp2(0xffb59d, 0.00006);
 
         const starGeo = new THREE.BufferGeometry();
         const starPositions = new Float32Array(5000 * 3);
@@ -1770,6 +1892,226 @@ if (isMobileDevice) {
         });
         const hazeMesh = new THREE.Mesh(hazeGeo, hazeMat);
         scene.add(hazeMesh);
+
+        // Volumetric clouds — raymarched fbm density slab between
+        // CLD_BASE and CLD_BASE+CLD_THICK, drawn on a camera-centered
+        // sphere that sits inside the sky dome (sky=60000, clouds=30000).
+        // depthWrite:false so terrain/objects draw cleanly on top;
+        // renderOrder=-90 means: sky(-100) → clouds(-90) → scene(0).
+        // Sun direction shares SUN_DIR by reference, so day/night just
+        // works. Cloud colors (uSunlit/uShadow/uSunTint) are mutated in
+        // updateTimeOfDay alongside the rest of the palette.
+        const CLOUD_COL_SUNLIT  = new THREE.Color(1.0, 1.0, 1.0);
+        const CLOUD_COL_SHADOW  = new THREE.Color(0.45, 0.50, 0.62);
+        const CLOUD_COL_SUNTINT = new THREE.Color(1.0, 0.85, 0.55);
+        const cloudGeo = new THREE.SphereGeometry(30000, 32, 24);
+        const cloudMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide,
+            // transparent:false puts the cloud in the OPAQUE render
+            // queue, rendered between sky (-100) and terrain (0) by
+            // renderOrder. Terrain draws AFTER the cloud and writes
+            // its own depth, naturally painting over cloud pixels —
+            // no depth test required. Was previously transparent:true
+            // which put the cloud in the transparent queue rendered
+            // AFTER opaque terrain; depth-test against terrain's far
+            // distances was unreliable (precision issues with the
+            // 30k-radius sphere at near=0.1, far=200000), causing
+            // clouds to incorrectly draw in front of distant terrain.
+            transparent: false,
+            depthWrite: false,
+            depthTest: false,
+            // CustomBlending with src=ONE, dst=ONE_MINUS_SRC_ALPHA is
+            // the standard premultiplied-alpha blend equation. We need
+            // it explicitly because transparent:false would otherwise
+            // disable blending entirely. The shader outputs radiance
+            // already attenuated by transmittance (`col += T * (1-dT)
+            // * lit`) — i.e. RGB is premultiplied — so we use ONE for
+            // the source factor instead of SRC_ALPHA.
+            blending: THREE.CustomBlending,
+            blendSrc: THREE.OneFactor,
+            blendDst: THREE.OneMinusSrcAlphaFactor,
+            blendEquation: THREE.AddEquation,
+            uniforms: {
+                sunDir:    { value: SUN_DIR },           // shared ref, mutated by updateTimeOfDay
+                uTime:     { value: 0 },
+                uCamPos:   { value: new THREE.Vector3() }, // world-space anchor for noise sampling
+                uSunlit:   { value: CLOUD_COL_SUNLIT },  // top of cloud, lit
+                uShadow:   { value: CLOUD_COL_SHADOW },  // bottom, ambient
+                uSunTint:  { value: CLOUD_COL_SUNTINT }, // warm tint when looking near sun
+                uCoverage: { value: 0.58 },              // 0=fully overcast, 1=clear sky
+                uDensity:  { value: 1.4 }                // opacity multiplier
+            },
+            vertexShader: `
+                varying vec3 vWorldDir;
+                void main() {
+                    // Mesh is camera-positioned each frame, so the un-
+                    // transformed vertex position == direction from
+                    // the camera in world space.
+                    vWorldDir = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                precision highp float;
+
+                uniform vec3  sunDir;
+                uniform float uTime;
+                uniform vec3  uCamPos;
+                uniform vec3  uSunlit;
+                uniform vec3  uShadow;
+                uniform vec3  uSunTint;
+                uniform float uCoverage;
+                uniform float uDensity;
+
+                varying vec3 vWorldDir;
+
+                // Cheap value-noise + 4-octave fbm. Simplex would be
+                // ~2x more ops per sample for marginal visual gain at
+                // the resolution we're rendering (1/2.5 native).
+                float hash(vec3 p) {
+                    p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+                    p *= 17.0;
+                    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+                }
+                float vnoise(vec3 p) {
+                    vec3 i = floor(p), f = fract(p);
+                    f = f * f * (3.0 - 2.0 * f);
+                    return mix(
+                        mix(mix(hash(i + vec3(0.0,0.0,0.0)), hash(i + vec3(1.0,0.0,0.0)), f.x),
+                            mix(hash(i + vec3(0.0,1.0,0.0)), hash(i + vec3(1.0,1.0,0.0)), f.x), f.y),
+                        mix(mix(hash(i + vec3(0.0,0.0,1.0)), hash(i + vec3(1.0,0.0,1.0)), f.x),
+                            mix(hash(i + vec3(0.0,1.0,1.0)), hash(i + vec3(1.0,1.0,1.0)), f.x), f.y),
+                        f.z);
+                }
+                float fbm(vec3 p) {
+                    float a = 0.5, t = 0.0;
+                    for (int i = 0; i < 4; i++) {
+                        t += a * vnoise(p);
+                        p *= 2.13;
+                        a *= 0.5;
+                    }
+                    return t;
+                }
+
+                // World-unit altitudes. CLD_BASE is well above the
+                // tallest reachable monolith (~3000) but below the
+                // sky dome (60000), so the slab projection is stable.
+                #define CLD_BASE  4800.0
+                #define CLD_THICK 2400.0
+                #define CLD_STEPS 28
+
+                void main() {
+                    vec3 dir = normalize(vWorldDir);
+                    // Render below the horizon too. With the opaque-
+                    // pipeline render setup, terrain (renderOrder 0)
+                    // draws AFTER the cloud (-90) and writes its own
+                    // pixels — so below-horizon cloud pixels are
+                    // naturally hidden by the ground/trees, and the
+                    // horizon cutoff line that's visible above-horizon
+                    // moves into the terrain-occluded zone.
+                    if (dir.y < -0.10) discard;
+
+                    // Curved-horizon parameterization (uses dir.y², so
+                    // sign of dir.y doesn't matter — same step length
+                    // for symmetric above/below rays). Replaces flat
+                    // 1/dir.y (which blows up at the horizon) with
+                    // 1/sqrt(dir.y² + 0.10), placing the slab on a
+                    // small concave "earth" of radius ~30k. tBase
+                    // asymptotes to ~15k near the horizon, so the
+                    // distance fade no longer crushes low-elevation
+                    // clouds to zero — they stay visible right down
+                    // to the horizon and below.
+                    float invY = 1.0 / sqrt(dir.y * dir.y + 0.10);
+                    float tBase = CLD_BASE * invY;
+                    float tTop  = (CLD_BASE + CLD_THICK) * invY;
+                    float marchLen = tTop - tBase;
+                    float dt = marchLen / float(CLD_STEPS);
+
+                    // Wind drift in world units per second. Noise scale
+                    // 0.00065 → feature size ~1500 units, so 45 u/s
+                    // gives ~33 s per feature traversal — clearly
+                    // visible drift.
+                    vec3 wind = vec3(uTime * 45.0, 0.0, uTime * 15.0);
+
+                    float T = 1.0;            // transmittance
+                    vec3  col = vec3(0.0);
+                    float sunDot = max(0.0, dot(dir, sunDir));
+                    float sunGlow = pow(sunDot, 4.0);
+
+                    for (int i = 0; i < CLD_STEPS; i++) {
+                        float t = tBase + dt * (float(i) + 0.5);
+                        // Use dir directly. For below-horizon rays this
+                        // samples a downward-tilted slice of the 3D fbm
+                        // field — different noise from the above-horizon
+                        // slice, so no reflection. Below-horizon pixels
+                        // are mostly hidden by terrain anyway since
+                        // terrain renders after cloud in the opaque
+                        // pipeline. uCamPos anchors the noise field in
+                        // world space so clouds don't track the camera.
+                        vec3 p = t * dir + uCamPos + wind;
+                        float d = fbm(p * 0.00065);
+                        // Coverage shapes density: smoothstep gives a
+                        // soft cutoff so cloud edges are wispy rather
+                        // than abrupt.
+                        d = smoothstep(uCoverage, uCoverage + 0.18, d);
+
+                        // Distance attenuation. Tames per-sample optical
+                        // depth so grazing rays don't form a wall.
+                        d *= exp(-t * 9e-5);
+                        // Angular attenuation. The curved-horizon math
+                        // caps t at ~15k near the horizon, which means
+                        // the distance fade above stops differentiating
+                        // far clouds from closer ones — every cloud
+                        // ends up the same density. This explicit
+                        // dir.y-based fade restores the "distant clouds
+                        // dissolve into haze" feel: heavily thinned
+                        // near horizon (~10% density), full overhead.
+                        // Combined with the per-sample distance fade,
+                        // gives ~9× contrast between zenith and horizon.
+                        d *= smoothstep(-0.05, 0.55, dir.y);
+
+                        if (d > 0.001) {
+                            // Vertical lighting cheat: top of cloud
+                            // gets sunlit color, bottom gets ambient
+                            // shadow color. Real self-shadowing via a
+                            // secondary march toward the sun would be
+                            // ~4x cost — this approximation reads fine.
+                            float h = (t - tBase) / marchLen;
+                            vec3 lit = mix(uShadow, uSunlit, h);
+                            // Forward-scattering: warm halo when
+                            // looking toward the sun (silver lining).
+                            lit = mix(lit, uSunTint, sunGlow * 0.55);
+
+                            // Beer-Lambert. The 0.001 scales dt (in
+                            // world units) into a reasonable optical-
+                            // depth range; tune via uDensity uniform.
+                            float dT = exp(-uDensity * d * dt * 0.001);
+                            col += T * (1.0 - dT) * lit;
+                            T *= dT;
+                            if (T < 0.01) break;
+                        }
+                    }
+
+                    // Fade band straddles the horizon (-0.10 → 0.18).
+                    // At dir.y = 0 (horizon line itself), alpha is
+                    // about 0.31 — clouds visibly continue past the
+                    // horizon. Below horizon, alpha ramps to zero at
+                    // -0.10 where the discard kicks in. Those below-
+                    // horizon cloud pixels are naturally hidden by
+                    // terrain since terrain renders AFTER the cloud
+                    // in the opaque pipeline. Net: no visible cutoff
+                    // line because the cutoff is in the terrain-
+                    // occluded zone.
+                    float horizonFade = smoothstep(-0.10, 0.18, dir.y);
+                    float alpha = (1.0 - T) * horizonFade;
+                    gl_FragColor = vec4(col, alpha);
+                }
+            `
+        });
+        const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+        cloudMesh.renderOrder = -90;
+        cloudMesh.frustumCulled = false;
+        scene.add(cloudMesh);
 
         let sX = 0, sZ = 0, maxH = -Infinity;
         for (let x = 2500; x <= 4500; x += 50) {
@@ -3351,15 +3693,16 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     return Math.sqrt((vx-sX)**2+(vz-sZ)**2) < 2600;
                 }
 
+                // Per-template instance lists — same instancing pattern as
+                // the rocks. Cuts ~660 separate Mesh draw calls down to
+                // one per flower template.
+                templates.forEach(t => { t.instances = []; });
+
                 function spawnOne(fx, fz, sc) {
                     const tmpl = templates[Math.floor(rnd() * templates.length)];
-                    const m = new THREE.Mesh(tmpl.geometry, tmpl.material);
-                    m.scale.setScalar(sc);
-                    m.rotation.y = rnd() * Math.PI * 2;
+                    const ry = rnd() * Math.PI * 2;
                     const gy = getElevation(fx, fz);
-                    m.position.set(fx, gy, fz);
-                    m.receiveShadow = true;
-                    scene.add(m);
+                    tmpl.instances.push({ x: fx, y: gy, z: fz, ry, sc });
                 }
 
                 // 12 giant landmark flowers
@@ -3381,7 +3724,27 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     spawnOne(fx, fz, 1.5 + rnd()*2);
                     normalPlaced++;
                 }
-                console.log('Flowers spawned:', giantsPlaced + normalPlaced);
+
+                // Assemble one InstancedMesh per template.
+                const _flowerDummy = new THREE.Object3D();
+                let _flowerCalls = 0;
+                templates.forEach(tmpl => {
+                    if (!tmpl.instances.length) return;
+                    const im = new THREE.InstancedMesh(tmpl.geometry, tmpl.material, tmpl.instances.length);
+                    im.receiveShadow = true;
+                    for (let i = 0; i < tmpl.instances.length; i++) {
+                        const inst = tmpl.instances[i];
+                        _flowerDummy.position.set(inst.x, inst.y, inst.z);
+                        _flowerDummy.rotation.set(0, inst.ry, 0);
+                        _flowerDummy.scale.setScalar(inst.sc);
+                        _flowerDummy.updateMatrix();
+                        im.setMatrixAt(i, _flowerDummy.matrix);
+                    }
+                    im.instanceMatrix.needsUpdate = true;
+                    scene.add(im);
+                    _flowerCalls++;
+                });
+                console.log('Flowers spawned: ' + (giantsPlaced + normalPlaced) + ' instances across ' + _flowerCalls + ' draw calls');
             }, undefined, e => console.warn('Flowers GLB not found:', e));
         })();
 
@@ -3512,24 +3875,130 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             // a tapered strip. Double-sided: front + back indices generated so
             // blades are visible from both sides without DoubleSide material.
             // Plus a horizontal cap quad for top-down coverage.
-            function createTuftGeometry(width, height, scatterMul = 1.0) {
-                const N_BLADES = 6;   // blades per tuft, evenly spaced at 60°
-                                      // (each gets a per-blade angle jitter
-                                      // below — they're no longer at exact
-                                      // 60° intervals after that). Bump to 7
-                                      // or 8 here for denser tufts at a
-                                      // proportional triangle cost.
-                const N_SEGS   = 2;   // height segments — 2 is enough for a smooth
-                                      // quadratic arch while saving 33% of tris vs 3
+            // ── WHEAT BILLBOARD GEOMETRY ──
+            // Multiple flat alpha-tested quads scattered within the tuft,
+            // each with its own random rotation around vertical, random
+            // scale, and random root position. Same idea as the grass
+            // tuft (multiple individual blades) but each blade here is a
+            // single flat quad mapped with the wheat sprite, not a
+            // procedural tapered strip. Cross-quad billboards looked
+            // cardboard-y; multi-blade-with-random-orientation reads as
+            // a real clump of stalks viewed from any angle.
+            //
+            // 4 verts × N_BLADES per tuft. Compatible with the existing
+            // field vertex+fragment shader (same attributes); aIsCap=0
+            // throughout so the alpha-tested sprite handles all angles.
+            function createWheatBillboardGeometry(width, height) {
+                const N_BLADES = 8;
+                // Sprite native aspect: 122×962 → width/height = 0.127.
+                // Scale per-blade width relative to height to preserve it.
+                const SPRITE_ASPECT = 0.127;
+                const baseHW = height * SPRITE_ASPECT * 0.5;
+                // Scatter radius — how far each blade roots from cell centre.
+                // Using width directly gives a tuft footprint roughly the
+                // size of the cell, so 5 blades fill the cell loosely.
+                const scatterR = width * 0.50;
+
+                const pr = (seed) => {
+                    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+                    return x - Math.floor(x);
+                };
+
+                const positions = [];
+                const uvs       = [];
+                const isCap     = [];
+                const bladeId   = [];
+                const bladeOut  = [];
+                const indices   = [];
+
+                for (let b = 0; b < N_BLADES; b++) {
+                    // Random root position (uniform over the disc).
+                    const posAngle = pr(b * 1.731) * Math.PI * 2;
+                    const posDist  = Math.sqrt(pr(b * 2.317)) * scatterR;
+                    const rootX    = Math.cos(posAngle) * posDist;
+                    const rootZ    = Math.sin(posAngle) * posDist;
+
+                    // Random rotation around vertical so each blade faces
+                    // a different horizontal direction. This is what makes
+                    // the tuft read as a clump from any angle — there's
+                    // always a few blades nearly perpendicular to the view.
+                    const rot  = pr(b * 3.539) * Math.PI * 2;
+                    const cosR = Math.cos(rot);
+                    const sinR = Math.sin(rot);
+
+                    // Per-blade scale variation — short blades hide under
+                    // tall ones, no two blades feel identical. Narrower
+                    // height range than before (was 0.75–1.25) so the
+                    // tallest blade in a tuft can't tower over the field
+                    // — caps individual outliers near the eye-level limit.
+                    const sH  = 0.85 + pr(b * 4.671) * 0.20; // 0.85–1.05
+                    const sW  = 0.85 + pr(b * 5.821) * 0.30; // 0.85–1.15
+                    const lH  = height * sH;
+                    const lHW = baseHW * sW;
+
+                    // 4 corners in the blade's local frame (before rotation):
+                    // [lx, ly, u, v]. Quad lies in the local XY plane,
+                    // facing local +Z. We rotate around Y to face the
+                    // chosen direction.
+                    const corners = [
+                        [-lHW, 0,  0, 0],
+                        [ lHW, 0,  1, 0],
+                        [ lHW, lH, 1, 1],
+                        [-lHW, lH, 0, 1],
+                    ];
+
+                    const baseV = positions.length / 3;
+                    for (let c = 0; c < 4; c++) {
+                        const lx = corners[c][0];
+                        const ly = corners[c][1];
+                        // Rotate (lx, 0) around Y by `rot`. lz=0 in local.
+                        const wx = lx * cosR;
+                        const wz = -lx * sinR;
+                        positions.push(rootX + wx, ly, rootZ + wz);
+                        uvs.push(corners[c][2], corners[c][3]);
+                        isCap.push(0);
+                        bladeId.push(b);
+                        // Outward (face) direction = local +Z rotated by rot.
+                        bladeOut.push(sinR, cosR);
+                    }
+
+                    // Front and back triangles so blades show from both sides.
+                    indices.push(baseV, baseV + 1, baseV + 2,  baseV, baseV + 2, baseV + 3);
+                    indices.push(baseV, baseV + 2, baseV + 1,  baseV, baseV + 3, baseV + 2);
+                }
+
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+                geo.setAttribute('uv',       new THREE.BufferAttribute(new Float32Array(uvs), 2));
+                geo.setAttribute('aIsCap',   new THREE.BufferAttribute(new Float32Array(isCap), 1));
+                geo.setAttribute('aBladeId', new THREE.BufferAttribute(new Float32Array(bladeId), 1));
+                geo.setAttribute('aBladeOut',new THREE.BufferAttribute(new Float32Array(bladeOut), 2));
+                geo.setIndex(new THREE.BufferAttribute(new Uint16Array(indices), 1));
+                return geo;
+            }
+
+            function createTuftGeometry(width, height, scatterMul = 1.0, wheat = false) {
+                // Wheat: only 2 stalks per "tuft" (real wheat is individual
+                // stalks scattered, not 6-blade rosettes). Combined with the
+                // big scatterMul on the wheat field config, each cell ends
+                // up looking like 2 widely-spaced lone stalks rather than a
+                // clump. Also a 3× tri-count saving over 6 blades.
+                const N_BLADES = wheat ? 2 : 6;
+                // 7 segs for wheat so the upper 28% (the seed pod) gets 3
+                // sample heights — enough to draw a smooth oval that pinches
+                // at the joint, peaks in the middle, and tapers to a point.
+                // 5 wasn't enough; the pod read as a flat triangle.
+                const N_SEGS   = wheat ? 7 : 2;
                 const LVLS     = N_SEGS + 1;
                 // Wider base (0.22 vs old 0.12) means each blade covers far
                 // more ground, so the same instance count feels much denser.
                 // maxLean proportional to height keeps arch angle constant.
-                const baseHW   = width  * 0.22;
-                // More aggressive arch (0.65 vs old 0.52): tip tangent ≈ 52°
-                // from vertical. Blades now reach 65% of their height outward,
-                // ensuring neighbouring tufts overlap at all typical scaleY values.
-                const maxLean  = height * 0.65;
+                // Wheat stalks are wire-thin — the visible bulk lives in
+                // the seedhead, not the stem.
+                const baseHW   = wheat ? width * 0.04 : width  * 0.22;
+                // Wheat barely arches — stalks are stiff. Slight lean keeps
+                // some natural variation but each stalk reads as upright.
+                const maxLean  = wheat ? height * 0.12 : height * 0.65;
 
                 // Per-blade pseudo-random — deterministic, so blade index b
                 // always gets the same jitter values. Geometry is built once
@@ -3543,8 +4012,15 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 };
 
                 const BLADE_VERTS = N_BLADES * LVLS * 2;
+                // Wheat: 2 leaves per stalk, each a 3-segment strip with
+                // 2 verts per level → 4 levels × 2 verts = 8 verts per leaf.
+                const N_LEAVES_PER_BLADE = wheat ? 2 : 0;
+                const N_LEAF_SEGS        = 3;
+                const LEAF_VERTS = wheat
+                    ? N_BLADES * N_LEAVES_PER_BLADE * (N_LEAF_SEGS + 1) * 2
+                    : 0;
                 const CAP_VERTS   = 4;
-                const TOTAL_VERTS = BLADE_VERTS + CAP_VERTS;
+                const TOTAL_VERTS = BLADE_VERTS + LEAF_VERTS + CAP_VERTS;
 
                 const positions = new Float32Array(TOTAL_VERTS * 3);
                 const uvs       = new Float32Array(TOTAL_VERTS * 2);
@@ -3614,14 +4090,52 @@ const s = Math.sin(angle); const c = Math.cos(angle);
 
                     const baseV = vi;
                     for (let s = 0; s <= N_SEGS; s++) {
-                        const t    = s / N_SEGS;        // 0=base, 1=tip
+                        // Wheat uses non-uniform t spacing — pow(s/N, 0.5)
+                        // packs more sample heights toward the top so the
+                        // cattail pod (upper 28% of the blade) gets 3+
+                        // samples inside it. With uniform t and N_SEGS=7,
+                        // only one t falls in the pod body and the cylinder
+                        // would collapse to a flat triangle.
+                        const t    = wheat ? Math.pow(s / N_SEGS, 0.5) : s / N_SEGS;
                         const lean = bladeLean * t * t; // quadratic arch
                         // World position = root + arch_offset. Arch grows
                         // along (outX, outZ) and is independent of root.
                         const cx   = rootX + outX * lean;
                         const cy   = t * bladeHeight;
                         const cz   = rootZ + outZ * lean;
-                        const hw   = baseHW * (1.0 - t); // tapers to 0 at tip
+                        // ── BLADE WIDTH PROFILE ──
+                        // Grass: simple linear taper from baseHW to 0.
+                        // Wheat: long wire-thin stem (lower 72%) then a
+                        // CYLINDRICAL cattail-style seed pod (upper 28%) that
+                        // jumps to ~3× stem width at the joint, holds that
+                        // width for most of the pod length, and tapers to a
+                        // sharp point only at the very tip. Matches
+                        // POD_START = 0.72 in createBladeColorTexture.
+                        let hw;
+                        if (wheat) {
+                            if (t < 0.72) {
+                                // Stem — barely tapers, stays wire-thin.
+                                const u = t / 0.72;
+                                hw = baseHW * (1.0 - u * 0.08);
+                            } else {
+                                // Seed pod — cylindrical body, sharp tip.
+                                // u: 0 at joint, 1 at tip.
+                                //   u < 0.85: full cylinder width (~3× stem)
+                                //   u ≥ 0.85: smooth taper to a point
+                                const u = (t - 0.72) / 0.28;
+                                const podW = 3.0;
+                                let pw;
+                                if (u < 0.85) {
+                                    pw = podW;
+                                } else {
+                                    const v = (u - 0.85) / 0.15;
+                                    pw = podW * (1.0 - v * v);
+                                }
+                                hw = baseHW * pw;
+                            }
+                        } else {
+                            hw = baseHW * (1.0 - t); // tapers to 0 at tip
+                        }
 
                         // Left vertex
                         positions[vi*3]   = cx + perpX * hw;
@@ -3654,6 +4168,89 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         indices.push(bl, br, tr,  bl, tr, tl);  // front
                         indices.push(bl, tr, br,  bl, tl, tr);  // back
                     }
+
+                    // ── WHEAT LEAVES ──
+                    // Each wheat stalk gets a couple of sword-shaped leaves
+                    // arching outward from a node mid-stem and drooping at
+                    // the tip. Without these, wheat reads as bare poles with
+                    // pods on top — leaves are what make it look like a real
+                    // plant with foliage. Leaves carry the parent stalk's
+                    // bladeId so they sway in sync with the stem in wind.
+                    if (wheat) {
+                        for (let li = 0; li < N_LEAVES_PER_BLADE; li++) {
+                            // Per-leaf radial direction around the stem.
+                            const lAng   = pr(b * 8.91 + li * 17.31) * Math.PI * 2;
+                            const lOutX  = Math.cos(lAng);
+                            const lOutZ  = Math.sin(lAng);
+                            const lPerpX = -lOutZ;
+                            const lPerpZ =  lOutX;
+
+                            // Where on the stem this leaf attaches, and how
+                            // far / how steeply it droops. Some per-blade
+                            // jitter so the two leaves on a stalk aren't
+                            // mirror images.
+                            const leafRootT = 0.36 + pr(b * 11.7 + li * 5.3) * 0.18; // 0.36–0.54
+                            const leafLen   = bladeHeight * (0.28 + pr(b * 13.1 + li) * 0.10);
+                            const leafBaseHW= baseHW * 2.4;
+                            const leafDroop = bladeHeight * 0.20;
+
+                            // Stem position at the leaf root (matches the
+                            // arch offset the stem has at this height).
+                            const stemLean = bladeLean * leafRootT * leafRootT;
+                            const stemX    = rootX + outX * stemLean;
+                            const stemY    = leafRootT * bladeHeight;
+                            const stemZ    = rootZ + outZ * stemLean;
+
+                            const baseV2 = vi;
+                            for (let s = 0; s <= N_LEAF_SEGS; s++) {
+                                const tl = s / N_LEAF_SEGS;
+                                const lateral = leafLen * tl;
+                                // Quadratic droop — flat near the stem,
+                                // bending sharply down as the tip extends.
+                                const drop = leafDroop * tl * tl;
+                                // Sword-shape: peaks slightly past the
+                                // base then tapers to a point at the tip.
+                                const lhw  = leafBaseHW * (1.0 - tl) * (0.6 + 0.4 * Math.sin(tl * Math.PI));
+
+                                const cxL = stemX + lOutX * lateral;
+                                const cyL = stemY - drop;
+                                const czL = stemZ + lOutZ * lateral;
+
+                                // Sample the lower part of the wheat
+                                // texture (straw stem colours, no pod).
+                                const uvY = 0.05 + tl * 0.30;
+
+                                positions[vi*3]   = cxL + lPerpX * lhw;
+                                positions[vi*3+1] = cyL;
+                                positions[vi*3+2] = czL + lPerpZ * lhw;
+                                uvs[vi*2] = 0.0;  uvs[vi*2+1] = uvY;
+                                isCap[vi]        = 0;
+                                bladeId[vi]      = b;
+                                bladeOut[vi*2]   = lOutX;
+                                bladeOut[vi*2+1] = lOutZ;
+                                vi++;
+
+                                positions[vi*3]   = cxL - lPerpX * lhw;
+                                positions[vi*3+1] = cyL;
+                                positions[vi*3+2] = czL - lPerpZ * lhw;
+                                uvs[vi*2] = 1.0;  uvs[vi*2+1] = uvY;
+                                isCap[vi]        = 0;
+                                bladeId[vi]      = b;
+                                bladeOut[vi*2]   = lOutX;
+                                bladeOut[vi*2+1] = lOutZ;
+                                vi++;
+                            }
+
+                            for (let s = 0; s < N_LEAF_SEGS; s++) {
+                                const bl = baseV2 + s * 2;
+                                const br = bl + 1;
+                                const tlI = bl + 2;
+                                const trI = bl + 3;
+                                indices.push(bl, br, trI,  bl, trI, tlI);
+                                indices.push(bl, trI, br,  bl, tlI, trI);
+                            }
+                        }
+                    }
                 }
 
                 // Horizontal cap quad for top-down view coverage.
@@ -3661,8 +4258,16 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // blades spread wide and cover the mid-height range themselves.
                 // Wider cap (0.75× vs old 0.55×) covers more ground per tuft,
                 // especially important for the outer ring's 100-unit cell spacing.
-                const capW   = width  * 0.75;
-                const capY   = height * 0.40;
+                //
+                // Wheat: the cap reads as a flat leaf when viewed from a
+                // shallow angle (it's a horizontal sprite floating mid-blade).
+                // Real wheat is just thin vertical stalks — no horizontal
+                // foliage. Make the cap as small as possible while still
+                // contributing top-down ear coverage when the player looks
+                // straight down. Pushed up to ear height (0.78) so it sits
+                // among the seedheads, not floating below them.
+                const capW   = wheat ? width  * 0.18 : width  * 0.75;
+                const capY   = wheat ? height * 0.78 : height * 0.40;
                 const capBase = vi;
                 const cpPos = [[-capW,capY,-capW],[capW,capY,-capW],[capW,capY,capW],[-capW,capY,capW]];
                 const cpUv  = [[0,0],[1,0],[1,1],[0,1]];
@@ -3705,6 +4310,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 const W = opts.width;
                 const H = opts.height;
                 const NUM_TIPS = opts.tips;
+                const wheat = !!opts.wheat;
                 const canvas = document.createElement('canvas');
                 canvas.width = W; canvas.height = H;
                 const ctx = canvas.getContext('2d');
@@ -3722,25 +4328,49 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     const y = Math.floor(cy + Math.sin(theta) * r);
                     if (x < 0 || x >= W || y < 0 || y >= H) continue;
 
-                    // Match updated blade palette — muted natural greens.
-                    const isTip = rnd() > 0.7;
-                    const cR = isTip ? 142 + Math.floor(rnd() * 24)
-                                     :  88 + Math.floor(rnd() * 26);
-                    const cG = isTip ? 172 + Math.floor(rnd() * 20)
-                                     : 122 + Math.floor(rnd() * 26);
-                    const cB = isTip ?  76 + Math.floor(rnd() * 20)
-                                     :  54 + Math.floor(rnd() * 20);
+                    let cR, cG, cB;
+                    if (wheat) {
+                        // Wheat-head specks viewed from above — amber/straw.
+                        const isTip = rnd() > 0.7;
+                        cR = isTip ? 220 + Math.floor(rnd() * 22)   // bright sunlit grain
+                                   : 178 + Math.floor(rnd() * 26);  // mid amber stem
+                        cG = isTip ? 184 + Math.floor(rnd() * 20)
+                                   : 152 + Math.floor(rnd() * 22);
+                        cB = isTip ?  96 + Math.floor(rnd() * 18)
+                                   :  82 + Math.floor(rnd() * 18);
+                    } else {
+                        // Match updated blade palette — muted natural greens.
+                        const isTip = rnd() > 0.7;
+                        cR = isTip ? 142 + Math.floor(rnd() * 24)
+                                   :  88 + Math.floor(rnd() * 26);
+                        cG = isTip ? 172 + Math.floor(rnd() * 20)
+                                   : 122 + Math.floor(rnd() * 26);
+                        cB = isTip ?  76 + Math.floor(rnd() * 20)
+                                   :  54 + Math.floor(rnd() * 20);
+                    }
                     ctx.fillStyle = `rgb(${cR},${cG},${cB})`;
 
                     // Most tips are single pixels; some are 2px clusters
-                    // ("multiple blades clumped at a viewpoint").
+                    // ("multiple blades clumped at a viewpoint"). For wheat
+                    // we bias slightly more toward 2-px clusters so the cap
+                    // reads as oval seedheads rather than scattered blades.
                     const r2 = rnd();
-                    if (r2 > 0.8) {
-                        ctx.fillRect(x, y, 2, 1);
-                    } else if (r2 > 0.6) {
-                        ctx.fillRect(x, y, 1, 2);
+                    if (wheat) {
+                        if (r2 > 0.65) {
+                            ctx.fillRect(x, y, 2, 1);
+                        } else if (r2 > 0.35) {
+                            ctx.fillRect(x, y, 1, 2);
+                        } else {
+                            ctx.fillRect(x, y, 1, 1);
+                        }
                     } else {
-                        ctx.fillRect(x, y, 1, 1);
+                        if (r2 > 0.8) {
+                            ctx.fillRect(x, y, 2, 1);
+                        } else if (r2 > 0.6) {
+                            ctx.fillRect(x, y, 1, 2);
+                        } else {
+                            ctx.fillRect(x, y, 1, 1);
+                        }
                     }
 
                     // Sometimes add a neighbouring speck for cluster feel.
@@ -3754,9 +4384,12 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     }
                 }
 
-                // Sparse bright seedhead highlights — muted to match new palette.
+                // Sparse bright highlights — wheat gets warm gold catch-lights,
+                // grass gets the original muted-green flecks.
                 const numBright = Math.floor(NUM_TIPS * 0.18);
-                const brightTones = ['#94b468', '#88a860', '#8eae65', '#a0be74'];
+                const brightTones = wheat
+                    ? ['#f0c878', '#e8be6c', '#f4d088', '#dcae5c']
+                    : ['#94b468', '#88a860', '#8eae65', '#a0be74'];
                 for (let i = 0; i < numBright; i++) {
                     const r     = Math.pow(rnd(), 1.5) * maxR;
                     const theta = rnd() * Math.PI * 2;
@@ -3785,27 +4418,69 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             function createBladeColorTexture(opts) {
                 const W = opts.width  || 16;
                 const H = opts.height || 64;
+                const wheat = !!opts.wheat;
                 const canvas = document.createElement('canvas');
                 canvas.width = W; canvas.height = H;
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, W, H);
 
-                // Canvas py=0 = top = uv.y=1 (tip), py=H-1 = bottom = uv.y=0 (base).
-                const baseR = 56,  baseG = 82,  baseB = 38;
-                const tipR  = 108, tipG  = 138, tipB  = 58;
-                for (let py = 0; py < H; py++) {
-                    // Map canvas y to uv.y: py=0→uvT=1 (tip), py=H-1→uvT=0 (base)
-                    const uvT = 1.0 - py / (H - 1);
-                    const r = baseR + (tipR - baseR) * uvT;
-                    const g = baseG + (tipG - baseG) * uvT;
-                    const b = baseB + (tipB - baseB) * uvT;
-                    for (let px = 0; px < W; px++) {
-                        // Per-pixel noise for the pixelated look
-                        const nr = Math.max(0, Math.min(255, Math.round(r + (rnd()-0.5)*6)));
-                        const ng = Math.max(0, Math.min(255, Math.round(g + (rnd()-0.5)*6)));
-                        const nb = Math.max(0, Math.min(255, Math.round(b + (rnd()-0.5)*4)));
-                        ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
-                        ctx.fillRect(px, py, 1, 1);
+                if (wheat) {
+                    // ── WHEAT PALETTE ──
+                    // Stalk runs from a pale dry-straw base up to a golden-amber
+                    // seedhead at the tip. The top ~22% of the texture is the
+                    // "ear" zone — pushed warmer/darker so the very tip of each
+                    // 3D blade reads as a ripe wheat head rather than a leaf tip.
+                    const baseR = 168, baseG = 150, baseB =  92;   // pale straw stem base
+                    const midR  = 200, midG  = 172, midB  =  98;   // bleached upper stem
+                    const podBaseR = 210, podBaseG = 158, podBaseB =  78; // amber pod body
+                    const podTopR  = 178, podTopG  = 122, podTopB  =  56; // darker pod tip
+                    // Must match POD_START in the wheat width profile.
+                    const POD_START = 0.72;
+                    for (let py = 0; py < H; py++) {
+                        const uvT = 1.0 - py / (H - 1);
+                        let r, g, b;
+                        if (uvT < POD_START) {
+                            // Stem — pale straw → bleached upper stalk.
+                            const t = uvT / POD_START;
+                            r = baseR + (midR - baseR) * t;
+                            g = baseG + (midG - baseG) * t;
+                            b = baseB + (midB - baseB) * t;
+                        } else {
+                            // Seed pod — amber base darkening toward the tip
+                            // for depth (real wheat pods are darker at the
+                            // top where the awns emerge).
+                            const t = (uvT - POD_START) / (1.0 - POD_START);
+                            r = podBaseR + (podTopR - podBaseR) * t;
+                            g = podBaseG + (podTopG - podBaseG) * t;
+                            b = podBaseB + (podTopB - podBaseB) * t;
+                        }
+                        for (let px = 0; px < W; px++) {
+                            // More noise in the pod for the grainy kernel look.
+                            const noiseAmt = uvT >= POD_START ? 18 : 6;
+                            const nr = Math.max(0, Math.min(255, Math.round(r + (rnd()-0.5)*noiseAmt)));
+                            const ng = Math.max(0, Math.min(255, Math.round(g + (rnd()-0.5)*noiseAmt)));
+                            const nb = Math.max(0, Math.min(255, Math.round(b + (rnd()-0.5)*(noiseAmt*0.6))));
+                            ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+                            ctx.fillRect(px, py, 1, 1);
+                        }
+                    }
+                } else {
+                    // ── ORIGINAL GREEN PALETTE ──
+                    // Canvas py=0 = top = uv.y=1 (tip), py=H-1 = bottom = uv.y=0 (base).
+                    const baseR = 56,  baseG = 82,  baseB = 38;
+                    const tipR  = 108, tipG  = 138, tipB  = 58;
+                    for (let py = 0; py < H; py++) {
+                        const uvT = 1.0 - py / (H - 1);
+                        const r = baseR + (tipR - baseR) * uvT;
+                        const g = baseG + (tipG - baseG) * uvT;
+                        const b = baseB + (tipB - baseB) * uvT;
+                        for (let px = 0; px < W; px++) {
+                            const nr = Math.max(0, Math.min(255, Math.round(r + (rnd()-0.5)*6)));
+                            const ng = Math.max(0, Math.min(255, Math.round(g + (rnd()-0.5)*6)));
+                            const nb = Math.max(0, Math.min(255, Math.round(b + (rnd()-0.5)*4)));
+                            ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+                            ctx.fillRect(px, py, 1, 1);
+                        }
                     }
                 }
                 const tex = new THREE.CanvasTexture(canvas);
@@ -3857,6 +4532,21 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             const outerCapTex   = createGrassCapTexture({ width: 96, height: 96, tips: 1400 });
             const shortBladeTex = createShortBladeColorTexture({ width: 16, height: 64 });
             const shortCapTex   = createGrassCapTexture({ width: 64, height: 64, tips: 700 });
+            // Wheat-only resources, used by the dedicated tall-grass wheat
+            // field below. The wheat sprite is a transparent PNG rendered
+            // from a low-poly wheat .glb — using it as an alpha-tested
+            // billboard gets us the exact look of real wheat (kernels,
+            // awns, drooping leaves) at 8 tris per tuft instead of 100+.
+            const wheatBladeTex = new THREE.TextureLoader().load('assets/wheat_sprite.png');
+            wheatBladeTex.magFilter = THREE.LinearFilter;
+            wheatBladeTex.minFilter = THREE.LinearMipMapLinearFilter;
+            wheatBladeTex.wrapS = wheatBladeTex.wrapT = THREE.ClampToEdgeWrapping;
+            wheatBladeTex.generateMipmaps = true;
+            wheatBladeTex.colorSpace = THREE.SRGBColorSpace;
+            // Cross-quad geometry has no cap — pass the same sprite for
+            // the cap uniform slot since the shader still requires it,
+            // but the cap quad's aIsCap is 0 so this texture is unused.
+            const wheatCapTex   = wheatBladeTex;
             const fieldMaterials = [];
             // Exposed for the B-key shadow debug toggle in the keydown handler.
             window.fieldMaterials = fieldMaterials;
@@ -3893,11 +4583,17 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         fadeOutStart, fadeOutEnd,
                         fadeInStart, fadeInEnd,
                         forceShortGrass,
+                        forceTallGrass,
                         minXzScale = 0.0,
                         scatterMul = 1.0,
+                        wheat = false,
                         name } = cfg;
                 const INSTANCES = FIELD * FIELD;
-                const baseGeo = createTuftGeometry(tuftW, tuftH, scatterMul);
+                // Wheat uses an alpha-tested billboard sprite (cross-quad);
+                // everything else uses the procedural strip-based tuft.
+                const baseGeo = wheat
+                    ? createWheatBillboardGeometry(tuftW, tuftH)
+                    : createTuftGeometry(tuftW, tuftH, scatterMul);
                 const geo = new THREE.InstancedBufferGeometry();
                 geo.index = baseGeo.index;
                 geo.attributes.position  = baseGeo.attributes.position;
@@ -4229,7 +4925,14 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             geomFade *= 1.0 - smoothstep(0.35, 0.9, cellPathMask);
 
                             // ── GRASS TYPE (TALL vs SHORT) ──
-                            ${forceShortGrass ? `
+                            ${forceTallGrass ? `
+                            // Tall-only field (e.g. the wheat field). geomFade
+                            // collapses in short-grass zones so wheat doesn't
+                            // appear in lawn areas. vGrassType pinned to 0
+                            // (tall) so all blades sample the wheat texture.
+                            geomFade *= 1.0 - smoothstep(0.55, 0.85, grassType);
+                            vGrassType = 0.0;
+                            ` : forceShortGrass ? `
                             geomFade *= smoothstep(0.08, 0.35, grassType);
                             vGrassType = 1.0;
                             heightVar *= 0.40;
@@ -4405,8 +5108,27 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             float windAmt = aIsCap > 0.5 ? 0.7 : (uv.y * uv.y);
                             float w1 = sin(uTime * 1.4 + worldXZ.x * 0.011 + worldXZ.y * 0.009);
                             float w2 = sin(uTime * 0.7 + worldXZ.x * 0.004 - worldXZ.y * 0.006) * 0.5;
-                            p.x += windAmt * (w1 + w2) * 18.0 * geomFade;
-                            p.z += windAmt * sin(uTime * 0.9 + worldXZ.x * 0.013) * 11.0 * geomFade;
+                            // ── WIND GUST RIPPLES (wheat only) ──
+                            // A low-frequency wave traveling diagonally
+                            // across the world. pow(., 6.0) sharpens the
+                            // peak so most of the field is calm and only a
+                            // narrow band (~150-200u wide) gets the surge
+                            // at any moment, sweeping across the field
+                            // every ~8 seconds. gustMul ramps the base
+                            // wind from 1× to ~3.5× as the gust passes.
+                            // Grass keeps its constant gentle sway (gust
+                            // ripples on grass made it look glitchy because
+                            // each blade is a thin stiff strip — wheat
+                            // billboards absorb the surge gracefully).
+                            ${wheat ? `
+                            float gustPhase = (worldXZ.x * 0.7 + worldXZ.y * 0.7 - uTime * 90.0) * 0.0014;
+                            float gust      = pow(sin(gustPhase) * 0.5 + 0.5, 6.0);
+                            float gustMul   = 1.0 + gust * 2.5;
+                            ` : `
+                            float gustMul   = 1.0;
+                            `}
+                            p.x += windAmt * (w1 + w2) * 18.0 * geomFade * gustMul;
+                            p.z += windAmt * sin(uTime * 0.9 + worldXZ.x * 0.013) * 11.0 * geomFade * gustMul;
 
                             // ── STEP 6.5 — TIP-BENT BLADE NORMAL ──
                             // Synthesise a per-vertex normal that points OUTWARD
@@ -4533,11 +5255,21 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                             // depth comparison flickers and you get streaky
                             // shadow acne across blade tips.
                             float receiverZ = sc.z - 0.0025;
+                            ${wheat ? `
+                            // Wheat: single-tap shadow. Wheat is alpha-tested
+                            // billboards with lots of texture detail and its
+                            // own baked shading from the sprite — soft PCF
+                            // edges are invisible inside the bunch so we use
+                            // a hard 1-tap sample (9× cheaper). Per-fragment
+                            // savings are large because every transparent
+                            // pixel still runs this shader before discarding.
+                            float d = unpackRGBAToDepth(texture2D(uShadowMap, sc.xy));
+                            float s = d > receiverZ ? 1.0 : 0.0;
+                            ` : `
                             vec2 texel = 1.0 / uShadowMapSize;
-                            // 3x3 PCF — wider kernel than rotated 4-tap, kills
-                            // the leftover streak banding from blade-to-blade
-                            // depth aliasing. Costs 9 samples vs 4, but
-                            // distance-fade keeps it cheap past 2200u.
+                            // 3x3 PCF for grass — wider kernel than rotated
+                            // 4-tap, kills the leftover streak banding from
+                            // blade-to-blade depth aliasing.
                             float lit = 0.0;
                             for (int x = -1; x <= 1; x++) {
                                 for (int y = -1; y <= 1; y++) {
@@ -4546,6 +5278,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                                 }
                             }
                             float s = lit * (1.0 / 9.0);
+                            `}
                             return mix(1.0, s, distFade);
                         }
                         varying vec3  vViewDir;
@@ -4664,8 +5397,14 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                                 float tipMask = vUv.y * vUv.y;
                                 float sunUp  = clamp(uSunDir.y * 1.5, 0.0, 1.0);
                                 float distAtten = 1.0 - smoothstep(1500.0, 3500.0, vFogDepth);
-                                c.rgb += vec3(1.05, 1.00, 0.78)
-                                       * spec * tipMask * sunUp * distAtten * uDayLight * sunShadow * 0.65;
+                                // Wheat catches sun on the seedheads with a
+                                // warm gold highlight; grass uses a near-
+                                // white sheen.
+                                ${wheat ? `vec3 specCol = vec3(1.20, 0.92, 0.45);
+                                float specStrength = 0.85;` : `vec3 specCol = vec3(1.05, 1.00, 0.78);
+                                float specStrength = 0.65;`}
+                                c.rgb += specCol
+                                       * spec * tipMask * sunUp * distAtten * uDayLight * sunShadow * specStrength;
                             }
 
                             // ── TRANSLUCENCY / BACKLIGHT (article BACKLIGHT) ──
@@ -4686,8 +5425,14 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                                 float backLit = max(0.0, dot(-uSunDir, V));
                                 float lowSun  = 1.0 - smoothstep(0.0, 0.45, uSunDir.y);
                                 float trans   = pow(backLit, 1.8) * vUv.y;
-                                c.rgb += vec3(0.42, 0.58, 0.16)
-                                       * trans * (0.30 + 0.70 * lowSun) * uDayLight;
+                                // Wheat glows warm amber when sun is behind
+                                // it (kernels and stems transmit warm light);
+                                // grass glows yellow-green.
+                                ${wheat ? `vec3 backCol = vec3(0.95, 0.65, 0.18);
+                                float backStrength = 1.20;` : `vec3 backCol = vec3(0.42, 0.58, 0.16);
+                                float backStrength = 1.00;`}
+                                c.rgb += backCol
+                                       * trans * (0.30 + 0.70 * lowSun) * uDayLight * backStrength;
                             }
 
                             // Scene fog only — field-edge fade is handled
@@ -4737,27 +5482,75 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 shortCapTexRef:   innerCapTex,
                 fadeOutStart: 0.45, fadeOutEnd: 1.00,
                 fadeInStart: -1.0, fadeInEnd: 0.0,
+                // Tall-zone blades are now provided by the dedicated Wheat
+                // field below. Setting forceShortGrass collapses this field's
+                // geomFade to 0 in tall zones (so green tall grass doesn't
+                // overlap the wheat) while keeping short-zone height & texture
+                // sampling bit-for-bit identical to the previous behaviour
+                // (heightVar *= 0.40, uShortTex sampling).
+                forceShortGrass: true,
                 name: 'Grass'
             });
 
+            // ── WHEAT FIELD ──
+            // Renders ONLY in tall-grass zones (forceTallGrass). Each
+            // tuft is a single alpha-tested cross-quad billboard mapped
+            // with the wheat sprite extracted from wheat.glb. Each sprite
+            // shows a bunch of ~10 wheat stalks with leaves at the base,
+            // so each cell gives the appearance of a wheat clump.
+            //
+            // Cheap: 8 tris per tuft × FIELD² instances. With FIELD=160
+            // we get 25.6k bunches × 10 stalks = ~256k visible stalks
+            // for ~205k tris total — way under the original procedural
+            // approach.
+            //
+            // tuftW × tuftH matches the sprite's 0.64 aspect ratio so
+            // the bunch isn't squashed or stretched. CELL_SIZE 60 keeps
+            // the same ~4800-unit coverage half-radius as before.
+            buildField({
+                // FIELD 130 with CELL_SIZE 75 keeps the same ~4900u coverage
+                // half-radius as 160×60 but cuts instance count from 25.6k
+                // to 16.9k (-34%). Each tuft has 8 randomly-rotated blades
+                // baked into its geometry so the spread per cell hides the
+                // larger spacing — visually the field reads the same density
+                // at the camera. Major win on vertex-shader cost since wheat
+                // alpha-test discard means many fragment runs per blade.
+                FIELD: 130, CELL_SIZE: 75,
+                // tuftH 95 with hMax 1.10 and per-blade scale max 1.05
+                // → tallest possible blade ≈ 95 × 1.10 × 1.05 ≈ 110u,
+                // safely under the ~160u eye level (no outliers stick
+                // above sightline). Average ≈ 95 × 1.05 × 0.95 ≈ 95u —
+                // similar feel to the previous taller field but with a
+                // much tighter ceiling.
+                tuftW: 70, tuftH: 95,
+                hMin: 1.00, hMax: 1.10,
+                bladeTex: wheatBladeTex,
+                capTex:   wheatCapTex,
+                shortBladeTexRef: wheatBladeTex,
+                shortCapTexRef:   wheatCapTex,
+                fadeOutStart: 0.45, fadeOutEnd: 1.00,
+                fadeInStart: -1.0, fadeInEnd: 0.0,
+                forceTallGrass: true,
+                wheat: true,
+                name: 'Wheat'
+            });
+
             // ── DENSE SHORT-GRASS BOOST FIELD ──
-            // A second field stacked on top of the main one, configured to:
-            //   • forceShortGrass: true  → blades only render where the
-            //     shortGrassMask is high (lawn zones), nothing in tall-grass
-            //     regions. Tall meadow keeps its existing density.
-            //   • CELL_SIZE 18           → tighter cell grid = more cells per
-            //     square unit = more individual blades on the ground.
-            //   • scatterMul 2.4         → each blade scatters up to ~30u from
-            //     its cell centre — well beyond the 18u cell size, so blades
-            //     freely intermix across cell boundaries. No grid pattern at
-            //     any viewing distance, just blades scattered everywhere.
-            //   • tuftW/tuftH halved     → these are smaller blades to match
-            //     the lawn aesthetic, not the meadow.
-            //   • Half-radius 1620u      → only renders close to camera where
-            //     the density boost actually reads visually; far away the
-            //     main field's blades take over.
-            // Uses shortBladeTex/shortCapTex which have a brighter, more
-            // uniform palette suited to lawn grass (no seedhead feathers).
+            // Renders short-blade grass everywhere (no forceShortGrass) so
+            // wheat zones get a green understory mixed in beneath the
+            // golden stalks. The default shader branch still does
+            // heightVar *= 0.40 in lawn zones (keeping lawn behaviour
+            // identical), and leaves heightVar at 1.0 in wheat zones —
+            // ~58u max blades there, well below the ~110u wheat ceiling.
+            //
+            //   • CELL_SIZE 18    → tighter cell grid = more individual blades
+            //   • scatterMul 2.4  → blades scatter ~30u from cell centre,
+            //                       eliminating any grid pattern
+            //   • tuftW/tuftH small → matches the lawn aesthetic, not the meadow
+            //   • Half-radius 1620u → only renders close to camera; far
+            //                         away the main field's blades take over
+            // Uses shortBladeTex/shortCapTex (brighter green than the main
+            // grass field), so it reads as fresh new growth under the wheat.
             buildField({
                 FIELD: 180, CELL_SIZE: 18,
                 tuftW: 38, tuftH: 48,
@@ -4768,7 +5561,6 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 shortCapTexRef:   shortCapTex,
                 fadeOutStart: 0.55, fadeOutEnd: 1.00,
                 fadeInStart: -1.0, fadeInEnd: 0.0,
-                forceShortGrass: true,
                 scatterMul: 2.4,
                 name: 'Dense Short Grass'
             });
@@ -4832,23 +5624,33 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             const loader = new GLTFLoader();
             loader.load('assets/low_poly_mushrooms.glb', gltf => {
                 const raw = gltf.scene;
-                raw.traverse(n => {
-                    if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
-                });
+                raw.updateMatrixWorld(true);
 
-                // Measure after parent transforms resolve, then shift so base
-                // sits at y=0 and it's centred in X/Z.
+                // Measure once for placement scaling (whole-prefab bounds).
                 const bb = new THREE.Box3().setFromObject(raw);
                 const height = Math.max(bb.max.y - bb.min.y, 0.0001);
                 const widthX = bb.max.x - bb.min.x;
                 const widthZ = bb.max.z - bb.min.z;
-                raw.position.set(
-                    -(bb.min.x + bb.max.x) * 0.5,
-                    -bb.min.y,
-                    -(bb.min.z + bb.max.z) * 0.5
-                );
-                const template = new THREE.Group();
-                template.add(raw);
+
+                // Bake each sub-mesh's world matrix into its geometry, then
+                // shift so the prefab base sits at y=0 and it's centred in
+                // X/Z. This way each sub-mesh becomes a self-contained
+                // template that can be rendered with InstancedMesh — no
+                // need to clone Groups per placement.
+                const cx0 = (bb.min.x + bb.max.x) * 0.5;
+                const cz0 = (bb.min.z + bb.max.z) * 0.5;
+                const sub = [];
+                raw.traverse(n => {
+                    if (!n.isMesh) return;
+                    const geo = n.geometry.clone();
+                    geo.applyMatrix4(n.matrixWorld);
+                    geo.translate(-cx0, -bb.min.y, -cz0);
+                    sub.push({ geometry: geo, material: n.material, instances: [] });
+                });
+                if (sub.length === 0) {
+                    console.warn('No mushroom sub-meshes in GLB');
+                    return;
+                }
 
                 function tooClose(vx, vz) {
                     return Math.sqrt((vx-sX)**2 + (vz-sZ)**2) < 2600;
@@ -4861,7 +5663,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     const cz = (rnd() - 0.5) * 108000;
                     if (tooClose(cx, cz)) continue;
 
-                    const count  = 2 + Math.floor(rnd() * 5);    // 2–6 mushrooms per patch
+                    const count  = 2 + Math.floor(rnd() * 5);
                     const patchR = 60 + rnd() * 140;
 
                     for (let j = 0; j < count; j++) {
@@ -4870,23 +5672,13 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const mx = cx + Math.cos(a) * r;
                         const mz = cz + Math.sin(a) * r;
 
-                        const worldH = 25 + rnd() * 55;          // 25–80 units tall
+                        const worldH = 25 + rnd() * 55;
                         const sc = worldH / height;
+                        const ry = rnd() * Math.PI * 2;
+                        const rx = (rnd() - 0.5) * 0.08;
+                        const rz = (rnd() - 0.5) * 0.08;
 
-                        const m = template.clone(true);
-                        m.scale.setScalar(sc);
-                        m.rotation.y = rnd() * Math.PI * 2;
-                        // Tiny random lean so they don't all face identically
-                        m.rotation.x = (rnd() - 0.5) * 0.08;
-                        m.rotation.z = (rnd() - 0.5) * 0.08;
-                        // Footprint-aware grounding. On hills a single
-                        // center-sample left the downslope edge of the
-                        // base hovering above terrain. Sample at the four
-                        // edges of the footprint plus center, take the
-                        // LOWEST, then sink hard so the entire base reads
-                        // as planted in soil. The cap is round and small,
-                        // so over-sinking the upslope side just blends
-                        // into the ground naturally.
+                        // Footprint-aware grounding (lowest of 5 samples).
                         const footR = Math.max(widthX, widthZ) * sc * 0.5;
                         const gyC = getElevation(mx, mz);
                         const gyN = getElevation(mx, mz - footR);
@@ -4894,12 +5686,36 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const gyE = getElevation(mx + footR, mz);
                         const gyW = getElevation(mx - footR, mz);
                         const lowestGy = Math.min(gyC, gyN, gyS, gyE, gyW);
-                        m.position.set(mx, lowestGy - worldH * 0.18, mz);
-                        scene.add(m);
+                        const py = lowestGy - worldH * 0.18;
+
+                        // Each placement adds an instance to EVERY sub-mesh
+                        // template — they all share the same transform so
+                        // the prefab stays whole.
+                        for (let s = 0; s < sub.length; s++) {
+                            sub[s].instances.push({ x: mx, y: py, z: mz, rx, ry, rz, sc });
+                        }
                         placed++;
                     }
                 }
-                console.log('Mushrooms spawned:', placed);
+
+                // Assemble one InstancedMesh per sub-mesh template.
+                const _mDummy = new THREE.Object3D();
+                sub.forEach(s => {
+                    if (!s.instances.length) return;
+                    const im = new THREE.InstancedMesh(s.geometry, s.material, s.instances.length);
+                    im.castShadow = true;
+                    im.receiveShadow = true;
+                    for (let i = 0; i < s.instances.length; i++) {
+                        const inst = s.instances[i];
+                        _mDummy.position.set(inst.x, inst.y, inst.z);
+                        _mDummy.rotation.set(inst.rx, inst.ry, inst.rz);
+                        _mDummy.scale.setScalar(inst.sc);
+                        _mDummy.updateMatrix();
+                        im.setMatrixAt(i, _mDummy.matrix);
+                    }
+                    im.instanceMatrix.needsUpdate = true;
+                    scene.add(im);
+                });
             }, undefined, e => console.warn('Mushroom GLB not found:', e));
         })();
 
@@ -4954,12 +5770,17 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                 // that tanked perf without contributing to the silhouette.
                 function pickBig() { return templates[60 + Math.floor(rnd() * 10)]; }
 
+                // Per-template pending-instance lists. We don't create a
+                // THREE.Mesh per rock anymore — that was 8k separate scene
+                // objects = 8k draw calls + 8k matrix uploads/frame. Instead
+                // we record each placement here and assemble one
+                // InstancedMesh per template after all spawning is done.
+                templates.forEach(t => { t.instances = []; });
+
                 function placeRock(wx, wy, wz, worldH, tmpl, addCollision = false) {
                     tmpl = tmpl || pickBig();
                     const sc = worldH / tmpl.height;
-                    const m = new THREE.Mesh(tmpl.geometry, tmpl.material);
-                    m.scale.setScalar(sc);
-                    m.rotation.y = rnd() * Math.PI * 2;
+                    const ry = rnd() * Math.PI * 2;
 
                     // Sample terrain at 4 points around rock footprint — use LOWEST.
                     // Then sink rocks a bit so they look settled, not perched on tiptoes.
@@ -4969,23 +5790,14 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                     const gy3 = getElevation(wx, wz + r);
                     const gy4 = getElevation(wx, wz - r);
                     const lowestGround = Math.min(wy, gy1, gy2, gy3, gy4);
-                    const settleSink = worldH * 0.12; // 12% of height buried
+                    const settleSink = worldH * 0.12;
+                    const py = lowestGround - tmpl.baseY * sc - settleSink;
 
-                    m.position.set(wx, lowestGround - tmpl.baseY * sc - settleSink, wz);
-                    m.castShadow = true;
-                    m.receiveShadow = true;
-                    scene.add(m);
+                    tmpl.instances.push({ x: wx, y: py, z: wz, ry, sc });
 
                     // OBB (oriented bounding box). Same shape as the local
                     // bbox of the geometry, but rotated WITH the rock instead
-                    // of axis-aligned to the world. This eliminates the
-                    // rotation inflation that AABBs suffer (a square rock
-                    // rotated 45° gives an AABB ~41% bigger than its actual
-                    // footprint). The match is exact at every Y rotation.
-                    // Stored as: center, half-extents in local space (already
-                    // scaled to world units), and precomputed cos/sin of the
-                    // Y rotation so the per-frame test is just a 2D rotate
-                    // + AABB compare in the rock's local frame.
+                    // of axis-aligned to the world.
                     if (addCollision) {
                         const bb = tmpl.geometry.boundingBox;
                         const hx = (bb.max.x - bb.min.x) * 0.5 * sc;
@@ -4993,16 +5805,14 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         const hz = (bb.max.z - bb.min.z) * 0.5 * sc;
                         obstacles.push({
                             type: 'obb',
-                            cx: m.position.x, cy: m.position.y, cz: m.position.z,
+                            cx: wx, cy: py, cz: wz,
                             hx, hy, hz,
-                            minY: m.position.y - hy,
-                            maxY: m.position.y + hy,
-                            cosT: Math.cos(m.rotation.y),
-                            sinT: Math.sin(m.rotation.y)
+                            minY: py - hy,
+                            maxY: py + hy,
+                            cosT: Math.cos(ry),
+                            sinT: Math.sin(ry)
                         });
                     }
-
-                    return { mesh: m, scaledHeight: worldH };
                 }
 
                 function tooClose(vx, vz) {
@@ -5110,314 +5920,37 @@ const s = Math.sin(angle); const c = Math.cos(angle);
                         placeRock(sx, gy, sz, 90 + rnd()*150, pickBig());
                     }
                 }
-                console.log('Rocks spawned');
+                // ── ASSEMBLE INSTANCED MESHES ──
+                // One InstancedMesh per template (10 in use). Cuts draw
+                // calls from ~8000 to ~10 and eliminates ~8000 per-frame
+                // matrix uniform uploads. Visually identical: same geometry,
+                // same materials, same per-instance positions/rotations/scales.
+                const _rockDummy = new THREE.Object3D();
+                let _rockDrawCalls = 0;
+                let _rockTotal     = 0;
+                templates.forEach(tmpl => {
+                    const insts = tmpl.instances;
+                    if (!insts || insts.length === 0) return;
+                    const im = new THREE.InstancedMesh(tmpl.geometry, tmpl.material, insts.length);
+                    im.castShadow = true;
+                    im.receiveShadow = true;
+                    for (let i = 0; i < insts.length; i++) {
+                        const inst = insts[i];
+                        _rockDummy.position.set(inst.x, inst.y, inst.z);
+                        _rockDummy.rotation.set(0, inst.ry, 0);
+                        _rockDummy.scale.setScalar(inst.sc);
+                        _rockDummy.updateMatrix();
+                        im.setMatrixAt(i, _rockDummy.matrix);
+                    }
+                    im.instanceMatrix.needsUpdate = true;
+                    scene.add(im);
+                    _rockDrawCalls++;
+                    _rockTotal += insts.length;
+                });
+                console.log('Rocks spawned: ' + _rockTotal + ' instances across ' + _rockDrawCalls + ' draw calls');
             }, undefined, e => console.warn('70-rock pack not found:', e));
         })();
 
-        // ── CLOUDS (GLB) ──
-        // Loads assets/Clouds.glb — a low-poly pack with 3 cumulus shapes
-        // merged into one mesh. We split that one mesh into the 3 distinct
-        // shapes by spatial-clustering its triangles (the GLB has unwelded
-        // verts so we can't use connected components — every face would
-        // be its own "cloud"). Then instance each cloud type across the
-        // sky at high altitude. MeshStandardMaterial means clouds inherit
-        // the existing sun + hemisphere lighting automatically — they
-        // tint warm at sunset and cool blue at night without any extra
-        // shader work, just like trees and rocks do.
-        (function spawnClouds() {
-            const loader = new GLTFLoader();
-            loader.load('assets/Clouds.glb', gltf => {
-                // Find the (single) mesh and pull out its geometry.
-                let srcMesh = null;
-                gltf.scene.traverse(n => { if (n.isMesh && !srcMesh) srcMesh = n; });
-                if (!srcMesh) { console.warn('No mesh in Clouds.glb'); return; }
-
-                const srcGeo = srcMesh.geometry;
-                const posAttr = srcGeo.attributes.position;
-                const idxAttr = srcGeo.index;
-                if (!idxAttr) { console.warn('Clouds.glb mesh has no index buffer'); return; }
-                const positions = posAttr.array;
-                const indices = idxAttr.array;
-                const triCount = indices.length / 3;
-
-                // Compute triangle centroids for spatial clustering.
-                const centroids = new Float32Array(triCount * 3);
-                for (let t = 0; t < triCount; t++) {
-                    const a = indices[t*3]   * 3;
-                    const b = indices[t*3+1] * 3;
-                    const c = indices[t*3+2] * 3;
-                    centroids[t*3]   = (positions[a]   + positions[b]   + positions[c])   / 3;
-                    centroids[t*3+1] = (positions[a+1] + positions[b+1] + positions[c+1]) / 3;
-                    centroids[t*3+2] = (positions[a+2] + positions[b+2] + positions[c+2]) / 3;
-                }
-
-                // Spatial-hash union-find: tris within R of each other join
-                // the same cluster. R=0.04 (model-local units) is bigger
-                // than typical face size (~0.03) but smaller than gaps
-                // between separate cloud bodies (>0.05).
-                const R = 0.04, R2 = R * R, CELL = R;
-                const parent = new Int32Array(triCount);
-                for (let i = 0; i < triCount; i++) parent[i] = i;
-                const find = x => {
-                    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
-                    return x;
-                };
-                const union = (a, b) => {
-                    const ra = find(a), rb = find(b);
-                    if (ra !== rb) parent[ra] = rb;
-                };
-                const grid = new Map();
-                const cellKey = (cx, cy, cz) => cx + ',' + cy + ',' + cz;
-                for (let t = 0; t < triCount; t++) {
-                    const cx = Math.floor(centroids[t*3]   / CELL);
-                    const cy = Math.floor(centroids[t*3+1] / CELL);
-                    const cz = Math.floor(centroids[t*3+2] / CELL);
-                    const k = cellKey(cx, cy, cz);
-                    let bucket = grid.get(k);
-                    if (!bucket) { bucket = []; grid.set(k, bucket); }
-                    bucket.push(t);
-                }
-                for (let t = 0; t < triCount; t++) {
-                    const px = centroids[t*3], py = centroids[t*3+1], pz = centroids[t*3+2];
-                    const cx = Math.floor(px / CELL);
-                    const cy = Math.floor(py / CELL);
-                    const cz = Math.floor(pz / CELL);
-                    for (let dx = -1; dx <= 1; dx++)
-                    for (let dy = -1; dy <= 1; dy++)
-                    for (let dz = -1; dz <= 1; dz++) {
-                        const bucket = grid.get(cellKey(cx+dx, cy+dy, cz+dz));
-                        if (!bucket) continue;
-                        for (let i = 0; i < bucket.length; i++) {
-                            const u = bucket[i];
-                            if (u === t) continue;
-                            const ddx = centroids[u*3]   - px;
-                            const ddy = centroids[u*3+1] - py;
-                            const ddz = centroids[u*3+2] - pz;
-                            if (ddx*ddx + ddy*ddy + ddz*ddz < R2) union(t, u);
-                        }
-                    }
-                }
-
-                // Group triangles by root, then build a separate geometry
-                // per cluster. We re-pack vertices so each template is
-                // self-contained (its own POSITION + NORMAL buffers).
-                const clusters = new Map();
-                for (let t = 0; t < triCount; t++) {
-                    const r = find(t);
-                    let arr = clusters.get(r);
-                    if (!arr) { arr = []; clusters.set(r, arr); }
-                    arr.push(t);
-                }
-                // Sort by tri count descending and keep all clusters with
-                // >100 tris (filters out any stray noise; expected ≈3 clouds).
-                const clusterList = [...clusters.values()]
-                    .filter(arr => arr.length > 100)
-                    .sort((a, b) => b.length - a.length);
-                console.log('Cloud shapes extracted:', clusterList.length);
-                if (clusterList.length === 0) return;
-
-                const normalAttr = srcGeo.attributes.normal;
-                const normals = normalAttr ? normalAttr.array : null;
-
-                const templates = clusterList.map(triList => {
-                    // Re-pack: gather unique source verts used by these
-                    // tris, build a remap, then emit fresh geometry. Also
-                    // recenter X/Z and lift base to y=0 so placement is
-                    // just `(x, altitude, z)` with no per-template offset.
-                    const usedVerts = new Map();   // srcIdx → newIdx
-                    const newPositions = [];
-                    const newNormals = [];
-                    const newIndices = [];
-                    for (const t of triList) {
-                        for (let k = 0; k < 3; k++) {
-                            const srcIdx = indices[t*3 + k];
-                            let newIdx = usedVerts.get(srcIdx);
-                            if (newIdx === undefined) {
-                                newIdx = newPositions.length / 3;
-                                usedVerts.set(srcIdx, newIdx);
-                                newPositions.push(
-                                    positions[srcIdx*3],
-                                    positions[srcIdx*3+1],
-                                    positions[srcIdx*3+2]
-                                );
-                                if (normals) newNormals.push(
-                                    normals[srcIdx*3],
-                                    normals[srcIdx*3+1],
-                                    normals[srcIdx*3+2]
-                                );
-                            }
-                            newIndices.push(newIdx);
-                        }
-                    }
-                    const geo = new THREE.BufferGeometry();
-                    geo.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
-                    if (newNormals.length) geo.setAttribute('normal', new THREE.Float32BufferAttribute(newNormals, 3));
-                    else geo.computeVertexNormals();
-                    geo.setIndex(newIndices);
-                    geo.computeBoundingBox();
-                    const bb = geo.boundingBox;
-                    geo.translate(
-                        -(bb.min.x + bb.max.x) * 0.5,
-                        -bb.min.y,
-                        -(bb.min.z + bb.max.z) * 0.5
-                    );
-                    geo.computeBoundingBox();
-                    const h = geo.boundingBox.max.y;
-                    return { geometry: geo, height: h };
-                });
-
-                // Single shared material: bright white, full roughness so
-                // it stays matte (no specular highlights), no metalness.
-                // The scene's existing sunLight + hemiLight do all the
-                // tinting work — warm at sunset, blue at night, white
-                // at noon, completely automatic.
-                //
-                // Semi-transparent (opacity 0.85) so you can faintly see
-                // the sky/sun through clouds — reads as wispy vapor rather
-                // than solid styrofoam. depthWrite OFF prevents overlapping
-                // clouds from punching depth-buffer holes in each other,
-                // which would produce visible seams when one drifts behind
-                // another. depthTest stays ON so terrain/sun/moon still
-                // occlude clouds correctly.
-                const cloudMat = new THREE.MeshStandardMaterial({
-                    color: 0xffffff,
-                    roughness: 1.0,
-                    metalness: 0.0,
-                    flatShading: false,
-                    transparent: true,
-                    opacity: 0.85,
-                    depthWrite: false,
-                });
-
-                // Spawn instances. Clouds aren't static — they drift on
-                // wind across the world AND have a fade-in / live / fade-out
-                // life cycle, then respawn at a random location. This reads
-                // like real cumulus condensing, drifting, and dissipating.
-                //
-                // Each cloud stores its own state in userData so the per-
-                // frame tick function (registered as window.cloudsTick and
-                // called from the main animate loop) can update them.
-                const CLOUD_COUNT = 30;
-                const ALT_MIN = 8500;
-                const ALT_MAX = 12000;
-                const SCALE_MIN = 1500;   // each unit of model height → world units
-                const SCALE_MAX = 3500;
-                const SPREAD = 90000;
-
-                // Wind direction (unit XZ) and speed in world units / sec.
-                // At 110 u/s a cloud crosses the 90k spread in ~14 minutes —
-                // noticeably moving while you watch the sky.
-                const WIND_DIR_X = 0.85;
-                const WIND_DIR_Z = 0.53;
-                const WIND_SPEED = 110;
-
-                // Lifecycle: each cloud lives ~LIFE_SECONDS, with FADE_FRAC
-                // of that spent ramping in (start) and out (end). Start
-                // each cloud at a random point in its life so they don't
-                // all bloom and die in sync. With LIFE=240s and FADE=0.30,
-                // the bloom and dissipation phases each take ~72 seconds —
-                // slow enough that you can watch a cloud actually form.
-                const LIFE_SECONDS = 240;
-                const FADE_FRAC    = 0.30;   // 30% in, 40% full, 30% out
-
-                const clouds = [];
-                let placed = 0;
-                for (let i = 0; i < CLOUD_COUNT; i++) {
-                    const tpl = templates[Math.floor(rnd() * templates.length)];
-                    const cloud = new THREE.Mesh(tpl.geometry, cloudMat);
-                    const targetH = SCALE_MIN + rnd() * (SCALE_MAX - SCALE_MIN);
-                    const fullScale = targetH / tpl.height;
-                    cloud.position.set(
-                        (rnd() - 0.5) * SPREAD,
-                        ALT_MIN + rnd() * (ALT_MAX - ALT_MIN),
-                        (rnd() - 0.5) * SPREAD
-                    );
-                    cloud.rotation.y = rnd() * Math.PI * 2;
-                    cloud.scale.setScalar(0.001);   // start invisible; tick will scale up
-                    cloud.castShadow = false;
-                    cloud.receiveShadow = false;
-                    cloud.frustumCulled = true;
-                    // Per-cloud state for the tick function. fullScale is
-                    // the peak size; lifeAge starts random so clouds are
-                    // staggered through their lifecycles at world load.
-                    cloud.userData = {
-                        fullScale: fullScale,
-                        // Slight horizontal stretch baked into the scale
-                        // multipliers so the tick can just write
-                        // scale.x = baseScale * stretchX, etc.
-                        stretchX: 1.3,
-                        stretchY: 1.0,
-                        stretchZ: 1.3,
-                        lifeAge: rnd() * LIFE_SECONDS,
-                    };
-                    scene.add(cloud);
-                    clouds.push(cloud);
-                    placed++;
-                }
-                console.log('Clouds spawned:', placed);
-
-                // Half-extents of the wrap volume. When a cloud drifts
-                // past +HALF on either axis, snap it to -HALF so it
-                // re-enters from the opposite edge — looks like an
-                // endless sky.
-                const HALF = SPREAD * 0.5;
-
-                // Smoothstep helper for soft fade in/out instead of linear.
-                // Cubic eases at both ends so clouds bloom and dissipate
-                // gently rather than popping.
-                const smoothstep = (e0, e1, x) => {
-                    const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-                    return t * t * (3 - 2 * t);
-                };
-
-                // Per-frame update function. Called once per frame from
-                // the main animate loop. Drifts each cloud with wind and
-                // updates its lifecycle scale. Cheap — ~30 clouds × a
-                // handful of math ops per frame, no allocations.
-                window.cloudsTick = function(delta) {
-                    const wx = WIND_DIR_X * WIND_SPEED * delta;
-                    const wz = WIND_DIR_Z * WIND_SPEED * delta;
-                    for (let i = 0; i < clouds.length; i++) {
-                        const c = clouds[i];
-                        const ud = c.userData;
-
-                        // Wind drift + wrap. If the cloud crosses an edge,
-                        // snap it to the opposite side AND randomize the
-                        // perpendicular axis a bit so wrapping doesn't
-                        // produce visible rails of clouds.
-                        c.position.x += wx;
-                        c.position.z += wz;
-                        if (c.position.x >  HALF) { c.position.x = -HALF; c.position.z = (rnd()-0.5) * SPREAD; }
-                        if (c.position.x < -HALF) { c.position.x =  HALF; c.position.z = (rnd()-0.5) * SPREAD; }
-                        if (c.position.z >  HALF) { c.position.z = -HALF; c.position.x = (rnd()-0.5) * SPREAD; }
-                        if (c.position.z < -HALF) { c.position.z =  HALF; c.position.x = (rnd()-0.5) * SPREAD; }
-
-                        // Lifecycle. Age normalized to 0-1 over LIFE_SECONDS.
-                        // Fade ramps: 0 → 1 over first FADE_FRAC, hold at 1,
-                        // 1 → 0 over last FADE_FRAC. When age completes, the
-                        // cloud "dies" and respawns at a random spot with a
-                        // new height/rotation so the sky composition keeps
-                        // changing instead of repeating.
-                        ud.lifeAge += delta;
-                        if (ud.lifeAge >= LIFE_SECONDS) {
-                            ud.lifeAge = 0;
-                            c.position.set(
-                                (rnd() - 0.5) * SPREAD,
-                                ALT_MIN + rnd() * (ALT_MAX - ALT_MIN),
-                                (rnd() - 0.5) * SPREAD
-                            );
-                            c.rotation.y = rnd() * Math.PI * 2;
-                        }
-                        const t = ud.lifeAge / LIFE_SECONDS;
-                        const fadeIn  = smoothstep(0,            FADE_FRAC,     t);
-                        const fadeOut = smoothstep(1 - FADE_FRAC, 1.0,           t);
-                        const life = fadeIn * (1 - fadeOut);
-                        const s = ud.fullScale * life;
-                        c.scale.set(s * ud.stretchX, s * ud.stretchY, s * ud.stretchZ);
-                    }
-                };
-            }, undefined, e => console.warn('Clouds GLB not found:', e));
-        })();
 
 
 // --- 5 DISTANT CRYSTAL MONOLITHS WITH FULL PARKOUR ---
@@ -6373,7 +6906,13 @@ const s = Math.sin(angle); const c = Math.cos(angle);
         const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(35000, 35000), sunMat);
         scene.add(sunMesh);
         const sunLight = new THREE.DirectionalLight(0xffccaa, 2.5); sunLight.castShadow = true;
-        sunLight.shadow.mapSize.set(4096, 4096); sunLight.shadow.camera.left = -3000; sunLight.shadow.camera.right = 3000;
+        // 2048 is plenty for a 6000-unit shadow camera frustum (~3u/texel)
+        // — combined with PCFSoftShadowMap and the 3×3 PCF in the grass
+        // shader, the soft edges hide any aliasing. 4096 was 4× the data
+        // re-rendered every frame as the day/night sun rotates; 2048 cuts
+        // shadow render time and per-fragment shadow sample cost without a
+        // visible difference at the chosen pixel scale.
+        sunLight.shadow.mapSize.set(2048, 2048); sunLight.shadow.camera.left = -3000; sunLight.shadow.camera.right = 3000;
         sunLight.shadow.camera.top = 3000; sunLight.shadow.camera.bottom = -3000;
         sunLight.shadow.camera.near = 100; sunLight.shadow.camera.far = 80000;
         sunLight.shadow.bias = -0.0003; sunLight.shadow.normalBias = 0.04;
@@ -7406,16 +7945,22 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             moonOp:     0.35
         };
         const TOD_DAY = {
-            skyTop:     new THREE.Color(0x9ebcd6),
-            skyMid:     new THREE.Color(0xc2d6e3),
-            skyBottom:  new THREE.Color(0xdde8ee),
+            // Lightly saturated zenith blue fading to a pale hazy horizon.
+            // Closer to the original pale palette but with enough zenith
+            // saturation to read as "blue sky" rather than washed-out grey.
+            skyTop:     new THREE.Color(0x6896c8),
+            skyMid:     new THREE.Color(0xc0d2dd),
+            skyBottom:  new THREE.Color(0xd5e2ec),
             sunCol:     new THREE.Color(0xfff2d4),
             sunInt:     3.4,
             hemiSky:    new THREE.Color(0xb8d2e2),
             hemiGround: new THREE.Color(0xa89578),
             hemiInt:    1.25,
             fogCol:     new THREE.Color(0xd0dbe4),
-            hazeCol:    new THREE.Color(0xffceaa),
+            // Day haze killed — Preetham produces its own sun glow, the
+            // additive peach was double-painting the horizon white.
+            // TOD_GOLDEN.hazeCol still drives the warm sunset/sunrise band.
+            hazeCol:    new THREE.Color(0x000000),
             sunGlow:    new THREE.Color(0xffd8a8),
             sunCore:    new THREE.Color(0xffffff),
             starOp:     0.0,
@@ -7484,8 +8029,51 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             skyMat.uniforms.topColor.value.copy(_palOut.skyTop);
             skyMat.uniforms.midColor.value.copy(_palOut.skyMid);
             skyMat.uniforms.bottomColor.value.copy(_palOut.skyBottom);
+            // Sun haze halo intensity. sunGlow color is hardcoded white
+            // at init (independent of palette). sunDir references SUN_DIR
+            // by reference, so the mutation in this function propagates.
+            //
+            // Stronger near the horizon sun for golden-hour brightening,
+            // but gated by `horizonGate` so the halo fades out as the
+            // sun drops below the horizon — otherwise the dot-product
+            // halo lingers into evening/night since sky directions near
+            // the just-set sun still produce high cosTheta.
+            const sunsetBoost = 1.0 - smoothstepTOD(0.05, 0.45, Math.abs(elev));
+            const horizonGate = smoothstepTOD(-0.05, 0.10, elev);
+            skyMat.uniforms.uSunPower.value = horizonGate * (0.55 + sunsetBoost * 0.20);
             scene.fog.color.copy(_palOut.fogCol);
             hazeMat.uniforms.glowColor.value.copy(_palOut.hazeCol);
+
+            // Volumetric cloud lighting. Three colors track the same
+            // elev curve as everything else, so clouds tint warm at
+            // sunset and dim deep blue at night without a separate
+            // palette table. uSunlit is the bright top of the cloud,
+            // uShadow the ambient underside, uSunTint the warm halo
+            // applied when looking toward the sun.
+            const cloudDay = smoothstepTOD(-0.05, 0.30, elev);
+            const cloudSunset = 1.0 - smoothstepTOD(0.08, 0.40, Math.max(0, elev));
+            // Top: deep blue at night → bright white at noon. Push
+            // slightly past 1.0 at noon for ACES tone-map headroom.
+            cloudMat.uniforms.uSunlit.value.setRGB(
+                0.06 + cloudDay * 1.04,
+                0.08 + cloudDay * 1.02,
+                0.12 + cloudDay * 0.92
+            );
+            // Bottom: very dark blue at night → soft warm-white at noon.
+            // Kept fairly bright so cloud bodies don't read as grey
+            // overcast — most rays sample mostly the lower half of the
+            // slab so the shadow color dominates the average pixel.
+            cloudMat.uniforms.uShadow.value.setRGB(
+                0.03 + cloudDay * 0.85,
+                0.04 + cloudDay * 0.85,
+                0.07 + cloudDay * 0.88
+            );
+            // Sun tint: gold at sunset, neutral warm-white midday.
+            cloudMat.uniforms.uSunTint.value.setRGB(
+                1.0 + cloudSunset * 0.6,
+                0.85 - cloudSunset * 0.05,
+                0.55 - cloudSunset * 0.20
+            );
             // hazeMat.uniforms.sunDir already references SUN_DIR, so the
             // mutation above propagates automatically.
 
@@ -7501,9 +8089,6 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             sunMat.uniforms.coreColor.value.copy(_palOut.sunCore);
             starMaterial.opacity = _palOut.starOp;
             moon.material.opacity = _palOut.moonOp;
-            // Halo rides on top of the moon's opacity curve, but a bit
-            // steeper — it should almost fully fade out even in dusk/dawn
-            // golden hour, then pop at full night.
             // Halo rides on top of the moon's opacity curve, but a bit
             // steeper — fully fades out at dusk/dawn, then *strongly*
             // pops at full night. The 1.6 multiplier gets clamped to 1.0
@@ -7524,12 +8109,13 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             lanternLight.distance  = 6000 + nightness * 16000;   // up to ~22000 units at full night
             lanternCore.material.emissiveIntensity = 8 + nightness * 22;
 
-            // Sun disc shrinks when high in the sky (real atmospheres make
-            // the sun *look* bigger near the horizon for optical/illusion
-            // reasons — matching that feel reads as "overhead sun is
-            // smaller" without actually touching horizon sizing).
-            // elev = 0 → 1.00x scale, elev = 1 (noon) → 0.70x.
-            const sunScale = 1.0 - Math.max(0, elev) * 0.30;
+            // Sun disc shrinks fast as it leaves the horizon (real
+            // atmospheres make the sun *look* bigger near the horizon).
+            // Smoothstep over the first ~17° of elevation so by the time
+            // the sky has gone fully Preetham-blue the disc is already
+            // at its minimum size. elev=0 → 1.00x, elev≥0.30 → 0.20x.
+            const sunShrink = smoothstepTOD(0.0, 0.30, Math.max(0, elev));
+            const sunScale = 1.0 - sunShrink * 0.80;
             sunMesh.scale.set(sunScale, sunScale, 1);
         }
 
@@ -7827,6 +8413,15 @@ const s = Math.sin(angle); const c = Math.cos(angle);
 
             skyMesh.position.copy(camera.position);
             hazeMesh.position.copy(camera.position);
+            // Volumetric cloud dome rides with the camera so the
+            // raymarch is always in camera-relative space (the vertex
+            // shader treats local position as the eye direction).
+            // The noise field itself is anchored in world space via
+            // uCamPos — clouds stay put as the player walks, instead
+            // of locking to the camera.
+            cloudMesh.position.copy(camera.position);
+            cloudMat.uniforms.uTime.value = time;
+            cloudMat.uniforms.uCamPos.value.copy(camera.position);
 
             // Drift clouds with wind + age them through their fade
             // in/live/fade out lifecycle. The function is registered
@@ -7893,7 +8488,7 @@ const s = Math.sin(angle); const c = Math.cos(angle);
             }
         }
 
-      
+
         animate();
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth / PIXEL_SCALE, window.innerHeight / PIXEL_SCALE, false); });
 
