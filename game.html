@@ -836,8 +836,8 @@
                 <div class="sm-row">
                     <span class="sm-row-label">FIELD OF VIEW</span>
                     <div class="sm-row-control">
-                        <input type="range" class="sm-slider" id="sm-fov" min="50" max="110" value="60" step="5">
-                        <span class="sm-val" id="sm-fov-val">60°</span>
+                        <input type="range" class="sm-slider" id="sm-fov" min="50" max="110" value="80" step="5">
+                        <span class="sm-val" id="sm-fov-val">80°</span>
                     </div>
                 </div>
                 <div class="sm-row">
@@ -1784,7 +1784,7 @@ if (isMobileDevice) {
 
         const PIXEL_SCALE = 2.5; 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200000);
+        const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 200000);
         const renderer = new THREE.WebGLRenderer({ antialias: false });
         renderer.setSize(window.innerWidth / PIXEL_SCALE, window.innerHeight / PIXEL_SCALE, false);
         
