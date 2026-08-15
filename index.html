@@ -2233,7 +2233,7 @@ function onClick(event) {
         if (isMobileDevice) {
             // Mobile handles mailto links naturally without switching tabs
             window.location.href = `mailto:${email}?subject=${subject}`;
-            setTimeout(() => { window.location.href = "https://lukabernstein.github.io/Luka-s-Game/"; }, 500);
+            setTimeout(() => { window.location.href = "https://luka-s-game.vercel.app/"; }, 500);
         } else {
             // --- THE DESKTOP BACKGROUND TRICK ---
 
@@ -2250,7 +2250,7 @@ function onClick(event) {
             // 3. Navigate the current tab to the hosted game immediately.
             // We use 0 delay here so the browser sees the current tab
             // as "busy" and is less likely to switch away from it.
-            window.location.href = "https://lukabernstein.github.io/Luka-s-Game/";
+            window.location.href = "https://luka-s-game.vercel.app/";
         }
         return; 
     }
